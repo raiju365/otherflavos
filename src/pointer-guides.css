@@ -4,7 +4,7 @@
   --guide-edge: rgb(8 10 8 / .16);
   --guide-hover: 1; --guide-press: 1;
   display: none; position: fixed; inset: 0; overflow: hidden;
-  pointer-events: none; user-select: none; z-index: 4;
+  pointer-events: none; user-select: none; z-index: 40;
 }
 .pointer-guides > span { position: absolute; top: 0; left: 0; pointer-events: none; }
 .pointer-guide-horizontal, .pointer-guide-vertical {
