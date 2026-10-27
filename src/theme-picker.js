@@ -78,7 +78,7 @@ export function initThemePicker(signal) {
       selectionMotion.settle();
       options.forEach(option => { option.tabIndex = -1; });
       if (motion.matches) finishClose();
-      else closeTimer = setTimeout(finishClose, 300);
+      else closeTimer = setTimeout(finishClose, 360);
     }
   }
 
