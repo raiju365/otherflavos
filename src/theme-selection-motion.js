@@ -1,6 +1,6 @@
 // A non-bouncy spring, evaluated analytically and played by WAAPI. Retargeting
 // carries position AND velocity; there is no timer, frame loop or input queue.
-const duration = 460, frequency = 26;
+const duration = 300, frequency = 26;
 export function selectionSpring({ from, velocity, to }, seconds) {
   const t = Math.max(0, seconds), error = from - to;
   const slope = velocity + frequency * error, decay = Math.exp(-frequency * t);
@@ -39,9 +39,9 @@ export function createThemeSelectionMotion(element, { now = () => performance.no
       if (!animate || typeof element.animate !== 'function'
         || (Math.abs(state.y - y) < .01 && Math.abs(state.velocity) < .1)) return;
       const record = { from: state.y, velocity: state.velocity, to: y, started: now(), animation: null };
-      const frames = Array.from({ length: 47 }, (_, i) => {
-        const offset = i / 46;
-        const value = i === 46 ? y : selectionSpring(record, offset * duration / 1000).y;
+      const frames = Array.from({ length: 19 }, (_, i) => {
+        const offset = i / 18;
+        const value = i === 18 ? y : selectionSpring(record, offset * duration / 1000).y;
         return { offset, transform: transform(Math.max(0, Math.min(maxY, value))) };
       });
       try {

@@ -16,11 +16,11 @@ export async function initFigure(canvas, signal) {
   const crop = portraitCrop(image.naturalWidth, image.naturalHeight);
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const listeners = new AbortController();
-  let frame = 0, last = 0, elapsed = 0, visible = true, pageActive = true, disposed = false;
+  let frame = 0, visible = true, pageActive = true, disposed = false, sectionMoving=false;
   let targetX = 0, targetY = 0, rx = 0, ry = 0;
   function draw() {
     ctx.clearRect(0, 0, width, height);
-    const fx = portraitEffect({ rx, ry, elapsed, still: motion.matches });
+    const fx = portraitEffect({ rx, ry, elapsed:0, still: motion.matches });
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(stamp, fx.x, fx.y, width, height);
@@ -39,21 +39,23 @@ export async function initFigure(canvas, signal) {
     ink.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
     draw();
   }
-  const tick = now => {
+  const active=()=>!disposed&&visible&&pageActive&&!sectionMoving&&!document.hidden&&!motion.matches
+    &&document.documentElement.dataset.entry!=='loading'
+    &&document.documentElement.dataset.themeControlOpen!=='true'&&document.documentElement.dataset.galleryMoving!=='true';
+  const unsettled=()=>Math.abs(targetX-rx)>.001||Math.abs(targetY-ry)>.001;
+  function wake(){if(active()&&!frame&&unsettled())frame=requestAnimationFrame(tick);}
+  const tick = () => {
     frame = 0;
-    if (disposed || !visible || !pageActive || document.hidden || document.documentElement.dataset.entry === 'loading' || motion.matches) return;
-    if (now - last >= 1000 / 30) {
-      elapsed += last ? Math.min(now - last, 60) : 0; last = now;
-      rx += (targetX - rx) * .06; ry += (targetY - ry) * .06;
-      draw();
-    }
-    frame = requestAnimationFrame(tick);
+    if(!active())return;
+    rx+=(targetX-rx)*.18;ry+=(targetY-ry)*.18;
+    if(!unsettled()){rx=targetX;ry=targetY;}
+    draw();wake();
   };
   const sync = () => {
-    cancelAnimationFrame(frame); frame = 0; last = 0;
+    cancelAnimationFrame(frame); frame = 0;
     if (disposed) return;
     draw();
-    if (visible && pageActive && !document.hidden && document.documentElement.dataset.entry !== 'loading' && !motion.matches) frame = requestAnimationFrame(tick);
+    wake();
   };
   const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting; sync();
@@ -63,6 +65,10 @@ export async function initFigure(canvas, signal) {
   on(window, 'resize', resize);
   on(document, 'visibilitychange', sync);
   on(document, 'portfolio:entryready', sync);
+  on(document, 'portfolio:themecontrol', sync);
+  on(document, 'portfolio:gallerymotion', sync);
+  on(document, 'portfolio:sectionstart',()=>{sectionMoving=true;sync();});
+  on(document, 'portfolio:sectionsettled',()=>{sectionMoving=false;sync();});
   on(motion, 'change', sync);
   on(window, 'pagehide', () => { pageActive = false; sync(); });
   on(window, 'pageshow', () => { pageActive = true; sync(); });
@@ -71,9 +77,10 @@ export async function initFigure(canvas, signal) {
     const rect = canvas.getBoundingClientRect();
     targetX = Math.max(-.5, Math.min(.5, (event.clientX - rect.left) / rect.width - .5));
     targetY = Math.max(-.5, Math.min(.5, (event.clientY - rect.top) / rect.height - .5));
+    wake();
   });
-  on(canvas.parentElement, 'pointerleave', () => { targetX = 0; targetY = 0; });
-  on(window, 'blur', () => { targetX = 0; targetY = 0; });
+  on(canvas.parentElement, 'pointerleave', () => { targetX = 0; targetY = 0; wake(); });
+  on(window, 'blur', () => { targetX = 0; targetY = 0; sync(); });
   function destroy() {
     if (disposed) return;
     disposed = true; cancelAnimationFrame(frame); frame = 0;

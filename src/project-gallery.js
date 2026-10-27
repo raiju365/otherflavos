@@ -15,8 +15,15 @@ export function initProjectGallery({signal,projects,onOpen}) {
   let position=0,target=0,frame=0,previous=null,width=800,height=440,current=-1,sway=0,swayVelocity=0;
   let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true;
   let paintedCards=[];
+  let motionNotified=false;
+  function notifyMotion(moving){
+    if(motionNotified===moving)return;motionNotified=moving;
+    document.documentElement.dataset.galleryMoving=String(moving);
+    document.dispatchEvent(new CustomEvent('portfolio:gallerymotion',{detail:{moving}}));
+  }
   const poseFor=(...args)=>(compact.matches?reelPose:loopPose)(...args);
   const available=()=>!signal.aborted&&!document.hidden&&pageActive&&focused&&visible&&!dialogOpen&&!panel.hidden
+    &&document.documentElement.dataset.themeControlOpen!=='true'
     &&document.documentElement.dataset.entry!=='loading'&&workspace.getAttribute('aria-busy')!=='true';
   const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available())paint();}});
   surface?.prime(projects.map(project=>mediaPath(project.image)||''));
@@ -25,6 +32,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
     const pointer=drag?.id;drag=null;
     if(pointer!==undefined&&viewport.hasPointerCapture?.(pointer))viewport.releasePointerCapture(pointer);
     delete viewport.dataset.dragging;intro=null;
+    notifyMotion(false);
   };
   function updateCaption(){
     const selected=wrapProject(Math.round(position),projects.length);
@@ -82,12 +90,13 @@ export function initProjectGallery({signal,projects,onOpen}) {
       const cycle=projects.length*slots.length;
       if(!drag&&Math.abs(position)>cycle*4){const shift=Math.trunc(position/cycle)*cycle;position-=shift;target-=shift;paint();}
       announce();
+      notifyMotion(false);
     }
   }
   function wake(){
     if(!available())return;
     if(reduced.matches){position=target;sway=swayVelocity=0;intro=null;paint();announce();return;}
-    if(!frame)frame=requestAnimationFrame(tick);
+    if(!frame){notifyMotion(true);frame=requestAnimationFrame(tick);}
   }
   function move(step){if(!available()||projects.length<2)return;target=Math.round(target)+step;wake();}
   function measure(){
@@ -170,6 +179,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }));
   on(document,'portfolio:sectionstart',()=>{pause();wasActive=false;needsEntrance=true;});
   on(document,'portfolio:sectionsettled',sync);on(document,'portfolio:entryready',sync);
+  on(document,'portfolio:themecontrol',sync);
   on(document,'visibilitychange',sync);on(window,'blur',()=>{focused=false;sync();});
   on(window,'focus',()=>{focused=true;sync();});on(window,'pagehide',()=>{pageActive=false;sync();});on(window,'pageshow',()=>{pageActive=true;sync();});
   on(window,'resize',()=>{pause();measure();sync();});

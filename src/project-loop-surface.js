@@ -59,7 +59,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
       },
       draw(cards,width,height,ratio=1){
         const rendered=new Set();if(dead||signal.aborted||!isActive()){canvas.hidden=true;return rendered;}
-        const dpr=Math.min(1.75,Math.max(1,ratio)),w=Math.round(width*dpr),h=Math.round(height*dpr);
+        const dpr=Math.min(width<=800?1.25:1.75,Math.max(1,ratio)),w=Math.round(width*dpr),h=Math.round(height*dpr);
         if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
         canvas.hidden=false;gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,vertices);gl.enableVertexAttribArray(attribute);gl.vertexAttribPointer(attribute,2,gl.FLOAT,false,0,0);

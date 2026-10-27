@@ -20,7 +20,7 @@ export function createSectionReveal({ animateElement, desktop }) {
     const groups = [...panel.querySelectorAll(textSelector)].filter(element => !element.hidden);
     groups.forEach(element => {
       element.dataset.sectionDisplay=String(element.matches('#about-statement, .project-title, .featured-caption h3'));
-      if (element.children.length) return;
+      if (element.children.length||element.dataset.sectionDisplay!=='true') return;
       element.replaceChildren(...element.textContent.split(/(\s+)/).map(token =>
         token.trim() ? makeWord(token) : token));
     });
@@ -50,7 +50,7 @@ export function createSectionReveal({ animateElement, desktop }) {
       const style = getComputedStyle(element);
       snapshots.set(element, { transform: style.transform, opacity: style.opacity || '1',clipPath:style.clipPath||'none' });
     };
-    content.groups.forEach(group => {const words=[...group.querySelectorAll('.section-word')];(words.length?words:[group]).forEach(sample);});
+    content.groups.forEach(group => {const words=[...group.querySelectorAll('.section-word')];(group.dataset.sectionDisplay==='true'&&words.length?words:[group]).forEach(sample);});
     content.media.forEach(({ frame, image }) => { if (frame) { sample(frame); sample(image); } });
   }
   function reset() { /* Filled effects are cancelled by the shared navigation owner. */ }
@@ -63,7 +63,7 @@ export function createSectionReveal({ animateElement, desktop }) {
       if (motion) motions.push(motion);
     };
     groups.filter(inViewport).forEach((group, groupIndex) => {
-      const words=[...group.querySelectorAll('.section-word')],targets=words.length?words:[group];
+      const words=[...group.querySelectorAll('.section-word')],targets=group.dataset.sectionDisplay==='true'&&words.length?words:[group];
       const display=group.dataset.sectionDisplay==='true',groupDelay=entering?Math.min(groupIndex*40,120):0;
       const step=display?18:Math.min(4,65/Math.max(1,targets.length-1));
       targets.forEach((word,index)=>{

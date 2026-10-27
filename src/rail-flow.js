@@ -30,10 +30,16 @@ export function bendFlowCoordinates(x,y,time) {
 export function paintRailFlow(data,width,height,time,{curved=true}={}) {
   const centers=flowCenters(time),scale=.4+preset.params.scale/100*1.2;
   const distortion=preset.params.distortion/100,swirl=preset.params.swirl/100;
+  // Domain bending is separable: compute its sine terms per row/column,
+  // not per pixel. This also removes tens of thousands of tiny arrays.
+  const rowBend=new Float64Array(height),columnBend=new Float64Array(width);
+  if(curved){
+    for(let y=0;y<height;y++)rowBend[y]=bendFlowCoordinates(0,(y+.5)/height,time)[0];
+    for(let x=0;x<width;x++)columnBend[x]=bendFlowCoordinates((x+.5)/width,0,time)[1];
+  }
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     const u=(x+.5)/width,v=(y+.5)/height;
-    const position=curved?bendFlowCoordinates(u,v,time):[u,v];
-    let px=(position[0]-.5)/scale+.5, py=(position[1]-.5)/scale+.5;
+    let px=(u+rowBend[y]-.5)/scale+.5, py=(v+columnBend[x]-.5)/scale+.5;
     const radius=smooth(Math.hypot(px-.5,py-.5)),falloff=1-radius;
     for(let octave=1;octave<=2;octave++){
       px+=distortion*falloff/octave*Math.sin(time+octave*.4*smooth(py))*Math.cos(.2*time+octave*2.4*smooth(py));
@@ -56,7 +62,7 @@ export function createRailFlow(canvas) {
   try { context=canvas.getContext?.('2d',{alpha:false}); } catch { return null; }
   if(!context)return null;
   // Supplied renderer also animates a small raster beneath a softened CSS layer.
-  const width=240,height=160;
+  const width=144,height=96;
   canvas.width=width;canvas.height=height;
   const image=context.createImageData(width,height);
   let time=preset.startT,frame=0,previous=null,lastPaint=null,running=false,destroyed=false;

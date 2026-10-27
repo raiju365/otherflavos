@@ -53,6 +53,13 @@ const point=(id,x,y,t,extra={})=>({pointerId:id,pointerType:'touch',button:0,isP
 const checks=[];
 const check=(name,fn)=>{fn();checks.push(name);};
 
+document.documentElement.dataset.themeControlOpen='true';emit(document,'portfolio:themecontrol');
+emit(viewport,'pointerdown',point(30,180,400,0));
+check('theme menu pauses gallery input and pending animation',()=>{
+  assert.equal(emit(viewport,'pointermove',point(30,180,200,20)).defaultPrevented,false);assert.equal(frames.size,0);
+});
+document.documentElement.dataset.themeControlOpen='false';emit(document,'portfolio:themecontrol');settle();
+
 emit(viewport,'pointerdown',point(7,180,400,0,{target:track}));
 emit(viewport,'pointermove',point(7,180,360,20));settle();
 const before=slots[0].style.transform;

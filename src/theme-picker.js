@@ -1,6 +1,6 @@
 import { createThemeReveal } from './theme-reveal.js';
 import { createThemeSelectionMotion } from './theme-selection-motion.js';
-// One glass surface, anchored to the trigger, with an interruptible CSS morph.
+// One fixed-size surface, anchored to the trigger; only opacity/transform animate.
 export function initThemePicker(signal) {
   const picker = document.querySelector('.theme-picker');
   const toggle = document.querySelector('#theme-toggle');
@@ -19,15 +19,18 @@ export function initThemePicker(signal) {
   let selectedTheme = root.dataset.theme;
   let reflectedTheme;
   let closeTimer;
+  let rows=[];
   function clearPress() { picker.dataset.pressed = 'false'; }
 
-  function positionSelection(animate = true) {
+  function positionSelection(animate = true, measure = false) {
     if (menu.hidden) return;
     const selected = options.find(option => option.dataset.setTheme === selectedTheme);
     if (!selected) return;
+    if(measure||!rows.length)rows=options.map(option=>({option,y:option.offsetTop,height:option.offsetHeight}));
+    const row=rows.find(item=>item.option===selected);
     selectionMotion.move({
-      y: selected.offsetTop, height: selected.offsetHeight,
-      maxY: Math.max(...options.map(option => option.offsetTop)),
+      y: row.y, height: row.height,
+      maxY: Math.max(...rows.map(item=>item.y)),
       animate: animate && !motion.matches && !document.hidden,
     });
   }
@@ -47,12 +50,12 @@ export function initThemePicker(signal) {
     open = next;
     if (open) {
       menu.hidden = false;
-      // Commit the closed content position before revealing it. Only this
-      // small control is measured; there is no per-frame layout controller.
-      menu.getBoundingClientRect();
-      positionSelection(false);
+      // Measure fixed option rows once on open; palette changes reuse them.
+      positionSelection(false,true);
     }
     picker.dataset.open = String(open);
+    root.dataset.themeControlOpen=String(open);
+    document.dispatchEvent(new CustomEvent('portfolio:themecontrol',{detail:{open}}));
     toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', open ? 'Close color themes' : `Choose color theme, current: ${currentLabel()}`);
     if (!open && (restoreFocus || menu.contains(document.activeElement))) {
@@ -67,9 +70,7 @@ export function initThemePicker(signal) {
       selectionMotion.settle();
       options.forEach(option => { option.tabIndex = -1; });
       if (motion.matches) finishClose();
-      // Height transition normally completes first. This fallback releases
-      // hidden content if transitionend is suppressed by a renderer change.
-      else closeTimer = setTimeout(finishClose, 520);
+      else closeTimer = setTimeout(finishClose, 180);
     }
   }
 
@@ -136,9 +137,9 @@ export function initThemePicker(signal) {
     }
     setOpen(false);
   });
-  on(window, 'resize', () => { if (open) positionSelection(false); });
+  on(window, 'resize', () => { if (open) positionSelection(false,true); });
   on(glass, 'transitionend', event => {
-    if (event.target === glass && event.propertyName === 'height') finishClose();
+    if (event.target === glass && event.propertyName === 'opacity') finishClose();
   });
   on(motion, 'change', () => {
     if (motion.matches) { clearPress(); selectionMotion.settle(); if (!open) finishClose(); }
@@ -168,5 +169,7 @@ export function initThemePicker(signal) {
     menu.hidden = true;
     menu.setAttribute('aria-hidden', 'true');
     options.forEach(option => { option.tabIndex = -1; });
+    delete root.dataset.themeControlOpen;
+    document.dispatchEvent(new CustomEvent('portfolio:themecontrol',{detail:{open:false}}));
   }, { once: true });
 }
