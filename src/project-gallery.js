@@ -136,7 +136,12 @@ export function initProjectGallery({signal,projects,onOpen}) {
     if(moved){target+=velocity*110;wake();}
   }
   on(viewport,'pointerup',release);on(viewport,'pointercancel',event=>{if(drag?.id===event.pointerId){drag=null;target=position;delete viewport.dataset.dragging;wake();}});
-  on(viewport,'lostpointercapture',()=>{if(drag){drag=null;target=position;delete viewport.dataset.dragging;wake();}});
+  on(viewport,'lostpointercapture',event=>{
+    // Touch implicitly captures the initial child. Its bubbled loss during
+    // transfer to viewport is not a loss of the gallery's active gesture.
+    if(!drag||event.target!==viewport||event.pointerId!==drag.id||viewport.hasPointerCapture?.(event.pointerId))return;
+    drag=null;target=position;delete viewport.dataset.dragging;wake();
+  });
   on(viewport,'keydown',event=>{
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Enter',' '].includes(event.key)||!available())return;
     event.preventDefault();

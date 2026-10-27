@@ -24,6 +24,8 @@ Production output: `D:\portofolio-web\dist`. Build preview: http://127.0.0.1:417
 
 ## GitHub and Vercel
 
+Touch-capture regression check: `node scripts/check-gallery-touch.mjs`. This exercises implicit child-capture transfer, horizontal/vertical continuation, reversal, true capture loss, tap opening and drag-click suppression in the actual gallery controller. It is a deterministic event fixture, not a physical-phone test.
+
 Repository: https://github.com/raiju365/otherflavos. The working source stays in `D:\portofolio-web`.
 
 Import this repository in Vercel with the repository root as the Root Directory and `main` as the Production Branch. `vercel.json` selects Vite, runs `npm run check && npm run build`, and publishes `dist`. Use Node.js 24.x, matching the locally validated build runtime.
