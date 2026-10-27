@@ -23,12 +23,12 @@
   transition: transform 180ms cubic-bezier(.2,.65,.3,1);
 }
 .pointer-guide-focus::before {
-  left: 0; top: 43.5px; width: 88px; height: 1px;
+  left: 0; top: 44px; width: 88px; height: 1px;
   background: linear-gradient(to right, var(--accent) 0 37px, transparent 37px 51px, var(--accent) 51px 100%);
   transform: scaleX(calc(var(--guide-stretch-x)*var(--guide-hover)*var(--guide-press)));
 }
 .pointer-guide-focus::after {
-  left: 43.5px; top: 0; width: 1px; height: 88px;
+  left: 44px; top: 0; width: 1px; height: 88px;
   background: linear-gradient(to bottom, var(--accent) 0 37px, transparent 37px 51px, var(--accent) 51px 100%);
   transform: scaleY(calc(var(--guide-stretch-y)*var(--guide-hover)*var(--guide-press)));
 }

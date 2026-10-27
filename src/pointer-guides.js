@@ -36,7 +36,7 @@ export function initPointerGuides(signal) {
     const y = Math.round((point.y - .5) * dpr) / dpr;
     horizontal.style.transform = `translate3d(0, ${number(y)}px, 0)`;
     vertical.style.transform = `translate3d(${number(x)}px, 0, 0)`;
-    focus.style.transform = `translate3d(${number(x - 43.5)}px, ${number(y - 43.5)}px, 0)`;
+    focus.style.transform = `translate3d(${number(x - 44)}px, ${number(y - 44)}px, 0)`;
     focus.style.setProperty('--guide-stretch-x', String(number(1 + Math.min(Math.abs(dx) / 150, .45))));
     focus.style.setProperty('--guide-stretch-y', String(number(1 + Math.min(Math.abs(dy) / 150, .45))));
     guides.dataset.moving = String(Math.hypot(dx, dy) > .5);

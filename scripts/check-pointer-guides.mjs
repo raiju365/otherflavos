@@ -59,7 +59,7 @@ check('stopping converges to the latest pointer and leaves zero idle frames',()=
   assert.equal(vertical.style.transform,'translate3d(999px, 0, 0)');assert.equal(horizontal.style.transform,'translate3d(0, 400px, 0)');
   assert.equal(root.dataset.moving,'false');assert.ok(count<40);
 });
-check('accent strokes share the exact same snapped axis center',()=>assert.equal(focus.style.transform,'translate3d(955.5px, 356.5px, 0)'));
+check('accent strokes share the exact same snapped axis center',()=>assert.equal(focus.style.transform,'translate3d(955px, 356px, 0)'));
 move({target:{closest:()=>({})}});settle();
 check('hovering an interactive element enables the restrained tick expansion',()=>assert.equal(root.dataset.interactive,'true'));
 emit(window,'pointerdown',{pointerType:'mouse',button:0});
