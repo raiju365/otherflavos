@@ -23,7 +23,6 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }
   const poseFor=(...args)=>(compact.matches?reelPose:loopPose)(...args);
   const available=()=>!signal.aborted&&!document.hidden&&pageActive&&focused&&visible&&!dialogOpen&&!panel.hidden
-    &&document.documentElement.dataset.themeControlOpen!=='true'
     &&document.documentElement.dataset.entry!=='loading'&&workspace.getAttribute('aria-busy')!=='true';
   const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available())paint();}});
   surface?.prime(projects.map(project=>mediaPath(project.image)||''));
@@ -179,7 +178,8 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }));
   on(document,'portfolio:sectionstart',()=>{pause();wasActive=false;needsEntrance=true;});
   on(document,'portfolio:sectionsettled',sync);on(document,'portfolio:entryready',sync);
-  on(document,'portfolio:themecontrol',sync);
+  // The preview stays interactive behind the open glass. Decorative rail and
+  // portrait still pause independently; this gallery only runs while moving.
   on(document,'visibilitychange',sync);on(window,'blur',()=>{focused=false;sync();});
   on(window,'focus',()=>{focused=true;sync();});on(window,'pagehide',()=>{pageActive=false;sync();});on(window,'pageshow',()=>{pageActive=true;sync();});
   on(window,'resize',()=>{pause();measure();sync();});

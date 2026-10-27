@@ -189,10 +189,38 @@ check('snapshot-retargeted touch inside the visible panel keeps it open',()=>ass
 emit(document,'pointerdown',{target:outside,composedPath:()=>[outside,picker,document]});
 check('composed event paths recognize content inside the control',()=>assert.equal(picker.dataset.open,'true'));
 emit(document, 'pointerdown', { target: outside, clientX: 300, clientY: 200 });
-check('outside pointer closes preview', () => {
+check('an outside press waits for tap or swipe intent',()=>assert.equal(picker.dataset.open,'true'));
+emit(document, 'pointerup', { target: outside, clientX: 300, clientY: 200 });
+check('a completed outside tap closes preview', () => {
   assert.equal(picker.dataset.open, 'false'); assert.equal(menu.inert, true);
 });
 emit(toggle, 'click');
+emit(document,'pointerdown',{target:outside,pointerId:8,clientX:320,clientY:420});
+emit(document,'pointermove',{target:outside,pointerId:8,clientX:320,clientY:200});
+emit(document,'pointermove',{target:outside,pointerId:8,clientX:320,clientY:420});
+emit(document,'pointerup',{target:outside,pointerId:8,clientX:320,clientY:420});
+check('a project swipe that returns to its origin keeps the glass open',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'pointerdown',{target:outside,pointerId:9,clientX:320,clientY:420});
+emit(document,'pointerup',{target:outside,pointerId:9,clientX:320,clientY:400});
+check('release displacement recognizes a swipe even without move delivery',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'pointerdown',{target:outside,pointerId:10,clientX:320,clientY:420});
+emit(document,'pointercancel',{pointerId:10});
+emit(document,'pointerup',{target:outside,pointerId:10,clientX:320,clientY:420});
+check('browser-cancelled scroll gestures cannot dismiss the theme menu',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'pointerdown',{target:outside,pointerId:11,clientX:320,clientY:420});
+emit(document,'wheel',{deltaY:120});
+emit(document,'pointerup',{target:outside,pointerId:11,clientX:320,clientY:420});
+check('scrolling during an outside press keeps the glass open',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'wheel',{deltaY:120});
+check('ordinary wheel scrolling leaves the preview open',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'pointerdown',{target:outside,pointerId:12,clientX:320,clientY:420});
+emit(document,'pointerup',{target:outside,pointerId:13,clientX:320,clientY:420});
+check('another finger cannot finish the outside tap',()=>assert.equal(picker.dataset.open,'true'));
+emit(document,'pointercancel',{pointerId:12});
+emit(document,'pointerdown',{target:outside,pointerId:14,clientX:320,clientY:420});
+emit(window,'blur');
+emit(document,'pointerup',{target:outside,pointerId:14,clientX:320,clientY:420});
+check('window blur discards unfinished outside taps',()=>assert.equal(picker.dataset.open,'true'));
 outside.focus();
 check('outside focus stays outside while preview remains open', () => {
   assert.equal(picker.dataset.open, 'true'); assert.equal(document.activeElement, outside);

@@ -55,8 +55,16 @@ const check=(name,fn)=>{fn();checks.push(name);};
 
 document.documentElement.dataset.themeControlOpen='true';emit(document,'portfolio:themecontrol');
 emit(viewport,'pointerdown',point(30,180,400,0));
-check('theme menu pauses gallery input and pending animation',()=>{
-  assert.equal(emit(viewport,'pointermove',point(30,180,200,20)).defaultPrevented,false);assert.equal(frames.size,0);
+const underGlassStart=slots[0].style.transform;
+check('projects can be swiped behind the open theme glass',()=>{
+  assert.equal(emit(viewport,'pointermove',point(30,180,200,20)).defaultPrevented,true);
+  settle();assert.notEqual(slots[0].style.transform,underGlassStart);
+});
+emit(viewport,'pointerup',point(30,180,200,100));settle();
+const underGlassWheelStart=slots[0].style.transform;
+check('wheel input works behind the open glass and returns to idle',()=>{
+  assert.equal(emit(viewport,'wheel',{deltaY:240,deltaX:0}).defaultPrevented,true);
+  settle();assert.notEqual(slots[0].style.transform,underGlassWheelStart);assert.equal(frames.size,0);
 });
 document.documentElement.dataset.themeControlOpen='false';emit(document,'portfolio:themecontrol');settle();
 

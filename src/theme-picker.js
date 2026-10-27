@@ -21,6 +21,7 @@ export function initThemePicker(signal) {
   let reflectedTheme;
   let pressed = false;
   let pressPointer = null;
+  let outsideGesture = null;
   let rows=[];
   const panelMotion = createThemePanelMotion({
     glass, rim: glass.querySelector?.('.theme-glass-rim'),
@@ -69,6 +70,7 @@ export function initThemePicker(signal) {
   }
 
   function setOpen(next, { restoreFocus = false, focusIndex } = {}) {
+    outsideGesture = null;
     open = next;
     if (open) {
       menu.hidden = false;
@@ -126,9 +128,9 @@ export function initThemePicker(signal) {
   const releasePointer = event => { if (pressPointer === null || event.pointerId === pressPointer) clearPress(); };
   on(window, 'pointerup', releasePointer);
   on(window, 'pointercancel', releasePointer);
-  on(window, 'blur', () => { clearPress(); panelMotion.settle(); selectionMotion.settle(); });
-  on(window, 'pagehide', () => { clearPress(); panelMotion.settle(); selectionMotion.settle(); });
-  on(document, 'visibilitychange', () => { if (document.hidden) { clearPress(); panelMotion.settle(); selectionMotion.settle(); } });
+  on(window, 'blur', () => { outsideGesture = null; clearPress(); panelMotion.settle(); selectionMotion.settle(); });
+  on(window, 'pagehide', () => { outsideGesture = null; clearPress(); panelMotion.settle(); selectionMotion.settle(); });
+  on(document, 'visibilitychange', () => { if (document.hidden) { outsideGesture = null; clearPress(); panelMotion.settle(); selectionMotion.settle(); } });
   on(toggle, 'pointerleave', clearPress);
   on(toggle, 'keydown', event => {
     if ([' ', 'Enter'].includes(event.key) && !event.repeat) {
@@ -153,21 +155,44 @@ export function initThemePicker(signal) {
     event.preventDefault();
     setOpen(false, { restoreFocus: true });
   });
-  // Selecting a theme keeps the preview open. Dismiss with X, Escape, or an
-  // outside pointer; normal keyboard focus movement does not dismiss it.
-  on(document, 'pointerdown', event => {
-    if (!open) return;
-    if (picker.contains(event.target) || event.composedPath?.().includes(picker)) return;
-    // Native snapshot layers can retarget a pointer to the document root.
-    // The whole visible glass, including empty gaps, still counts as inside.
+  function insidePicker(event) {
+    if (picker.contains(event.target) || event.composedPath?.().includes(picker)) return true;
+    // Retargeted input and blank gaps still count as inside the material.
     if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
       const rect = glass.getBoundingClientRect();
       if (event.clientX >= rect.left && event.clientX <= rect.left + rect.width
-        && event.clientY >= rect.top && event.clientY <= rect.top + rect.height) return;
+        && event.clientY >= rect.top && event.clientY <= rect.top + rect.height) return true;
     }
-    setOpen(false);
+    return false;
+  }
+  // Wait for a completed outside tap. A swipe, wheel or cancelled touch must
+  // leave the glass open while the real projects move behind it.
+  on(document, 'pointerdown', event => {
+    if (!open || event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
+    if (insidePicker(event)) return;
+    outsideGesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
   });
-  on(window, 'resize', () => { clearPress(); panelMotion.resize(); if (open) positionSelection(false,true); });
+  function trackOutside(event) {
+    if (!outsideGesture || event.pointerId !== outsideGesture.id) return;
+    if (Math.hypot(event.clientX - outsideGesture.x, event.clientY - outsideGesture.y) >= 6) outsideGesture.moved = true;
+  }
+  on(document, 'pointermove', trackOutside);
+  on(document, 'pointerup', event => {
+    if (!outsideGesture || event.pointerId !== outsideGesture.id) return;
+    trackOutside(event);
+    const tap = !outsideGesture.moved;
+    outsideGesture = null;
+    if (open && tap && !insidePicker(event)) setOpen(false);
+  });
+  on(document, 'pointercancel', event => {
+    if (event.pointerId === outsideGesture?.id) outsideGesture = null;
+  });
+  on(document, 'wheel', event => {
+    if (outsideGesture && (event.deltaX || event.deltaY)) outsideGesture.moved = true;
+  });
+  on(window, 'resize', () => {
+    outsideGesture = null; clearPress(); panelMotion.resize(); if (open) positionSelection(false,true);
+  });
   on(motion, 'change', () => {
     if (motion.matches) { clearPress(); panelMotion.settle(); selectionMotion.settle(); }
   });
@@ -186,6 +211,7 @@ export function initThemePicker(signal) {
   reflectTheme();
 
   signal.addEventListener('abort', () => {
+    outsideGesture = null;
     selectionMotion.settle();
     pressed = false; picker.dataset.pressed = 'false';
     panelMotion.destroy();
