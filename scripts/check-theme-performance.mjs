@@ -193,15 +193,15 @@ check('closing releases input immediately but keeps content until the morph comp
   assert.equal(menu.inert,true);assert.equal(menu.hidden,false);
   assert.equal(root.dataset.themeControlOpen,'true');
 });
-emit(glass,'transitionend',{target:menu,propertyName:'transform'});
+emit(glass,'transitionend',{target:menu,propertyName:'clip-path'});
 emit(glass,'transitionend',{target:glass,propertyName:'opacity'});
 check('child and unrelated transitions cannot truncate the closing morph',()=>assert.equal(menu.hidden,false));
-emit(glass,'transitionend',{target:glass,propertyName:'transform'});
+emit(glass,'transitionend',{target:glass,propertyName:'clip-path'});
 check('completed surface return hides the menu and releases the decorative pause',()=>{
  assert.equal(menu.hidden,true);assert.equal(root.dataset.themeControlOpen,'false');
 });
 emit(toggle,'click');
-emit(glass,'transitionend',{target:glass,propertyName:'transform'});
+emit(glass,'transitionend',{target:glass,propertyName:'clip-path'});
 check('a late surface event cannot hide a reopened menu',()=>{
   assert.equal(menu.hidden,false);assert.equal(menu.inert,false);assert.equal(picker.dataset.open,'true');
 });

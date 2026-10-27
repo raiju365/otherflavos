@@ -1,6 +1,6 @@
 import { createThemeReveal } from './theme-reveal.js';
 import { createThemeSelectionMotion } from './theme-selection-motion.js';
-// One fixed-size surface, anchored to the trigger; only opacity/transform animate.
+// One bounded glass surface opens from the trigger. Its blur remains constant.
 export function initThemePicker(signal) {
   const picker = document.querySelector('.theme-picker');
   const toggle = document.querySelector('#theme-toggle');
@@ -78,7 +78,7 @@ export function initThemePicker(signal) {
       selectionMotion.settle();
       options.forEach(option => { option.tabIndex = -1; });
       if (motion.matches) finishClose();
-      else closeTimer = setTimeout(finishClose, 280);
+      else closeTimer = setTimeout(finishClose, 300);
     }
   }
 
@@ -147,7 +147,7 @@ export function initThemePicker(signal) {
   });
   on(window, 'resize', () => { if (open) positionSelection(false,true); });
   on(glass, 'transitionend', event => {
-    if (event.target === glass && event.propertyName === 'transform') finishClose();
+    if (event.target === glass && event.propertyName === 'clip-path') finishClose();
   });
   on(motion, 'change', () => {
     if (motion.matches) { clearPress(); selectionMotion.settle(); if (!open) finishClose(); }
