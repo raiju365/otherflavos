@@ -94,3 +94,28 @@
     #panel-more .about-contacts { grid-column: 1; grid-row: 2; align-self: start; }
   }
 }
+
+/* Projects has room for a more prominent identity above the gallery.
+   Keep About's compact header so its complete text still fits one screen. */
+@media (max-width: 800px) {
+  body:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+    --project-portrait-width: clamp(56px, 12svh, 96px);
+    .profile-sticky { grid-template-columns: var(--project-portrait-width) minmax(0, 1fr); gap: 22px; padding-block: 8px 20px; }
+    .profile-sticky > .figure-wrap, .profile-sticky #figure { width: var(--project-portrait-width); height: calc(var(--project-portrait-width)*1.25); }
+    .identity h1 { font-size: clamp(30px, 5svh, 44px); }
+    .identity-meta { margin-top: 8px; gap: 12px; }
+    .identity-meta .handle, .identity-meta .profile-role { font-size: clamp(11px, 1.6svh, 14px); }
+    .identity-meta .profile-role { padding-left: 12px; }
+  }
+}
+
+@media (max-width: 520px) and (orientation: portrait) {
+  body:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+    --project-portrait-width: clamp(72px, 12svh, 112px);
+    .profile-sticky { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; justify-items: center; gap: clamp(12px, 2svh, 18px); }
+    .profile-sticky > .figure-wrap { grid-area: 1 / 1; }
+    .profile-sticky > .identity { grid-area: 2 / 1; text-align: center; }
+    .identity h1 { font-size: clamp(32px, 5.1svh, 44px); }
+    .identity-meta { justify-content: center; }
+  }
+}
