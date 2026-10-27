@@ -1,4 +1,5 @@
 import { createSectionReveal } from './section-reveal.js';
+import { createMobileHeaderMotion } from './mobile-header-motion.js';
 
 export function initSectionNavigation(signal) {
   const workspace = document.querySelector('.workspace');
@@ -8,6 +9,7 @@ export function initSectionNavigation(signal) {
   const marker = document.querySelector('.tab-art-marker');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const desktop = matchMedia('(min-width: 801px)');
+  const headerMotion = createMobileHeaderMotion({ desktop, reduced });
   const on = (target, type, listener) => target.addEventListener(type, listener, { signal });
   const animations = new Set();
   const reveal = createSectionReveal({ animateElement, desktop });
@@ -99,12 +101,14 @@ export function initSectionNavigation(signal) {
       await reveal.play(previous, false, footer);
       if (signal.aborted || current !== revision) return;
     }
+    const headerFrom = headerMotion.capture(moving);
     panels.forEach(panel => { panel.hidden = panel !== target; });
     // Hide the outgoing content before releasing its filled animation effects.
     cancelAnimations();
     workspace.dataset.view = key;
     if(footer)footer.hidden = key !== 'projects';
     (desktop.matches ? workspace : window).scrollTo({ top: 0, behavior: 'instant' });
+    headerMotion.play(headerFrom);
     if (moving) {
       transitioning = true;
       target.inert = true;
@@ -149,22 +153,27 @@ export function initSectionNavigation(signal) {
     if (location.hash.slice(1) !== active) selectTab(location.hash.slice(1), { historyMode: 'none' });
   });
   on(window, 'resize', () => {
+    headerMotion.settle();
     positionMarker();
     if (transitioning) selectTab(active, { historyMode: 'none', animate: false });
   });
   on(document, 'visibilitychange', () => {
+    if (document.hidden) headerMotion.settle();
     if (document.hidden && animations.size) selectTab(active, { historyMode: 'none', animate: false });
   });
+  on(window, 'pagehide', () => headerMotion.settle());
   on(desktop, 'change', () => {
+    headerMotion.settle();
     window.scrollTo({ top: 0, behavior: 'instant' });
     workspace.scrollTo({ top: 0, behavior: 'instant' });
     positionMarker();
     if (transitioning) selectTab(active, { historyMode: 'none', animate: false });
   });
   on(reduced, 'change', () => {
+    headerMotion.settle();
     if (reduced.matches) selectTab(active, { historyMode: 'none', animate: false });
   });
-  signal.addEventListener('abort', () => { revision++; cancelAnimations(); reveal.destroy(); }, { once: true });
+  signal.addEventListener('abort', () => { revision++; headerMotion.destroy(); cancelAnimations(); reveal.destroy(); }, { once: true });
   selectTab(location.hash.slice(1) || 'home', { historyMode: 'none', animate: false });
   document.fonts?.ready?.then(positionMarker);
   async function revealInitial() {
