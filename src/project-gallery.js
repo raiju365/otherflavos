@@ -10,7 +10,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   const openButton=root.querySelector('.loop-open'),kind=root.querySelector('.loop-kind'),title=root.querySelector('.loop-title'),status=root.querySelector('.loop-status'),announcement=root.querySelector('.loop-announcement');
   const slots=[...root.querySelectorAll('[data-loop-slot]')].map((element,slot)=>({element,slot,button:element.querySelector('button'),image:element.querySelector('img'),project:-1}));
   if(!viewport||!caption||!controls||!fallback||!openButton||!kind||!title||!status||!announcement||slots.length!==5||slots.some(state=>!state.button||!state.image))return empty;
-  const reduced=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)');
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)'),compact=matchMedia('(max-width: 800px)');
   const on=(target,type,fn,options={})=>target.addEventListener(type,fn,{...options,signal});
   let position=0,target=0,frame=0,previous=null,width=800,height=440,current=-1,sway=0,swayVelocity=0;
   let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true;
@@ -109,25 +109,28 @@ export function initProjectGallery({signal,projects,onOpen}) {
     event.preventDefault();target+=wheelProjects(event,height);wake();
   },{passive:false});
   on(viewport,'pointerdown',event=>{
-    if(!available()||event.button!==0||projects.length<2)return;
+    if(!available()||event.button!==0||event.isPrimary===false||projects.length<2)return;
     target=position;clickBlocked=false;
-    drag={id:event.pointerId,x:event.clientX,y:event.clientY,origin:position,lastTarget:position,lastTime:event.timeStamp,velocity:0,horizontal:false};
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,origin:position,lastTarget:position,lastTime:event.timeStamp,velocity:0,axis:null,compact:compact.matches};
   });
   on(viewport,'pointermove',event=>{
     if(!drag||drag.id!==event.pointerId)return;
     const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
-    if(!drag.horizontal){
-      if(Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){drag=null;return;}
-      if(Math.abs(dx)<6)return;
-      drag.horizontal=true;viewport.setPointerCapture?.(event.pointerId);viewport.dataset.dragging='true';clickBlocked=true;
+    if(!drag.axis){
+      if(!drag.compact&&Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){drag=null;return;}
+      if(Math.max(Math.abs(dx),drag.compact?Math.abs(dy):0)<6)return;
+      drag.axis=drag.compact&&Math.abs(dy)>Math.abs(dx)?'y':'x';
+      viewport.setPointerCapture?.(event.pointerId);viewport.dataset.dragging='true';clickBlocked=true;
     }
-    event.preventDefault();target=drag.origin-dx/loopPose(0,width,height).step;
+    event.preventDefault();
+    const distance=drag.axis==='y'?dy:dx,span=drag.axis==='y'?Math.max(100,height*.65):loopPose(0,width,height).step;
+    target=drag.origin-distance/span;
     const dt=Math.max(8,event.timeStamp-drag.lastTime);
     drag.velocity=Math.max(-.012,Math.min(.012,(target-drag.lastTarget)/dt));drag.lastTarget=target;drag.lastTime=event.timeStamp;wake();
   },{passive:false});
   function release(event){
     if(!drag||drag.id!==event.pointerId)return;
-    const moved=drag.horizontal,velocity=event.timeStamp-drag.lastTime<90?drag.velocity:0;
+    const moved=Boolean(drag.axis),velocity=event.timeStamp-drag.lastTime<90?drag.velocity:0;
     drag=null;delete viewport.dataset.dragging;
     if(viewport.hasPointerCapture?.(event.pointerId))viewport.releasePointerCapture(event.pointerId);
     if(moved){target+=velocity*110;wake();}

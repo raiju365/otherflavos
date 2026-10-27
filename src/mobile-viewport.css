@@ -1,0 +1,85 @@
+/* About and the enhanced gallery occupy one mobile screen. Now and the
+   unenhanced project list retain their normal document flow. */
+@media (max-width: 800px) {
+  html:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+    scrollbar-gutter: auto;
+  }
+  body:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+    --mobile-top: max(12px, env(safe-area-inset-top));
+    --mobile-bottom: max(16px, env(safe-area-inset-bottom));
+    min-height: 100svh;
+
+    .portfolio { height: 100svh; margin-block: 0; padding-bottom: 0; }
+    .portfolio-layout { height: 100%; min-height: 0; display: flex; flex-direction: column; padding-top: var(--mobile-top); gap: 0; }
+    .profile-rail { flex: 0 0 auto; }
+    .profile-sticky {
+      display: grid; grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-rows: auto; align-items: center; gap: 16px;
+      min-height: 0; padding-bottom: 12px;
+    }
+    .profile-sticky > .figure-wrap { grid-area: 1 / 1; width: 56px; height: 70px; margin: 0; }
+    .profile-sticky #figure { width: 56px; height: 70px; }
+    .profile-sticky > .identity { grid-area: 1 / 2; width: 100%; padding: 0; text-align: left; }
+    .identity h1 { font-size: clamp(25px, 4svh, 34px); text-wrap: nowrap; }
+    .identity-meta { justify-content: flex-start; gap: 8px; margin-top: 4px; }
+    .identity-meta .handle, .identity-meta .profile-role { font-size: 11px; }
+    .identity-meta .profile-role { padding-left: 8px; }
+    .profile-sticky::before, .rail-atmosphere { top: calc(var(--mobile-top)*-1); }
+    .workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 8px; }
+    #tabs { flex: 0 0 48px; height: 48px; margin: 0; }
+    #tabs > button { height: 44px; font-size: 14px; }
+    .panels { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  }
+
+  .workspace[data-view=more] {
+    #panel-more { padding: clamp(14px, 2.2svh, 24px) 0 var(--mobile-bottom); display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .about-editorial { grid-template-columns: minmax(0, 1fr); gap: clamp(14px, 2.5svh, 24px); }
+    #panel-more .about-statement { font-size: clamp(24px, 3.8svh, 34px); line-height: 1.04; letter-spacing: -.04em; }
+    .about-narrative { padding-top: 0; }
+    #panel-more .about-draft { font-size: 9px; margin-bottom: 10px; }
+    #panel-more #about-copy p { font-size: clamp(12px, 1.85svh, 15px); line-height: 1.28; }
+    #panel-more #about-copy p + p { margin-top: clamp(10px, 1.8svh, 18px); }
+    #panel-more .about-contacts { margin-top: auto; padding: 16px 0 0 68px; min-height: 64px; flex-shrink: 0; }
+    #panel-more #socials { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    #panel-more .social-item { display: block; text-align: left; }
+    #panel-more .social-item dt { font-size: 9px; }
+    #panel-more .social-item dd { font-size: 12px; padding: 0; line-height: 1.2; }
+    .social-link { gap: 2px; min-height: 44px; padding-block: 4px; }
+    .social-arrow { width: 12px; height: 18px; font-size: 11px; }
+  }
+
+  html:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) { overflow: hidden; overscroll-behavior-y: none; }
+  body:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) { height: 100svh; overflow: hidden; }
+  .workspace[data-view=projects]:has(.loop-gallery[data-enhanced=true]) {
+    overflow: hidden;
+    #panel-projects { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-block: 0 var(--mobile-bottom); }
+    #project-list, .loop-gallery { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+    .loop-viewport { flex: 1; min-height: 0; height: auto; touch-action: pinch-zoom; overscroll-behavior: contain; }
+  }
+}
+
+@media (max-width: 800px) and (max-height: 650px) {
+  body:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+    --mobile-top: max(8px, env(safe-area-inset-top));
+    .profile-sticky { grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding-bottom: 6px; }
+    .profile-sticky > .figure-wrap, .profile-sticky #figure { width: 36px; height: 45px; }
+    .identity h1 { font-size: 24px; }
+    .identity-meta { margin-top: 2px; }
+    .identity-meta .handle, .identity-meta .profile-role { font-size: 10px; }
+    .workspace { padding-top: 4px; }
+    #tabs { height: 44px; flex-basis: 44px; }
+  }
+  .workspace[data-view=more] {
+    #panel-more { padding-top: 12px; }
+    #panel-more .about-statement { font-size: 22px; }
+    .about-editorial { gap: 12px; }
+    #panel-more .about-draft { margin-bottom: 8px; }
+    #panel-more #about-copy p { font-size: 12px; line-height: 1.25; }
+    #panel-more #about-copy p + p { margin-top: 10px; }
+    #panel-more .about-contacts { padding-top: 10px; min-height: 60px; }
+  }
+}
+
+@media (min-width: 600px) and (max-width: 800px) {
+  .workspace[data-view=more] .about-editorial { grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 24px; }
+}

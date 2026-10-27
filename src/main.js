@@ -9,6 +9,7 @@ import './entry-loader.css';
 import './project-surface.css';
 import './studio-theme.css';
 import './now-showcase.css';
+import './mobile-viewport.css';
 import { profile, projects } from './data.js';
 import { initFigure } from './figure.js';
 import { initThemePicker } from './theme-picker.js';
