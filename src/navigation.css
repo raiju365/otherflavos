@@ -1,0 +1,74 @@
+/* Baseline label masks. The active studio theme supplies the signal dot. */
+#tabs { height: 56px; margin-top: 0; align-items: center; overflow: visible; }
+#tabs > button {
+  height: 56px;
+  min-height: 44px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 500;
+}
+#tabs > button[aria-selected=true] { font-weight: 500; }
+#tabs > button:focus-visible { outline-offset: -5px; }
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  overflow: hidden;
+  line-height: 22px;
+  letter-spacing: -.02em;
+}
+.tab-letter { display: inline-block; transform-origin: 50% 100%; }
+.tab-art-marker {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: block;
+  width: 14px;
+  height: 14px;
+  color: var(--fg);
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform .6s cubic-bezier(.22, 1, .36, 1);
+  z-index: 2;
+}
+.tab-art-marker[data-ready=true] { visibility: visible; }
+.tab-art-marker svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(var(--mark-turn, 0deg));
+  transition: transform .7s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Each real word rises through its own baseline mask. Padding protects serif ink. */
+.section-word-mask {
+  display: inline-block;
+  max-width: 100%;
+  overflow: clip;
+  vertical-align: bottom;
+  padding-block: .2em;
+  margin-block: -.2em;
+}
+.section-word { display: inline-block; max-width: 100%; }
+.section-media-frame { display: block; overflow: hidden; }
+@media (min-width: 801px) {
+  /* Keep navigation at the viewport top; give only its content more breathing room. */
+  .workspace {
+    margin-top: calc(var(--desktop-top)*-1);
+    height: calc(100% + var(--desktop-top));
+    scroll-padding-top: 60px;
+  }
+  .workspace > .panels { padding-top: var(--desktop-top); }
+}
+@media (max-width: 800px) {
+  .workspace { padding-top: 16px; }
+  #tabs, #tabs > button { height: 52px; }
+  .tab-art-marker { width: 12px; height: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-art-marker, .tab-art-marker svg { transition: none; }
+}

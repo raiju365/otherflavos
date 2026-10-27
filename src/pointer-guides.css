@@ -1,0 +1,27 @@
+.pointer-guides {
+  display: none;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 4;
+}
+.pointer-guides > span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: color-mix(in srgb, var(--fg) 20%, transparent);
+  pointer-events: none;
+}
+.pointer-guide-horizontal { width: 100%; height: 1px; }
+.pointer-guide-vertical { width: 1px; height: 100%; }
+:root[data-theme=light] .pointer-guides > span {
+  background: color-mix(in srgb, var(--fg) 15%, transparent);
+}
+@media (any-hover: hover) and (any-pointer: fine) {
+  .pointer-guides { display: block; }
+}
+@media (forced-colors: active) {
+  .pointer-guides { display: none; }
+}

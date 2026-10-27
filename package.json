@@ -1,0 +1,15 @@
+{
+  "name": "personal-web-portfolio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5175 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4175 --strictPort",
+    "check": "node --check src/main.js && node --check src/figure.js && node --check src/portrait-image.js && node --check src/data.js && node --check src/theme-picker.js && node --check src/theme-selection-motion.js && node --check src/theme-reveal.js && node --check src/theme-ink.js && node --check src/theme-cloth.js && node --check src/theme-print.js && node --check src/section-navigation.js && node --check src/section-reveal.js && node --check src/pointer-guides.js && node --check src/project-showcase.js && node --check src/now-showcase.js && node --check src/project-gallery.js && node --check src/project-loop-model.js && node --check src/project-loop-surface.js && node --check src/project-loop-shaders.js && node --check src/project-detail-motion.js && node --check src/project-surface.js && node --check src/rail-atmosphere.js && node --check src/rail-flow.js && node --check src/entry-loader.js && node --check src/entry-counter.js && node --check src/entry-numerals.js && node --check src/entry-reveal.js && node --check src/entry-readiness.js && node --check src/entry-sculpture.js && node --check src/entry-chrome.js && node --check src/entry-gl.js && node --check src/entry-motion.js && node --check src/entry-form.js && node --check src/entry-wind.js && node --check src/entry-vector.js"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
+  }
+}

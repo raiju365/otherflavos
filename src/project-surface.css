@@ -1,0 +1,43 @@
+/* A tethered opening cue; no light overlay or image movement. */
+.project-surface {
+  --surface-cue-size: 46px;
+  --surface-home-x: 20px;
+  --surface-home-y: calc(100% - var(--surface-cue-size) - 20px);
+  isolation: isolate;
+}
+.featured-preview.project-surface { --surface-home-x: calc(100% - var(--surface-cue-size) - 20px); }
+.project-surface .project-surface-cue {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  z-index: 2;
+  width: var(--surface-cue-size);
+  height: var(--surface-cue-size);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent, #ff4c13);
+  color: #fff;
+  font-size: 23px;
+  line-height: 1;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgb(30 24 15 / .08);
+  transition: translate 340ms cubic-bezier(.22, 1, .36, 1), box-shadow 280ms, opacity 180ms;
+}
+.featured-preview.project-surface .project-surface-cue,
+.project-image-button.project-surface .project-surface-cue {
+  left: var(--surface-home-x);
+  top: var(--surface-home-y);
+  right: auto;
+  bottom: auto;
+  translate: var(--surface-cue-dx, 0px) var(--surface-cue-dy, 0px);
+}
+.project-surface[data-surface-active=true] .project-surface-cue { box-shadow: 0 6px 16px rgb(30 24 15 / .14); }
+.workspace[aria-busy=true] .project-surface-cue { opacity: 0; }
+.project-surface:focus-visible .project-surface-cue { outline: 2px solid var(--fg); outline-offset: 4px; }
+@media (max-width: 600px) { .project-surface { --surface-cue-size: 38px; } }
+@media (prefers-reduced-motion: reduce), (hover: none), (pointer: coarse) {
+  .project-surface .project-surface-cue { transition: none; }
+}
+@media (forced-colors: active) {
+  .project-surface[data-project] .project-surface-cue { background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; transition: none; }
+}

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#20211f">
+  <meta name="description" content="A personal space for websites, web apps, and the ideas behind them.">
+  <title>Personal portfolio — web developer</title>
+  <link rel="preload" as="image" href="/profile/selfphoto.png">
+  <style>
+    .entry-loader {
+      display: none
+    }
+
+    html[data-entry=loading] {
+      background: #20211f
+    }
+
+    html[data-entry=loading] body {
+      overflow: hidden !important
+    }
+
+    html[data-entry=loading] .entry-loader {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: #20211f;
+      color: #f5f4ef;
+      font-family: Arial, sans-serif
+    }
+
+    html[data-entry=loading] .entry-loader[data-phase=reveal] {
+      background: transparent
+    }
+
+    .entry-counter {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      translate: -50% -50%;
+      font: 500 clamp(120px, 28vw, 440px)/1.05 Arial, sans-serif;
+      letter-spacing: -.075em;
+      color: #f5f4ed
+    }
+
+    #entry-progress,
+    #entry-status,
+    #entry-announcement {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap
+    }
+  </style>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      root.dataset.entry = 'loading';
+      const block = event => { if (event.key === 'Tab' && root.dataset.entry === 'loading' && !document.querySelector('#entry-loader[data-wired]')) event.preventDefault(); };
+      document.addEventListener('keydown', block, true);
+      const release = (reason = 'ready') => {
+        clearTimeout(window.__portfolioEntry?.timer);
+        document.removeEventListener('keydown', block, true);
+        if (root.dataset.entry === 'ready') return;
+        root.dataset.entry = 'ready'; root.dataset.entryResult = reason;
+        const page = document.querySelector('.portfolio'); if (page) page.inert = false;
+        const loader = document.querySelector('#entry-loader'); if (loader) loader.hidden = true;
+        document.dispatchEvent(new Event('portfolio:entryready'));
+      };
+      window.__portfolioEntry = {
+        release, timer: setTimeout(() => {
+          document.dispatchEvent(new Event('portfolio:entryfallback')); release('deadline');
+        }, 12000)
+      };
+    })();
+  </script>
+  <script>try { const t = localStorage.getItem('personal-web:theme'); if (['dark', 'light', 'unexpected', 'amethyst'].includes(t)) document.documentElement.dataset.theme = t; } catch { }</script>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/OverusedGrotesk-VF.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+
+<body>
+  <section id="entry-loader" class="entry-loader" aria-label="Loading portfolio" tabindex="-1" data-phase="prepare">
+    <div class="entry-surface" aria-hidden="true"></div>
+    <div class="entry-counter" aria-hidden="true">
+      <div id="entry-number">0</div>
+    </div>
+    <div id="entry-progress" class="sr-only" role="progressbar" aria-label="Portfolio assets" aria-valuemin="0"
+      aria-valuemax="100" aria-valuenow="0"></div>
+    <span id="entry-status" class="sr-only">Loading</span>
+    <p class="sr-only" id="entry-announcement" role="status" aria-live="polite">Loading portfolio.</p>
+  </section>
+  <a href="#tabs" class="skip-link">Skip to content</a>
+  <div class="portfolio">
+    <div class="portfolio-layout">
+      <aside class="profile-rail" aria-label="Personal introduction">
+        <div class="profile-sticky">
+          <div class="figure-wrap" aria-hidden="true"><div class="portrait-studio"><canvas id="figure" width="400" height="500"></canvas></div><span
+              class="figure-cross cross-top" aria-hidden="true">+</span><span class="figure-cross cross-bottom"
+              aria-hidden="true">+</span></div>
+          <header class="identity">
+            <h1 id="name">Fahmi Aufa</h1>
+            <div class="identity-meta">
+              <p class="handle" id="handle">Flavos</p>
+              <p class="profile-role" id="profile-role"></p>
+            </div>
+          </header>
+          <div class="theme-picker" data-open="false">
+            <div class="theme-glass">
+              <div id="theme-menu" role="menu" aria-label="Color theme" aria-hidden="true" inert hidden>
+                <span class="theme-selection" aria-hidden="true"><svg class="theme-check" viewBox="0 0 20 20" width="18"
+                    height="18">
+                    <path d="m4 10 4 4 8-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                      stroke-linejoin="round" />
+                  </svg></span>
+                <button class="theme-option" data-set-theme="dark" type="button" role="menuitemradio"
+                  aria-checked="true" tabindex="-1"><span class="theme-swatch swatch-dark"
+                    aria-hidden="true"></span><span class="theme-label">Dark</span></button>
+                <button class="theme-option" data-set-theme="light" type="button" role="menuitemradio"
+                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-light"
+                    aria-hidden="true"></span><span class="theme-label">Light</span></button>
+                <button class="theme-option" data-set-theme="unexpected" type="button" role="menuitemradio"
+                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-unexpected"
+                    aria-hidden="true"></span><span class="theme-label">Sage</span></button>
+                <button class="theme-option" data-set-theme="amethyst" type="button" role="menuitemradio"
+                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-amethyst"
+                    aria-hidden="true"></span><span class="theme-label">Amethyst</span></button>
+              </div>
+            </div>
+            <button id="theme-toggle" type="button" aria-label="Choose color theme" title="Ganti warna"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="theme-menu">
+              <svg class="theme-icon-tone" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor" />
+              </svg>
+              <svg class="theme-icon-close" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path d="m5 5 14 14M19 5 5 19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+      <main class="workspace" id="main-content">
+        <nav id="tabs" role="tablist" aria-label="Portfolio sections">
+          <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="true" tabindex="0"
+            data-tab="home"><span class="tab-label">Now</span></button>
+          <button type="button" role="tab" id="tab-projects" aria-controls="panel-projects" aria-selected="false"
+            tabindex="-1" data-tab="projects"><span class="tab-label">Projects</span></button>
+          <button type="button" role="tab" id="tab-more" aria-controls="panel-more" aria-selected="false" tabindex="-1"
+            data-tab="more"><span class="tab-label">About</span></button>
+          <span class="tab-art-marker" aria-hidden="true"></span>
+        </nav>
+        <div class="panels">
+          <section id="panel-home" class="panel" role="tabpanel" aria-labelledby="tab-home" tabindex="0">
+            <div class="currently-row" hidden>
+              <h2 class="micro">CURRENTLY</h2>
+              <p id="current-copy"></p>
+            </div>
+            <div id="featured-work"></div>
+          </section>
+          <section id="panel-projects" class="panel" role="tabpanel" aria-labelledby="tab-projects" tabindex="0" hidden>
+            <h2 class="sr-only">Selected projects</h2>
+            <div id="project-list"></div>
+            <p class="project-note">Placeholder previews.</p>
+          </section>
+          <section id="panel-more" class="panel more-panel" role="tabpanel" aria-labelledby="tab-more" tabindex="0"
+            hidden>
+            <div class="about-editorial">
+              <h2 id="about-statement" class="about-statement"></h2>
+              <div class="about-narrative">
+                <p id="about-draft" class="about-draft" hidden>Dummy bio · replace with your own</p>
+                <div id="about-copy"></div>
+              </div>
+            </div>
+            <div class="about-contacts">
+              <dl id="socials" aria-label="Social links"></dl>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+  <dialog id="project-detail" aria-labelledby="project-title">
+    <div class="dialog-inner"><button type="button" class="detail-close" aria-label="Close project">close <span
+          aria-hidden="true">×</span></button>
+      <p class="detail-eyebrow">project notes</p>
+      <h2 id="project-title"></h2>
+      <p class="detail-description"></p><img class="detail-image" alt="" width="1440" height="960">
+      <div class="detail-meta"></div>
+      <div class="detail-links"></div>
+    </div>
+  </dialog>
+  <noscript>
+    <p class="noscript-note">JavaScript is needed for the project tabs and theme picker.</p>
+  </noscript>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,52 @@
+/* One project image, followed by a single aligned caption/action row. */
+#panel-home #featured-work { container: now-feature / inline-size; }
+#panel-home .now-featured { padding-block:clamp(6px,1.4vh,20px) 28px; }
+#panel-home .now-heading { display:block; padding:0 0 clamp(24px,3.5cqw,36px); }
+#panel-home .now-heading .now-kind { font-size:12px; line-height:1.5; color:var(--muted); margin:0 0 10px; }
+#panel-home .now-heading h3 {
+  font-size:clamp(32px,5.5cqw,64px); line-height:1.08; letter-spacing:-.045em;
+  font-weight:500; margin:0; max-width:24ch; overflow-wrap:anywhere; text-wrap:balance;
+}
+#panel-home .now-composition { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+#panel-home .now-preview {
+  display:block; width:100%; min-width:0; padding:0;
+  aspect-ratio:auto; border-radius:12px; background:transparent; border:0;
+}
+#panel-home .now-preview img {
+  display:block; width:100%; height:auto; aspect-ratio:auto;
+  object-fit:contain; border-radius:inherit;
+}
+#panel-home .now-preview .section-media-frame {
+  display:block; width:100%; border-radius:inherit; clip-path:inset(0 round 12px);
+}
+#panel-home .now-details {
+  display:flex; align-items:center; justify-content:space-between; min-width:0;
+  gap:24px; padding:12px 0; border-bottom:1px solid var(--line);
+}
+#panel-home .now-status, #panel-home .now-summary {
+  flex:1; font-size:13px; line-height:1.65; color:var(--muted); margin:0; overflow-wrap:anywhere;
+}
+#panel-home .now-summary { max-width:60ch; }
+#panel-home .now-open {
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+  gap:24px; min-height:48px; padding:0; margin-left:auto; font-size:13px; text-align:left;
+}
+#panel-home .now-open-arrow { color:var(--accent); font-size:25px; line-height:1; transition:transform 240ms cubic-bezier(.22,1,.36,1); }
+@media (hover:hover) and (pointer:fine) {
+  #panel-home .now-open:hover .now-open-arrow { transform:translate(3px,-3px); }
+}
+@container now-feature (max-width:420px) {
+  #panel-home .now-details { gap:16px; }
+  #panel-home .now-status, #panel-home .now-summary { font-size:12px; }
+  #panel-home .now-open { gap:12px; font-size:12px; }
+}
+@container now-feature (max-width:280px) {
+  #panel-home .now-details { flex-wrap:wrap; gap:4px; }
+  #panel-home .now-status, #panel-home .now-summary { flex-basis:100%; }
+}
+@media (prefers-reduced-motion:reduce) { #panel-home .now-open-arrow { transition:none; } }
+@media (forced-colors:active) {
+  #panel-home .now-details { border-color:CanvasText; }
+  #panel-home .now-open-arrow { color:LinkText; }
+}
+

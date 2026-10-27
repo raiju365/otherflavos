@@ -1,0 +1,22 @@
+.entry-loader { outline: none; contain: layout paint; }
+.entry-surface { position: absolute; inset: 0; background: #20211f; pointer-events: none; }
+.entry-counter {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: max-content;
+  font-family: 'Overused Grotesk', Arial, sans-serif;
+  font-size: clamp(120px, 28vw, 440px); font-weight: 500; font-variant-numeric: tabular-nums;
+  line-height: 1.05; letter-spacing: -.075em; color: #f5f4ed;
+  pointer-events: none; transform-origin: 50% 55%;
+}
+#entry-number { position:relative; display:flex; }
+.entry-reel-group { display:flex; }
+.entry-finish-window { position:absolute; inset:0; overflow:hidden; mask-image:linear-gradient(transparent,#000 7% 93%,transparent); }
+.entry-finish-row { display:flex; justify-content:center; height:1.05em; }
+.entry-finish-row > .entry-reel-glyph { flex:0 0 .58em; }
+.entry-reel-window { display:block; width:.58em; height:1.05em; overflow:hidden; mask-image:linear-gradient(transparent,#000 7% 93%,transparent); }
+.entry-reel-track { display:block; }
+.entry-reel-glyph { display:block; height:1.05em; text-align:center; letter-spacing:0; }
+html[data-entry-font-fallback] .portfolio * { font-family: Arial, sans-serif !important; }
+.entry-image-unavailable { display: grid; place-items: center; width: 100%; min-height: 120px; background: var(--hover); color: var(--muted); font: 12px Arial, sans-serif; }
+@media (max-width: 600px) { .entry-counter { font-size: clamp(110px, 34vw, 204px); } }
+@media (max-height: 500px) { .entry-counter { font-size: min(28vw, 58vh); } }
+@media (forced-colors: active) { .entry-loader { forced-color-adjust: none; } }

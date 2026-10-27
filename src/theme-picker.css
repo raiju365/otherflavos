@@ -1,0 +1,387 @@
+/* A single material expands out of the lower-left trigger, like an iOS menu. */
+/* Only theme changes own these native snapshot layers; no cloned page/overlay. */
+@property --theme-ink-a { syntax: '<length>'; inherits: false; initial-value: 1px; }
+@property --theme-ink-b { syntax: '<length>'; inherits: false; initial-value: 1px; }
+@property --theme-ink-c { syntax: '<length>'; inherits: false; initial-value: 1px; }
+html[data-theme-revealing]::view-transition-group(root),
+html[data-theme-revealing]::view-transition-old(root),
+html[data-theme-revealing]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-theme-revealing]::view-transition-old(root) { z-index: 2; }
+html[data-theme-revealing]::view-transition-new(root) { z-index: 1; }
+/* Transparent centers expose the new palette. Intersecting alpha masks lets
+   the three soft fields merge without seams, outlines or blur on page text. */
+html[data-theme-ink]::view-transition-old(root) {
+  mask-image:
+    radial-gradient(ellipse var(--theme-ink-a) calc(var(--theme-ink-a) * .72) at var(--theme-ink-0-x) var(--theme-ink-0-y), transparent 62%, #000 100%),
+    radial-gradient(ellipse calc(var(--theme-ink-b) * .8) var(--theme-ink-b) at var(--theme-ink-1-x) var(--theme-ink-1-y), transparent 62%, #000 100%),
+    radial-gradient(ellipse var(--theme-ink-c) calc(var(--theme-ink-c) * .68) at var(--theme-ink-2-x) var(--theme-ink-2-y), transparent 62%, #000 100%);
+  mask-composite: intersect;
+  mask-repeat: no-repeat;
+}
+/* Keep the control's new live view above the withdrawing old color. */
+html[data-theme-revealing] .theme-glass { view-transition-name: theme-controls; }
+html[data-theme-revealing]::view-transition-group(theme-controls) {
+  animation: none;
+  z-index: 4;
+  border-radius: 30px;
+  clip-path: border-box;
+}
+html[data-theme-revealing]::view-transition-image-pair(theme-controls) {
+  isolation: isolate;
+  border-radius: 30px;
+  clip-path: border-box;
+}
+html[data-theme-revealing]::view-transition-old(theme-controls) { display: none; }
+html[data-theme-revealing]::view-transition-new(theme-controls) { animation: none; mix-blend-mode: normal; }
+/* The trigger is a sibling of the glass. Capture its circle and both icons
+   together above the root reveal, so changing options cannot erase the X. */
+html[data-theme-revealing] #theme-toggle { view-transition-name: theme-trigger; }
+html[data-theme-revealing]::view-transition-group(theme-trigger) {
+  animation: none;
+  z-index: 5;
+}
+html[data-theme-revealing]::view-transition-image-pair(theme-trigger) { isolation: isolate; }
+html[data-theme-revealing]::view-transition-old(theme-trigger) { display: none; }
+html[data-theme-revealing]::view-transition-new(theme-trigger) {
+  animation: none;
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+html[data-theme-revealing]::view-transition,
+html[data-theme-revealing]::view-transition-group(root),
+html[data-theme-revealing]::view-transition-image-pair(root),
+html[data-theme-revealing]::view-transition-old(root),
+html[data-theme-revealing]::view-transition-new(root),
+html[data-theme-revealing]::view-transition-group(theme-controls),
+html[data-theme-revealing]::view-transition-image-pair(theme-controls),
+html[data-theme-revealing]::view-transition-new(theme-controls),
+html[data-theme-revealing]::view-transition-group(theme-trigger),
+html[data-theme-revealing]::view-transition-image-pair(theme-trigger),
+html[data-theme-revealing]::view-transition-new(theme-trigger) { pointer-events: none; }
+
+.theme-picker {
+  --glass-fill: rgb(255 255 255 / .045);
+  --glass-border: rgb(255 255 255 / .15);
+  --glass-rim: rgb(255 255 255 / .58);
+  --glass-depth: rgb(0 0 0 / .28);
+  --glass-ease: cubic-bezier(.2, .8, .2, 1);
+  --glass-morph-time: 440ms;
+  --glass-backdrop: blur(8px) saturate(1.45);
+  --control-fill: rgb(255 255 255 / .035);
+  --control-rim: rgb(255 255 255 / .4);
+  --glass-selection: rgb(255 255 255 / .1);
+  --glass-shadow: rgb(0 0 0 / .28);
+  --theme-inset: 8px;
+  --theme-row-height: 48px;
+  --theme-row-gap: 8px;
+  --theme-row-padding: 12px;
+  --theme-swatch-size: 24px;
+  --theme-content-gap: 12px;
+  --theme-trigger-size: 56px;
+  --theme-close-shift: calc(var(--theme-inset) + var(--theme-row-padding) + var(--theme-swatch-size)/2 - var(--theme-trigger-size)/2);
+  --glass-width: min(240px, calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  --glass-height: min(calc(var(--theme-inset)*2 + var(--theme-row-height)*5 + var(--theme-row-gap)*4), calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: var(--theme-trigger-size);
+  height: var(--theme-trigger-size);
+  margin: 0;
+  z-index: 30;
+  isolation: isolate;
+  font-family: -apple-system, BlinkMacSystemFont, Inter, sans-serif;
+}
+
+/* A sampled critically damped spring: one expansion, no rubbery bounce.
+   Native transitions retain their current size on interrupted reversals. */
+@supports (transition-timing-function: linear(0, 1)) {
+  .theme-picker {
+    --glass-ease: linear(0, .076 5%, .228 10%, .392 15%, .538 20%, .659 25%, .752 30%, .822 35%, .875 40%, .913 45%, .94 50%, .959 55%, .972 60%, .981 65%, .988 70%, .992 75%, .995 80%, .997 85%, .999 90%, .9996 95%, 1);
+  }
+}
+
+:root[data-theme=light] .theme-picker {
+  --glass-fill: rgb(255 255 255 / .1);
+  --glass-border: rgb(0 0 0 / .12);
+  --glass-rim: rgb(255 255 255 / .85);
+  --glass-depth: rgb(0 0 0 / .18);
+  --glass-selection: rgb(255 255 255 / .24);
+  --glass-shadow: rgb(0 0 0 / .16);
+  --control-fill: rgb(255 255 255 / .09);
+  --control-rim: rgb(255 255 255 / .65);
+}
+
+:root[data-theme=unexpected] .theme-picker {
+  --glass-fill: rgb(224 239 209 / .05);
+}
+:root[data-theme=amethyst] .theme-picker {
+  --glass-fill: rgb(240 222 255 / .055);
+  --glass-rim: rgb(245 230 255 / .65);
+  --glass-selection: rgb(229 207 250 / .14);
+}
+
+.theme-glass {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--theme-trigger-size);
+  height: var(--theme-trigger-size);
+  /* The optical rim is painted, so it does not steal a pixel from one side
+     of the layout. Menu coordinates share the surface's outer origin. */
+  border: 0;
+  border-radius: 28px;
+  transform-origin: 28px calc(100% - 28px);
+  transform: none;
+  overflow: hidden;
+  background: transparent;
+  /* The captured element itself must own backdrop filtering. A named view
+     is a backdrop root: a filtering child cannot sample the page beyond it.
+     Keep material changes immediate; only the surface geometry morphs. */
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: 0 5px 14px -8px rgb(0 0 0 / .24), inset 0 0 0 1px var(--control-rim);
+  transition: width var(--glass-morph-time) var(--glass-ease), height var(--glass-morph-time) var(--glass-ease), border-radius var(--glass-morph-time) var(--glass-ease), box-shadow 320ms;
+}
+
+/* Surface wash only. The host and its native snapshot group own the blur. */
+.theme-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  clip-path: border-box;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(255 255 255 / .2), rgb(255 255 255 / .025) 48%, transparent 75%), var(--control-fill);
+}
+
+.theme-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* One polished contour and reflection above the filtered surface. */
+  background:
+    radial-gradient(ellipse at 85% 0%, rgb(255 255 255 / .15), transparent 52%),
+    linear-gradient(180deg, rgb(255 255 255 / .2), rgb(255 255 255 / .025) 38%, transparent 62%, rgb(255 255 255 / .065)),
+    var(--glass-fill);
+  box-shadow: inset 0 0 0 1px var(--glass-rim), inset 0 1px 1px rgb(255 255 255 / .5), inset 0 -1px 1px rgb(0 0 0 / .18);
+  clip-path: border-box;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms var(--glass-ease);
+}
+
+.theme-picker[data-open=true] {
+  --glass-morph-time: 560ms;
+  --glass-backdrop: blur(12px) saturate(1.5) brightness(1.06) contrast(1.04);
+}
+.theme-picker[data-open=true] .theme-glass {
+  width: var(--glass-width);
+  height: var(--glass-height);
+  border-radius: 30px;
+  box-shadow: 0 18px 42px -12px var(--glass-shadow);
+}
+.theme-picker[data-open=true] .theme-glass::after {
+  opacity: 1;
+  transition-duration: 0s;
+}
+
+/* White glass stays colorless. Local contrast lives in the polished edge,
+   not in a blue/gray wash across the whole surface. */
+:root[data-theme=light] .theme-glass {
+  --glass-fill: rgb(255 255 255 / .1);
+}
+:root[data-theme=light] .theme-picker[data-open=true] {
+  --glass-backdrop: blur(10px) saturate(1.1) brightness(1.03) contrast(1.04);
+}
+
+.theme-picker[data-pressed=true] .theme-glass::before {
+  background: linear-gradient(180deg, rgb(255 255 255 / .27), rgb(255 255 255 / .05) 48%, transparent 75%), var(--control-fill);
+}
+
+#theme-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--theme-trigger-size);
+  height: var(--theme-trigger-size);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg);
+  z-index: 2;
+  transition: background .2s;
+}
+
+/* The expanded X has its own aligned 36px surface. Painting the 56px hit
+   target on hover creates a second, offset circle behind that surface. */
+.theme-picker[data-open=false] #theme-toggle:hover { background: rgb(255 255 255 / .055); }
+#theme-toggle:focus-visible { border-radius: 50%; outline-offset: 4px; }
+#theme-toggle::before {
+  content: '';
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--glass-selection);
+  border: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
+  opacity: 0;
+  transform: scale(.85);
+  transition: opacity 180ms, transform var(--glass-morph-time) var(--glass-ease), translate var(--glass-morph-time) var(--glass-ease);
+}
+.theme-picker[data-open=true] #theme-toggle::before { opacity: 1; transform: scale(1); }
+.theme-picker[data-open=true] #theme-toggle:focus-visible { outline: none; }
+.theme-picker[data-open=true] #theme-toggle:focus-visible::before {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.theme-picker[data-open=true] #theme-toggle:hover .theme-icon-close { opacity: .78; }
+#theme-toggle svg {
+  position: absolute;
+  display: block;
+  transition: opacity 160ms, transform var(--glass-morph-time) var(--glass-ease), translate var(--glass-morph-time) var(--glass-ease);
+}
+
+/* Align the close glyph with the swatch column and the final row's center.
+   The trigger's 56px hit area stays in its original fixed position. */
+.theme-picker[data-open=true] #theme-toggle::before,
+.theme-picker[data-open=true] #theme-toggle svg {
+  translate: var(--theme-close-shift) calc(var(--theme-close-shift)*-1);
+}
+
+.theme-icon-close { opacity: 0; transform: rotate(55deg) scale(.65); }
+.theme-picker[data-open=true] .theme-icon-tone { opacity: 0; transform: rotate(-65deg) scale(.65); }
+.theme-picker[data-open=true] .theme-icon-close { opacity: 1; transform: rotate(0) scale(1); }
+#theme-toggle:active svg { scale: .88; }
+
+#theme-menu {
+  position: absolute;
+  left: var(--theme-inset);
+  right: var(--theme-inset);
+  top: var(--theme-inset);
+  bottom: auto;
+  width: auto;
+  max-height: calc(var(--glass-height) - var(--theme-inset)*2 - var(--theme-row-height) - var(--theme-row-gap));
+  display: grid;
+  grid-auto-rows: var(--theme-row-height);
+  gap: var(--theme-row-gap);
+  align-content: start;
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  transform-origin: 20px 100%;
+  opacity: 0;
+  transform: translateY(12px) scale(.98);
+  pointer-events: none;
+  transition: opacity 100ms linear, transform 280ms var(--glass-ease);
+  z-index: 2;
+}
+
+#theme-menu::-webkit-scrollbar { display: none; }
+.theme-picker[data-open=true] #theme-menu {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  transition-duration: 180ms, 460ms;
+  transition-delay: 60ms;
+}
+
+.theme-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--theme-swatch-size) minmax(0, 1fr) 18px;
+  align-items: center;
+  column-gap: var(--theme-content-gap);
+  width: 100%;
+  height: var(--theme-row-height);
+  min-height: var(--theme-row-height);
+  padding: 0 var(--theme-row-padding);
+  border: 0;
+  border-radius: 22px;
+  text-align: left;
+  color: var(--fg);
+  background: transparent;
+  transform: translateY(5px);
+  transition: transform .32s var(--glass-ease), color .2s;
+  z-index: 1;
+}
+
+.theme-selection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--theme-row-height);
+  border: 1px solid rgb(255 255 255 / .28);
+  border-radius: 22px;
+  /* Share the already filtered panel backdrop, avoiding a second backdrop
+     root and a different optical state while the indicator moves. */
+  background: linear-gradient(180deg, rgb(255 255 255 / .12), transparent 70%), var(--glass-selection);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .32), inset 0 -1px 1px rgb(0 0 0 / .045), 0 2px 6px rgb(0 0 0 / .06);
+  pointer-events: none;
+  /* Translation belongs to the interruptible spring, not a second CSS ease. */
+  transition: height .2s;
+}
+
+:root[data-theme=light] .theme-selection {
+  background: linear-gradient(180deg, rgb(255 255 255 / .38), rgb(255 255 255 / .12)), var(--glass-selection);
+  border-color: rgb(0 0 0 / .065);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 1px rgb(0 0 0 / .035), 0 2px 5px rgb(0 0 0 / .055);
+}
+
+.theme-picker[data-open=true] .theme-option { transform: translateY(0); }
+.theme-picker[data-open=true] .theme-option:nth-of-type(2) { transition-delay: 30ms; }
+.theme-picker[data-open=true] .theme-option:nth-of-type(3) { transition-delay: 60ms; }
+.theme-picker[data-open=true] .theme-option:nth-of-type(4) { transition-delay: 90ms; }
+.theme-option[aria-checked=true] .theme-label { font-weight: 600; }
+.theme-option:focus-visible { outline-offset: -2px; border-radius: 22px; }
+.theme-option:active { transform: scale(.97) !important; transition-delay: 0s !important; }
+.theme-label { min-width: 0; font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: -.02em; white-space: nowrap; }
+.theme-swatch {
+  width: var(--theme-swatch-size);
+  height: var(--theme-swatch-size);
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / .24);
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / .23), 0 1px 3px rgb(0 0 0 / .12);
+}
+
+.swatch-dark { background: linear-gradient(135deg, #414141, #101010); }
+.swatch-light { background: linear-gradient(135deg, #fff, #dfdfdb); }
+.swatch-unexpected { background: linear-gradient(135deg, #b9c6a2, #77876a); }
+.swatch-amethyst { background: linear-gradient(135deg, #c4a2d7, #483253); }
+.theme-check { position: absolute; right: calc(var(--theme-row-padding) - 1px); top: 50%; transform: translateY(-50%); }
+
+.theme-picker[data-open=false] #theme-toggle:hover { background: transparent; }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .theme-glass, :root[data-theme=light] .theme-glass, :root .theme-picker[data-open=false] .theme-glass { background: var(--surface); }
+  .theme-glass::before, .theme-glass::after { display: none; }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .theme-glass, :root[data-theme=light] .theme-glass, :root .theme-picker[data-open=false] .theme-glass { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .theme-glass::before, .theme-glass::after, :root .theme-picker[data-open=false] .theme-glass::after { display: none; }
+  .theme-selection { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-picker *, .theme-picker *::before, .theme-picker *::after { transition: none !important; }
+  #theme-menu, .theme-option { transform: none; }
+  .theme-picker:hover .theme-glass::after { transform: none; }
+  .theme-picker[data-pressed=true] .theme-glass { transform: none; }
+}
+
+@media (forced-colors: active) {
+  .theme-glass, :root[data-theme=light] .theme-glass, :root .theme-picker[data-open=false] .theme-glass { background: Canvas; border-color: ButtonText; box-shadow: none; outline: 1px solid ButtonText; outline-offset: -1px; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .theme-glass::before, .theme-glass::after, :root .theme-picker[data-open=false] .theme-glass::after { display: none; }
+  .theme-option[aria-checked=true] { outline: 1px solid Highlight; outline-offset: -2px; }
+}
