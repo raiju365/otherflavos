@@ -52,7 +52,7 @@ The initial project previews are explicitly labeled placeholders. They do not re
 
 ### Current performance behavior
 
-The latest performance request supersedes the historical ink-diffusion and resizing-glass descriptions below. Theme colors commit immediately with no View Transition capture or full-screen mask. The fixed-size 240px panel opens/closes with transform and opacity only (180/140ms); it retains the four options, moving selection, keyboard access, persistent preview and theme storage. The material uses painted highlights instead of a live backdrop blur.
+The latest performance request supersedes the historical ink-diffusion and resizing-glass descriptions below. Theme colors commit immediately with no View Transition capture or full-screen mask. The fixed-size 240px panel opens with a 380ms critically damped transform spring and returns toward the trigger over 240ms when closing. Separate short fades coordinate its content and trigger icons; repeated input reverses the native CSS transition immediately. Background decoration stays paused until the closing motion completes. It retains the four options, moving selection, keyboard access, persistent preview and theme storage. The material uses painted highlights instead of a live backdrop blur.
 
 The popup has its own paired opaque surface/text tokens for each theme. Labels retain full opacity and normal blending, and forced colors uses system foregrounds. Bright project media behind the popup must not show through or wash out its labels.
 

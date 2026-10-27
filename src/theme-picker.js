@@ -42,7 +42,16 @@ export function initThemePicker(signal) {
 
   function finishClose() {
     clearTimeout(closeTimer);
-    if (!open) menu.hidden = true;
+    if (!open) {
+      menu.hidden = true;
+      setMotionActive(false);
+    }
+  }
+
+  function setMotionActive(active) {
+    if(root.dataset.themeControlOpen===String(active))return;
+    root.dataset.themeControlOpen=String(active);
+    document.dispatchEvent(new CustomEvent('portfolio:themecontrol',{detail:{open:active}}));
   }
 
   function setOpen(next, { restoreFocus = false, focusIndex } = {}) {
@@ -54,8 +63,7 @@ export function initThemePicker(signal) {
       positionSelection(false,true);
     }
     picker.dataset.open = String(open);
-    root.dataset.themeControlOpen=String(open);
-    document.dispatchEvent(new CustomEvent('portfolio:themecontrol',{detail:{open}}));
+    if(open)setMotionActive(true);
     toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', open ? 'Close color themes' : `Choose color theme, current: ${currentLabel()}`);
     if (!open && (restoreFocus || menu.contains(document.activeElement))) {
@@ -70,7 +78,7 @@ export function initThemePicker(signal) {
       selectionMotion.settle();
       options.forEach(option => { option.tabIndex = -1; });
       if (motion.matches) finishClose();
-      else closeTimer = setTimeout(finishClose, 180);
+      else closeTimer = setTimeout(finishClose, 280);
     }
   }
 
@@ -102,8 +110,8 @@ export function initThemePicker(signal) {
   on(window, 'pointerup', clearPress);
   on(window, 'pointercancel', clearPress);
   on(window, 'blur', () => { clearPress(); selectionMotion.settle(); });
-  on(window, 'pagehide', () => selectionMotion.settle());
-  on(document, 'visibilitychange', () => { if (document.hidden) { clearPress(); selectionMotion.settle(); } });
+  on(window, 'pagehide', () => {selectionMotion.settle();if(!open)finishClose();});
+  on(document, 'visibilitychange', () => { if (document.hidden) { clearPress(); selectionMotion.settle(); if(!open)finishClose(); } });
   on(glass, 'pointerleave', clearPress);
   on(toggle, 'keydown', event => {
     if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
@@ -139,7 +147,7 @@ export function initThemePicker(signal) {
   });
   on(window, 'resize', () => { if (open) positionSelection(false,true); });
   on(glass, 'transitionend', event => {
-    if (event.target === glass && event.propertyName === 'opacity') finishClose();
+    if (event.target === glass && event.propertyName === 'transform') finishClose();
   });
   on(motion, 'change', () => {
     if (motion.matches) { clearPress(); selectionMotion.settle(); if (!open) finishClose(); }
