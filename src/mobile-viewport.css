@@ -1,6 +1,8 @@
 /* All mobile tabs share header/nav structure. Only About and the enhanced
    gallery use a fixed viewport; Now retains natural document scrolling. */
 @media (max-width: 800px) {
+  html { scrollbar-gutter: auto; scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; }
   body {
     --mobile-top: max(12px, env(safe-area-inset-top));
     --mobile-bottom: max(16px, env(safe-area-inset-bottom));
