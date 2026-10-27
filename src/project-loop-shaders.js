@@ -6,20 +6,24 @@ uniform vec2 uViewport;
 uniform mediump vec2 uSize;
 uniform vec3 uPosition;
 uniform vec4 uShape;
+uniform float uVertical;
 varying mediump vec2 vUV;
 varying mediump float vShade;
 varying mediump float vFacing;
 void main(){
-  float angle=(aUV.x-.5)*uShape.w;
-  float radius=uSize.x/uShape.w;
+  float angle=(mix(aUV.x,aUV.y,uVertical)-.5)*uShape.w;
+  float radius=mix(uSize.x,uSize.y,uVertical)/uShape.w;
   vec3 p=vec3(radius*sin(angle),(aUV.y-.5)*uSize.y,radius*(cos(angle)-.5*(1.+cos(uShape.w*.5))));
+  if(uVertical>.5)p=vec3((aUV.x-.5)*uSize.x,radius*sin(angle),p.z);
   p*=uShape.z;
   float cr=cos(uShape.y),sr=sin(uShape.y);
   p.xy=vec2(cr*p.x-sr*p.y,sr*p.x+cr*p.y);
   float ct=cos(uShape.x),st=sin(uShape.x);
-  p.xz=vec2(ct*p.x+st*p.z,-st*p.x+ct*p.z);
+  if(uVertical>.5)p.yz=vec2(ct*p.y+st*p.z,-st*p.y+ct*p.z);
+  else p.xz=vec2(ct*p.x+st*p.z,-st*p.x+ct*p.z);
   p+=uPosition;
   vec3 normal=vec3(sin(angle+uShape.x),0.,cos(angle+uShape.x));
+  if(uVertical>.5)normal=vec3(0.,sin(angle+uShape.x),cos(angle+uShape.x));
   vFacing=dot(normal,vec3(-p.x,-p.y,${LOOP_PERSPECTIVE.toFixed(1)}-p.z))/${LOOP_PERSPECTIVE.toFixed(1)};
   float camera=1.-p.z/${LOOP_PERSPECTIVE.toFixed(1)};
   // One equidistant fisheye lens for the complete gallery, after the shared orbit.
@@ -30,7 +34,7 @@ void main(){
   plane*=lensFactor;
   gl_Position=vec4(2.*plane.x/uViewport.x*camera,-2.*plane.y/uViewport.y*camera,-p.z/${LOOP_PERSPECTIVE.toFixed(1)},camera);
   vUV=aUV;
-  float rim=abs(aUV.x-.5)*2.;
+  float rim=abs(mix(aUV.x,aUV.y,uVertical)-.5)*2.;
   vShade=1.-.09*rim*rim*min(uShape.w,1.)+.025*sin(angle);
 }`;
 export const LOOP_FRAGMENT=`

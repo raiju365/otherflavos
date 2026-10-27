@@ -55,6 +55,23 @@ export function loopPose(relative,width,height,sway=0,quiet=false) {
     bend,axisRadius,angle,...loopPassage(angle,sway,quiet)
   };
 }
+// Mobile reel: the same cylindrical camera, rotating about the horizontal
+// axis so the actual cards travel vertically rather than sideways.
+export function reelPose(relative,width,height,sway=0,quiet=false) {
+  const cardWidth=Math.min(width*.82,height*1.6*.70,680),cardHeight=cardWidth/1.6;
+  const axisRadius=cardHeight/.9,bend=.9;
+  const angle=relative*LOOP_ANGULAR_STEP+Math.max(-1.2,Math.min(1.2,sway))*.035;
+  const center=axisRadius*.5*(1+Math.cos(bend*.5));
+  const horizon=Math.acos(axisRadius/(LOOP_PERSPECTIVE+axisRadius));
+  return {
+    width:cardWidth,height:cardHeight,step:center*LOOP_ANGULAR_STEP,
+    x:0,y:center*Math.sin(angle),z:center*Math.cos(angle)-axisRadius,
+    turn:angle*180/Math.PI,roll:0,scale:1,vertical:1,
+    opacity:Math.abs(angle)-bend*.5<horizon?1:0,
+    bend,axisRadius,angle,reveal:1,edgeSide:angle<0?-1:1,
+    edgeEnergy:quiet?0:Math.min(1,Math.abs(sway)),edgeDrive:0,opticsEnabled:0
+  };
+}
 // Analytical damped spring: one finite tail, carried through immediate reversals.
 export function advanceLoopSway(sway,velocity,speed,seconds) {
   const drive=Math.tanh(speed*.16),omega=16,damping=.62,alpha=omega*damping,frequency=omega*Math.sqrt(1-damping*damping);
@@ -72,16 +89,17 @@ export function createLoopMesh(segments=64,rows=32) {
 }
 // Same continuous surface and camera as the GPU, for bounds/continuity checks.
 export function projectLoopPoint(pose,u,v,viewportWidth,viewportHeight) {
-  const bend=pose.bend,radius=pose.width/bend,angle=(u-.5)*bend;
-  let x=radius*Math.sin(angle),y=(v-.5)*pose.height,z=radius*(Math.cos(angle)-.5*(1+Math.cos(bend*.5)));
+  const vertical=pose.vertical===1,bend=pose.bend,radius=(vertical?pose.height:pose.width)/bend,angle=((vertical?v:u)-.5)*bend;
+  let x=vertical?(u-.5)*pose.width:radius*Math.sin(angle),y=vertical?radius*Math.sin(angle):(v-.5)*pose.height,z=radius*(Math.cos(angle)-.5*(1+Math.cos(bend*.5)));
   // One cylindrical arc, extruded vertically: no cloth wave or twisting rows.
   x*=pose.scale;y*=pose.scale;z*=pose.scale;
   const roll=pose.roll*Math.PI/180,turn=pose.turn*Math.PI/180;
   const rx=x*Math.cos(roll)-y*Math.sin(roll);y=x*Math.sin(roll)+y*Math.cos(roll);x=rx;
-  const tx=x*Math.cos(turn)+z*Math.sin(turn);z=-x*Math.sin(turn)+z*Math.cos(turn);x=tx;
+  if(vertical){const ty=y*Math.cos(turn)+z*Math.sin(turn);z=-y*Math.sin(turn)+z*Math.cos(turn);y=ty;}
+  else {const tx=x*Math.cos(turn)+z*Math.sin(turn);z=-x*Math.sin(turn)+z*Math.cos(turn);x=tx;}
   x+=pose.x;y+=pose.y;z+=pose.z;const perspective=LOOP_PERSPECTIVE/(LOOP_PERSPECTIVE-z);
   const normalAngle=angle+turn;
-  const frontFacing=(Math.sin(normalAngle)*(-x)+Math.cos(normalAngle)*(LOOP_PERSPECTIVE-z))/LOOP_PERSPECTIVE;
+  const frontFacing=(Math.sin(normalAngle)*(-(vertical?y:x))+Math.cos(normalAngle)*(LOOP_PERSPECTIVE-z))/LOOP_PERSPECTIVE;
   const lens=loopLens(x*perspective,y*perspective,viewportWidth,viewportHeight);
   return {x:viewportWidth/2+lens.x,y:viewportHeight/2+lens.y,z,worldX:x,worldY:y,frontFacing};
 }
@@ -94,10 +112,13 @@ export function hitLoopCard(pose,screenX,screenY,width,height) {
   const factor=r>1e-8?focal*Math.tan(theta)/r:1/LOOP_LENS_MAG;
   const dx=sx*factor/LOOP_PERSPECTIVE,dy=sy*factor/LOOP_PERSPECTIVE;
   const b=LOOP_PERSPECTIVE+pose.axisRadius,c=LOOP_PERSPECTIVE*(LOOP_PERSPECTIVE+2*pose.axisRadius);
-  const discriminant=b*b-(1+dx*dx)*c;
+  const vertical=pose.vertical===1,axis=vertical?dy:dx;
+  const discriminant=b*b-(1+axis*axis)*c;
   if(discriminant<=0)return false;
   const t=c/(b+Math.sqrt(discriminant));
-  const angle=Math.atan2(dx*t,b-t),u=.5+(angle-pose.angle)/pose.bend,v=.5+(dy*t-pose.y)/pose.height;
+  const angle=Math.atan2(axis*t,b-t);
+  const u=vertical?.5+(dx*t-pose.x)/pose.width:.5+(angle-pose.angle)/pose.bend;
+  const v=vertical?.5+(angle-pose.angle)/pose.bend:.5+(dy*t-pose.y)/pose.height;
   if(u<0||u>1||v<0||v>1)return false;
   const radius=Math.min(14,Math.min(pose.width,pose.height)*.08);
   const qx=Math.abs((u-.5)*pose.width)-(pose.width*.5-radius),qy=Math.abs((v-.5)*pose.height)-(pose.height*.5-radius);

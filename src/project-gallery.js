@@ -1,4 +1,4 @@
-import {loopSlot,loopPose,hitLoopCard,loopArrival,LOOP_ARRIVAL_MS,advanceLoopSway,wheelProjects,wrapProject} from './project-loop-model.js';
+import {loopSlot,loopPose,reelPose,hitLoopCard,loopArrival,LOOP_ARRIVAL_MS,advanceLoopSway,wheelProjects,wrapProject} from './project-loop-model.js';
 import {mediaPath} from './project-showcase.js';
 import {createProjectLoopSurface} from './project-loop-surface.js';
 
@@ -15,6 +15,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   let position=0,target=0,frame=0,previous=null,width=800,height=440,current=-1,sway=0,swayVelocity=0;
   let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true;
   let paintedCards=[];
+  const poseFor=(...args)=>(compact.matches?reelPose:loopPose)(...args);
   const available=()=>!signal.aborted&&!document.hidden&&pageActive&&focused&&visible&&!dialogOpen&&!panel.hidden
     &&document.documentElement.dataset.entry!=='loading'&&workspace.getAttribute('aria-busy')!=='true';
   const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available())paint();}});
@@ -37,8 +38,9 @@ export function initProjectGallery({signal,projects,onOpen}) {
     slots.forEach(state=>{
       const slot=loopSlot(state.slot,position,projects.length);
       const arrival=loopArrival(slot.relative,intro===null?1:intro/LOOP_ARRIVAL_MS,height);
-      const pose=loopPose(slot.relative+arrival.shift,width,height,reduced.matches?0:sway,reduced.matches||forced.matches);
-      pose.y+=arrival.rise;pose.opacity*=arrival.opacity;
+      const pose=poseFor(slot.relative+arrival.shift,width,height,reduced.matches?0:sway,reduced.matches||forced.matches);
+      if(!pose.vertical)pose.y+=arrival.rise;
+      pose.opacity*=arrival.opacity;
       if(slot.project!==state.project){
         state.project=slot.project;const project=projects[slot.project],image=mediaPath(project.image)||'';
         state.image.src=image;state.button.dataset.index=String(slot.project);
@@ -50,7 +52,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
       state.button.style.pointerEvents=pose.opacity>.1&&pose.reveal>.03?'auto':'none';
       const concealed=(1-pose.reveal)*100;
       state.button.style.clipPath=`inset(0 ${pose.edgeSide>0?concealed:0}% 0 ${pose.edgeSide<0?concealed:0}% round 14px)`;
-      element.style.transform=`translate3d(${pose.x-pose.width/2}px,${pose.y-pose.height/2}px,${pose.z}px) rotateY(${pose.turn}deg) rotateZ(${pose.roll}deg) scale(${pose.scale})`;
+      element.style.transform=`translate3d(${pose.x-pose.width/2}px,${pose.y-pose.height/2}px,${pose.z}px) rotate${pose.vertical?'X':'Y'}(${pose.vertical?-pose.turn:pose.turn}deg) rotateZ(${pose.roll}deg) scale(${pose.scale})`;
       cards.push({slot:state.slot,project:state.project,source:mediaPath(projects[state.project].image)||'',pose});
     });
     const rendered=surface?.draw(cards,width,height,window.devicePixelRatio||1);
@@ -89,6 +91,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }
   function move(step){if(!available()||projects.length<2)return;target=Math.round(target)+step;wake();}
   function measure(){
+    viewport.dataset.axis=compact.matches?'vertical':'horizontal';
     const rect=viewport.getBoundingClientRect();if(rect.width>0)width=rect.width;if(rect.height>0)height=rect.height;
     paint();
   }
@@ -106,7 +109,9 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }
   on(viewport,'wheel',event=>{
     if(!available()||event.ctrlKey||event.metaKey||projects.length<2)return;
-    event.preventDefault();target+=wheelProjects(event,height);wake();
+    const distance=wheelProjects(compact.matches?{deltaY:event.deltaY,deltaMode:event.deltaMode}:event,height);
+    if(!distance)return;
+    event.preventDefault();target+=distance;wake();
   },{passive:false});
   on(viewport,'pointerdown',event=>{
     if(!available()||event.button!==0||event.isPrimary===false||projects.length<2)return;
@@ -118,12 +123,13 @@ export function initProjectGallery({signal,projects,onOpen}) {
     const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
     if(!drag.axis){
       if(!drag.compact&&Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){drag=null;return;}
-      if(Math.max(Math.abs(dx),drag.compact?Math.abs(dy):0)<6)return;
-      drag.axis=drag.compact&&Math.abs(dy)>Math.abs(dx)?'y':'x';
+      if(drag.compact&&Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)){drag=null;clickBlocked=true;return;}
+      if(Math.abs(drag.compact?dy:dx)<6)return;
+      drag.axis=drag.compact?'y':'x';
       viewport.setPointerCapture?.(event.pointerId);viewport.dataset.dragging='true';clickBlocked=true;
     }
     event.preventDefault();
-    const distance=drag.axis==='y'?dy:dx,span=drag.axis==='y'?Math.max(100,height*.65):loopPose(0,width,height).step;
+    const distance=drag.axis==='y'?dy:dx,span=poseFor(0,width,height).step;
     target=drag.origin-distance/span;
     const dt=Math.max(8,event.timeStamp-drag.lastTime);
     drag.velocity=Math.max(-.012,Math.min(.012,(target-drag.lastTarget)/dt));drag.lastTarget=target;drag.lastTime=event.timeStamp;wake();
@@ -133,7 +139,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
     const moved=Boolean(drag.axis),velocity=event.timeStamp-drag.lastTime<90?drag.velocity:0;
     drag=null;delete viewport.dataset.dragging;
     if(viewport.hasPointerCapture?.(event.pointerId))viewport.releasePointerCapture(event.pointerId);
-    if(moved){target+=velocity*110;wake();}
+    if(moved){target=compact.matches?Math.round(target+Math.max(-.65,Math.min(.65,velocity*110))):target+velocity*110;wake();}
   }
   on(viewport,'pointerup',release);on(viewport,'pointercancel',event=>{if(drag?.id===event.pointerId){drag=null;target=position;delete viewport.dataset.dragging;wake();}});
   on(viewport,'lostpointercapture',event=>{
@@ -143,6 +149,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
     drag=null;target=position;delete viewport.dataset.dragging;wake();
   });
   on(viewport,'keydown',event=>{
+    if(compact.matches&&['ArrowLeft','ArrowRight'].includes(event.key))return;
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Enter',' '].includes(event.key)||!available())return;
     event.preventDefault();
     if(event.key==='Enter'||event.key===' '){viewport.focus({preventScroll:true});onOpen(current);return;}

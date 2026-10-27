@@ -25,7 +25,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
     gl.bindBuffer(gl.ARRAY_BUFFER,vertices);gl.bufferData(gl.ARRAY_BUFFER,mesh.uv,gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indices);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.indices,gl.STATIC_DRAW);
     const attribute=gl.getAttribLocation(program,'aUV');
-    const uniform=Object.fromEntries(['uViewport','uSize','uPosition','uShape','uPassage','uOptics','uImage','uOpacity','uUVScale'].map(name=>[name,gl.getUniformLocation(program,name)]));
+    const uniform=Object.fromEntries(['uViewport','uSize','uPosition','uShape','uVertical','uPassage','uOptics','uImage','uOpacity','uUVScale'].map(name=>[name,gl.getUniformLocation(program,name)]));
     function texture(source){
       if(textures.has(source))return textures.get(source);
       const image=new Image(),entry={image,ready:false,failed:false,texture:null,aspect:1.6};textures.set(source,entry);
@@ -71,6 +71,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
           const p=card.pose,aspect=p.width/p.height;
           gl.bindTexture(gl.TEXTURE_2D,image.texture);gl.uniform2f(uniform.uSize,p.width,p.height);gl.uniform3f(uniform.uPosition,p.x,p.y,p.z);
           gl.uniform4f(uniform.uShape,p.turn*Math.PI/180,p.roll*Math.PI/180,p.scale,p.bend);gl.uniform1f(uniform.uOpacity,p.opacity);
+          gl.uniform1f(uniform.uVertical,p.vertical||0);
           gl.uniform3f(uniform.uPassage,p.reveal,p.edgeSide,p.edgeEnergy);
           gl.uniform3f(uniform.uOptics,p.edgeDrive,p.opticsEnabled,p.angle);
           gl.uniform2f(uniform.uUVScale,image.aspect>aspect?aspect/image.aspect:1,image.aspect<aspect?image.aspect/aspect:1);

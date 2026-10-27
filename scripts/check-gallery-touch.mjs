@@ -53,13 +53,13 @@ const point=(id,x,y,t,extra={})=>({pointerId:id,pointerType:'touch',button:0,isP
 const checks=[];
 const check=(name,fn)=>{fn();checks.push(name);};
 
-emit(viewport,'pointerdown',point(7,300,280,0,{target:track}));
-emit(viewport,'pointermove',point(7,260,280,20));settle();
+emit(viewport,'pointerdown',point(7,180,400,0,{target:track}));
+emit(viewport,'pointermove',point(7,180,360,20));settle();
 const before=slots[0].style.transform;
 // Touch originally captures the child implicitly. Transferring capture to
 // viewport emits this bubbling event before the next move reaches viewport.
 emit(viewport,'lostpointercapture',{pointerId:7,target:track});
-const continuing=emit(viewport,'pointermove',point(7,120,280,40));settle();
+const continuing=emit(viewport,'pointermove',point(7,180,220,40));settle();
 check('child capture transfer does not cancel a touch swipe',()=>{
   assert.equal(continuing.defaultPrevented,true,'touch must continue after child lostpointercapture');
   assert.notEqual(slots[0].style.transform,before);
@@ -67,14 +67,14 @@ check('child capture transfer does not cancel a touch swipe',()=>{
 });
 emit(viewport,'lostpointercapture',{pointerId:99,target:viewport});
 check('another pointer cannot cancel the active swipe',()=>{
-  assert.equal(emit(viewport,'pointermove',point(7,90,280,60)).defaultPrevented,true);settle();
+  assert.equal(emit(viewport,'pointermove',point(7,180,190,60)).defaultPrevented,true);settle();
 });
 // A stale capture event may arrive while the viewport already owns capture.
 emit(viewport,'lostpointercapture',{pointerId:7,target:viewport});
 check('stale loss does not cancel capture the viewport still owns',()=>{
-  assert.equal(emit(viewport,'pointermove',point(7,70,280,80)).defaultPrevented,true);settle();
+  assert.equal(emit(viewport,'pointermove',point(7,180,170,80)).defaultPrevented,true);settle();
 });
-emit(viewport,'pointerup',point(7,70,280,200));settle();
+emit(viewport,'pointerup',point(7,180,170,200));settle();
 check('release clears capture and blocks the drag-generated click',()=>{
   emit(slots[0].querySelector('button'),'click');
   assert.equal(opened.length,0);assert.equal(viewport.captures.size,0);assert.equal(viewport.dataset.dragging,undefined);
@@ -97,6 +97,17 @@ emit(viewport,'pointerdown',point(9,180,280,500));
 emit(viewport,'pointerup',point(9,180,280,520));
 emit(slots[0].querySelector('button'),'click');
 check('an ordinary tap still opens a project',()=>assert.equal(opened.length,1));
+const horizontalStart=slots[0].style.transform;
+emit(viewport,'pointerdown',point(10,280,280,600));
+const sideways=emit(viewport,'pointermove',point(10,80,281,620));
+emit(viewport,'pointerup',point(10,80,281,700));settle();
+check('mobile sideways swipes do not move the vertical reel',()=>{
+  assert.equal(sideways.defaultPrevented,false);assert.equal(slots[0].style.transform,horizontalStart);
+});
+const horizontalWheel=emit(viewport,'wheel',{deltaX:240,deltaY:0});settle();
+check('mobile horizontal wheel input is ignored',()=>{
+  assert.equal(horizontalWheel.defaultPrevented,false);assert.equal(slots[0].style.transform,horizontalStart);
+});
 check('zoom gestures remain available',()=>assert.equal(emit(viewport,'wheel',{ctrlKey:true,deltaY:100}).defaultPrevented,false));
 controller.abort();
 check('abort releases handlers and pending work',()=>{
