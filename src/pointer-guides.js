@@ -11,11 +11,16 @@ export function initPointerGuides(signal) {
   guides.hidden = true;
   const horizontal = document.createElement('span');
   const vertical = document.createElement('span');
-  const focus = document.createElement('span');
+  const focusHorizontal = document.createElement('span');
+  const focusVertical = document.createElement('span');
   horizontal.className = 'pointer-guide-horizontal';
   vertical.className = 'pointer-guide-vertical';
-  focus.className = 'pointer-guide-focus';
-  guides.append(horizontal, vertical, focus);
+  focusHorizontal.className = focusVertical.className = 'pointer-guide-focus';
+  // Each accent inherits the actual stroke's perpendicular position and
+  // thickness, rather than following it in a separately translated layer.
+  horizontal.append(focusHorizontal);
+  vertical.append(focusVertical);
+  guides.append(horizontal, vertical);
   document.body.append(guides);
   const on = (target, type, listener) => target.addEventListener(type, listener, { signal, passive: true });
   let frame = 0, previous = null, point = null, target = null;
@@ -31,14 +36,15 @@ export function initPointerGuides(signal) {
   function paint(dx = 0, dy = 0) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     // Snap the stroke edges to device pixels instead of splitting a thin
-    // line across two pixels. The two axes and accent share that same center.
+    // line across two pixels. Each child accent travels along its own axis.
     const x = Math.round((point.x - .5) * dpr) / dpr;
     const y = Math.round((point.y - .5) * dpr) / dpr;
     horizontal.style.transform = `translate3d(0, ${number(y)}px, 0)`;
     vertical.style.transform = `translate3d(${number(x)}px, 0, 0)`;
-    focus.style.transform = `translate3d(${number(x - 44)}px, ${number(y - 44)}px, 0)`;
-    focus.style.setProperty('--guide-stretch-x', String(number(1 + Math.min(Math.abs(dx) / 150, .45))));
-    focus.style.setProperty('--guide-stretch-y', String(number(1 + Math.min(Math.abs(dy) / 150, .45))));
+    focusHorizontal.style.transform = `translate3d(${number(x)}px, 0, 0)`;
+    focusVertical.style.transform = `translate3d(0, ${number(y)}px, 0)`;
+    focusHorizontal.style.setProperty('--guide-stretch', String(number(1 + Math.min(Math.abs(dx) / 150, .45))));
+    focusVertical.style.setProperty('--guide-stretch', String(number(1 + Math.min(Math.abs(dy) / 150, .45))));
     guides.dataset.moving = String(Math.hypot(dx, dy) > .5);
   }
   function tick(time) {

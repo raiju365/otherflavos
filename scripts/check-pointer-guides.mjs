@@ -31,10 +31,12 @@ const emit=(element,type,properties={})=>{
 const move=(properties={})=>emit(window,'pointermove',{pointerType:'mouse',clientX:220,clientY:120,target:{closest:()=>null},...properties});
 const abort=new AbortController();setMaxListeners(0,abort.signal);
 const hide=initPointerGuides(abort.signal),root=document.body.children[0];
-const [horizontal,vertical,focus]=root.children;
+const [horizontal,vertical]=root.children;
+const focusHorizontal=horizontal.children[0],focusVertical=vertical.children[0];
 const checks=[];const check=(name,fn)=>{fn();checks.push(name);};
-check('three decorative elements start hidden and outside accessibility',()=>{
-  assert.equal(root.hidden,true);assert.equal(root.attributes.get('aria-hidden'),'true');assert.equal(root.children.length,3);
+check('two axes own their accents and remain outside accessibility',()=>{
+  assert.equal(root.hidden,true);assert.equal(root.attributes.get('aria-hidden'),'true');assert.equal(root.children.length,2);
+  assert.equal(focusHorizontal.parent,horizontal);assert.equal(focusVertical.parent,vertical);
 });
 document.documentElement.dataset.entry='loading';move();
 check('entry loading prevents decoration and frame work',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
@@ -50,7 +52,7 @@ check('new movement schedules one follow frame without jumping the visible guide
 step();
 check('the follow frame advances smoothly between the old and new positions',()=>{
   const x=Number(vertical.style.transform.match(/\(([^p]+)/)[1]);assert.ok(x>0&&x<640);
-  assert.equal(root.dataset.moving,'true');assert.ok(Number(focus.style['--guide-stretch-x'])>1);
+  assert.equal(root.dataset.moving,'true');assert.ok(Number(focusHorizontal.style['--guide-stretch'])>1);
 });
 for(let i=0;i<200;i++)move({clientX:800+i,clientY:400});
 check('a burst of input coalesces into a single active frame chain',()=>assert.equal(frames.size,1));
@@ -59,7 +61,10 @@ check('stopping converges to the latest pointer and leaves zero idle frames',()=
   assert.equal(vertical.style.transform,'translate3d(999px, 0, 0)');assert.equal(horizontal.style.transform,'translate3d(0, 400px, 0)');
   assert.equal(root.dataset.moving,'false');assert.ok(count<40);
 });
-check('accent strokes share the exact same snapped axis center',()=>assert.equal(focus.style.transform,'translate3d(955px, 356px, 0)'));
+check('child accents share their axes without a second perpendicular offset',()=>{
+  assert.equal(focusHorizontal.style.transform,'translate3d(999px, 0, 0)');
+  assert.equal(focusVertical.style.transform,'translate3d(0, 400px, 0)');
+});
 move({target:{closest:()=>({})}});settle();
 check('hovering an interactive element enables the restrained tick expansion',()=>assert.equal(root.dataset.interactive,'true'));
 emit(window,'pointerdown',{pointerType:'mouse',button:0});
@@ -84,6 +89,17 @@ check('reduced motion tracks directly with no trailing frame chain',()=>{
 });
 window.devicePixelRatio=2;move({clientX:250,clientY:125});
 check('high-DPI strokes align to device pixels',()=>assert.equal(vertical.style.transform,'translate3d(249.5px, 0, 0)'));
+for(const dpr of [1,1.25,1.5,2,3]){
+  window.devicePixelRatio=dpr;move({clientX:251.375,clientY:126.625});
+  check(`axes and nested accents retain one origin at DPR ${dpr}`,()=>{
+    const x=Number(vertical.style.transform.match(/\(([^p]+)/)[1]);
+    const y=Number(horizontal.style.transform.match(/, ([^p]+)/)[1]);
+    assert.ok(Math.abs(x*dpr-Math.round(x*dpr))<.002);
+    assert.ok(Math.abs(y*dpr-Math.round(y*dpr))<.002);
+    assert.equal(focusHorizontal.style.transform,`translate3d(${x}px, 0, 0)`);
+    assert.equal(focusVertical.style.transform,`translate3d(0, ${y}px, 0)`);
+  });
+}
 window.devicePixelRatio=1;reduced.matches=false;emit(reduced,'change');
 for(const [element,type,props]of [[document,'keydown',{key:'Tab'}],[window,'blur',{}],[window,'resize',{}],[window,'pagehide',{}],[document,'pointercancel',{}],[fine,'change',{}]]){
   move();move({clientX:600});emit(element,type,props);
