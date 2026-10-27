@@ -1,5 +1,6 @@
 import { createThemeReveal } from './theme-reveal.js';
 import { createThemeSelectionMotion } from './theme-selection-motion.js';
+import { createThemePanelMotion } from './theme-panel-motion.js';
 // One bounded glass surface opens from the trigger. Its blur remains constant.
 export function initThemePicker(signal) {
   const picker = document.querySelector('.theme-picker');
@@ -18,9 +19,22 @@ export function initThemePicker(signal) {
   let open = false;
   let selectedTheme = root.dataset.theme;
   let reflectedTheme;
-  let closeTimer;
+  let pressed = false;
+  let pressPointer = null;
   let rows=[];
-  function clearPress() { picker.dataset.pressed = 'false'; }
+  const panelMotion = createThemePanelMotion({
+    glass, rim: glass.querySelector?.('.theme-glass-rim'),
+    tone: toggle.querySelector?.('.theme-icon-tone'),
+    close: toggle.querySelector?.('.theme-icon-close'),
+    closeSurface: toggle.querySelector?.('.theme-close-surface'),
+  }, { onRest: () => { if (!open && !pressed) finishClose(); } });
+  function animatePanel() {
+    panelMotion.set({ open, pressed, animate: !motion.matches && !document.hidden });
+  }
+  function clearPress() {
+    if (!pressed) return;
+    pressed = false; pressPointer = null; picker.dataset.pressed = 'false'; animatePanel();
+  }
 
   function positionSelection(animate = true, measure = false) {
     if (menu.hidden) return;
@@ -41,7 +55,6 @@ export function initThemePicker(signal) {
   }
 
   function finishClose() {
-    clearTimeout(closeTimer);
     if (!open) {
       menu.hidden = true;
       setMotionActive(false);
@@ -55,7 +68,6 @@ export function initThemePicker(signal) {
   }
 
   function setOpen(next, { restoreFocus = false, focusIndex } = {}) {
-    clearTimeout(closeTimer);
     open = next;
     if (open) {
       menu.hidden = false;
@@ -77,9 +89,8 @@ export function initThemePicker(signal) {
     } else {
       selectionMotion.settle();
       options.forEach(option => { option.tabIndex = -1; });
-      if (motion.matches) finishClose();
-      else closeTimer = setTimeout(finishClose, 360);
     }
+    animatePanel();
   }
 
   function currentLabel() {
@@ -102,22 +113,32 @@ export function initThemePicker(signal) {
   }
 
   on(toggle, 'click', () => setOpen(!open, { restoreFocus: open }));
-  // Press response only; glass highlights stay at their authored CSS position.
+  // Options never compress the panel; the original trigger owns pressure.
   on(picker, 'pointerdown', event => {
     if (event.button !== undefined && event.button !== 0) return;
-    picker.dataset.pressed = 'true';
+    if (event.isPrimary === false) return;
+    if (!toggle.contains(event.target)) return;
+    pressPointer = event.pointerId ?? null;
+    pressed = true; picker.dataset.pressed = 'true';
+    setMotionActive(true); animatePanel();
   });
-  on(window, 'pointerup', clearPress);
-  on(window, 'pointercancel', clearPress);
-  on(window, 'blur', () => { clearPress(); selectionMotion.settle(); });
-  on(window, 'pagehide', () => {selectionMotion.settle();if(!open)finishClose();});
-  on(document, 'visibilitychange', () => { if (document.hidden) { clearPress(); selectionMotion.settle(); if(!open)finishClose(); } });
-  on(glass, 'pointerleave', clearPress);
+  const releasePointer = event => { if (pressPointer === null || event.pointerId === pressPointer) clearPress(); };
+  on(window, 'pointerup', releasePointer);
+  on(window, 'pointercancel', releasePointer);
+  on(window, 'blur', () => { clearPress(); panelMotion.settle(); selectionMotion.settle(); });
+  on(window, 'pagehide', () => { clearPress(); panelMotion.settle(); selectionMotion.settle(); });
+  on(document, 'visibilitychange', () => { if (document.hidden) { clearPress(); panelMotion.settle(); selectionMotion.settle(); } });
+  on(toggle, 'pointerleave', clearPress);
   on(toggle, 'keydown', event => {
+    if ([' ', 'Enter'].includes(event.key) && !event.repeat) {
+      pressed = true; picker.dataset.pressed = 'true'; setMotionActive(true); animatePanel();
+    }
     if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
     event.preventDefault();
     setOpen(true, event.key === 'ArrowUp' ? { focusIndex: options.length - 1 } : {});
   });
+  on(toggle, 'keyup', event => { if ([' ', 'Enter'].includes(event.key)) clearPress(); });
+  on(toggle, 'blur', clearPress);
   on(menu, 'keydown', event => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
@@ -145,12 +166,9 @@ export function initThemePicker(signal) {
     }
     setOpen(false);
   });
-  on(window, 'resize', () => { if (open) positionSelection(false,true); });
-  on(glass, 'transitionend', event => {
-    if (event.target === glass && event.propertyName === 'clip-path') finishClose();
-  });
+  on(window, 'resize', () => { clearPress(); panelMotion.resize(); if (open) positionSelection(false,true); });
   on(motion, 'change', () => {
-    if (motion.matches) { clearPress(); selectionMotion.settle(); if (!open) finishClose(); }
+    if (motion.matches) { clearPress(); panelMotion.settle(); selectionMotion.settle(); }
   });
 
   const changeTheme = createThemeReveal({ signal, origin: toggle, apply(theme) {
@@ -168,8 +186,8 @@ export function initThemePicker(signal) {
 
   signal.addEventListener('abort', () => {
     selectionMotion.settle();
-    clearPress();
-    clearTimeout(closeTimer);
+    pressed = false; picker.dataset.pressed = 'false';
+    panelMotion.destroy();
     open = false;
     picker.dataset.open = 'false';
     toggle.setAttribute('aria-expanded', 'false');

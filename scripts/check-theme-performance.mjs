@@ -29,6 +29,17 @@ function emit(target, type, properties = {}) {
   return event;
 }
 const picker = new Element(), toggle = new Element(), menu = new Element(), glass = new Element();
+glass.offsetWidth = 240; glass.offsetHeight = 288;
+const panelJobs = [];
+glass.animate = (frames, timing) => {
+  let resolve, reject;
+  const job = { frames, timing, currentTime: 0, cancelled: false,
+    finished: new Promise((yes, no) => { resolve = yes; reject = no; }),
+    finish() { this.currentTime = timing.duration; resolve(); },
+    cancel() { this.cancelled = true; reject(Error('cancel')); } };
+  panelJobs.push(job); return job;
+};
+const finishPanel = async () => { panelJobs.at(-1).finish(); await Promise.resolve(); };
 const root = new Element(), meta = {}, outside = new Element(), selection = new Element();
 const indicatorJobs = [];
 selection.animate = (frames, timing) => {
@@ -76,10 +87,20 @@ const passed = [];
 const check = (name, test) => { test(); passed.push(name); };
 
 check('initial checked theme', () => assert.equal(options[0].getAttribute('aria-checked'), 'true'));
-emit(picker,'pointerdown',{button:0});
+emit(picker,'pointerdown',{button:0,target:toggle});
 check('primary press immediately engages the shared glass material',()=>assert.equal(picker.dataset.pressed,'true'));
 emit(window,'pointercancel');
 check('cancelled touch releases material compression',()=>assert.equal(picker.dataset.pressed,'false'));
+emit(picker,'pointerdown',{button:0,target:options[0]});
+check('pressing an option never compresses the panel',()=>assert.equal(picker.dataset.pressed,'false'));
+emit(picker,'pointerdown',{button:0,target:toggle,pointerId:4,isPrimary:true});
+emit(window,'pointerup',{pointerId:5});
+check('an unrelated finger release cannot interrupt the held trigger',()=>assert.equal(picker.dataset.pressed,'true'));
+emit(window,'pointercancel',{pointerId:4});
+emit(toggle,'keydown',{key:' '});
+check('keyboard activation shares the pressure response',()=>assert.equal(picker.dataset.pressed,'true'));
+emit(toggle,'keyup',{key:' '});
+check('keyboard release clears pressure',()=>assert.equal(picker.dataset.pressed,'false'));
 emit(glass,'pointermove',{clientX:112,clientY:80,pointerType:'mouse'});
 check('glass highlight stays fixed while the mouse moves',()=>{
   assert.equal(glass.style['--glass-light-x'],undefined);
@@ -87,7 +108,7 @@ check('glass highlight stays fixed while the mouse moves',()=>{
 });
 emit(glass,'pointerleave');
 check('leaving the glass preserves the fixed highlight',()=>assert.equal(glass.style['--glass-light-x'],undefined));
-emit(picker,'pointerdown',{button:0});emit(window,'blur');
+emit(picker,'pointerdown',{button:0,target:toggle});emit(window,'blur');
 check('window blur releases held input',()=>assert.equal(picker.dataset.pressed,'false'));
 emit(glass,'pointermove',{clientX:99,clientY:40,pointerType:'touch'});
 check('touch avoids pointer-position lighting',()=>assert.equal(glass.style['--glass-light-x'],undefined));
@@ -138,7 +159,7 @@ check('rapid theme selection ends on the latest option with one checked state', 
 });
 emit(toggle, 'click'); emit(toggle, 'click');
 await new Promise(resolve => setTimeout(resolve, 520));
-check('reopening cancels stale closing timer', () => { assert.equal(menu.hidden, false); assert.equal(menu.inert, false); });
+check('reopening cannot be hidden by an obsolete closing completion', () => { assert.equal(menu.hidden, false); assert.equal(menu.inert, false); });
 emit(document, 'keydown', { key: 'Escape' });
 check('Escape closes access immediately and restores trigger', () => {
   assert.equal(menu.inert, true); assert.equal(document.activeElement, toggle);
@@ -197,6 +218,8 @@ emit(glass,'transitionend',{target:menu,propertyName:'clip-path'});
 emit(glass,'transitionend',{target:glass,propertyName:'opacity'});
 check('child and unrelated transitions cannot truncate the closing morph',()=>assert.equal(menu.hidden,false));
 emit(glass,'transitionend',{target:glass,propertyName:'clip-path'});
+check('legacy CSS events cannot finish the new native spring',()=>assert.equal(menu.hidden,false));
+await finishPanel();
 check('completed surface return hides the menu and releases the decorative pause',()=>{
  assert.equal(menu.hidden,true);assert.equal(root.dataset.themeControlOpen,'false');
 });
