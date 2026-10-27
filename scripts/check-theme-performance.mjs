@@ -239,6 +239,11 @@ emit(toggle,'click');
 motion.matches = true;
 emit(toggle, 'click'); emit(toggle, 'click');
 check('reduced motion closes without waiting for animation', () => assert.equal(menu.hidden, true));
+emit(picker,'pointerdown',{button:0,target:toggle});
+check('reduced motion removes pressure displacement as well as playback',()=>{
+  assert.equal(glass.style.clipPath,'inset(232px 184px 0px 0px round 28px)');
+});
+emit(window,'pointercancel');
 emit(toggle, 'click'); abort.abort(); emit(toggle, 'click');
 check('abort removes handlers and closes the menu', () => {
   assert.equal(picker.dataset.open, 'false'); assert.equal(menu.hidden, true); assert.equal(menu.inert, true);

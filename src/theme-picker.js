@@ -29,7 +29,8 @@ export function initThemePicker(signal) {
     closeSurface: toggle.querySelector?.('.theme-close-surface'),
   }, { onRest: () => { if (!open && !pressed) finishClose(); } });
   function animatePanel() {
-    panelMotion.set({ open, pressed, animate: !motion.matches && !document.hidden });
+    panelMotion.set({ open, pressed: pressed && !motion.matches,
+      animate: !motion.matches && !document.hidden });
   }
   function clearPress() {
     if (!pressed) return;
