@@ -135,6 +135,14 @@ body { font-weight: 450; letter-spacing: -.015em; }
   background: radial-gradient(circle, rgb(255 255 255 / .26) .65px, transparent .9px) 0 0 / 5px 5px;
   mix-blend-mode: difference;
 }
+@media (forced-colors: none) {
+  /* Tone only the field in Light; filtering the whole stack washes out grain.
+     The filtered ::before beneath it remains the no-canvas fallback. */
+  :root[data-theme=light] .rail-atmosphere { filter: none; background: transparent; }
+  :root[data-theme=light] .rail-flow-canvas { filter: blur(13px) var(--rail-tone-filter); }
+  :root[data-theme=light] .rail-atmosphere::before { opacity: .22; mix-blend-mode: multiply; }
+  :root[data-theme=light] .rail-atmosphere::after { mix-blend-mode: screen; }
+}
 @keyframes rail-grain-drift {
   from { transform: translate3d(-18px, 12px, 0); }
   to { transform: translate3d(18px, -12px, 0); }
