@@ -21,7 +21,7 @@
 .loop-fallback button { width:100%; display:grid; gap:8px; text-align:left; }
 .loop-fallback img { display:block; width:100%; height:auto; border-radius:12px; }
 .loop-fallback small { color:var(--muted); }
-.workspace[aria-busy=true] .loop-gallery[data-enhanced=true]:not([data-section-entering=true]) { opacity:0; }
+.workspace[aria-busy=true] .loop-gallery[data-enhanced=true]:not([data-section-entering=true]):not([data-section-exiting=true]) { opacity:0; }
 #project-list:has(.loop-gallery[data-enhanced=true]) + .project-note { display:none; }
 #panel-projects .project-note { margin-top:20px!important; }
 #project-detail::backdrop { animation:project-detail-backdrop-in 400ms both; }

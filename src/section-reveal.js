@@ -53,7 +53,6 @@ export function createSectionReveal({ animateElement, desktop }) {
     };
     content.groups.forEach(group => {const words=[...group.querySelectorAll('.section-word')];(group.dataset.sectionDisplay==='true'&&words.length?words:[group]).forEach(sample);});
     content.media.forEach(({ frame, image }) => { if (frame) { sample(frame); sample(image); } });
-    if(content.gallery)sample(content.gallery);
   }
   function reset() { /* Filled effects are cancelled by the shared navigation owner. */ }
   function play(panel, entering, footer) {
@@ -94,9 +93,8 @@ export function createSectionReveal({ animateElement, desktop }) {
         entering ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }],
         entering ? 450 : 180, entering ? 100 + index*25 : 0));
     }
-    // Incoming curved cards own their reveal, avoiding a second whole-panel
-    // fade or a blank wait. The navigation owner only fades the outgoing pool.
-    if(gallery&&!entering)run(gallery,[snapshots.get(gallery)||{opacity:1},{opacity:0}],220);
+    // Curved cards own both sequential directions; navigation awaits their
+    // outgoing task instead of fading the complete gallery as one group.
     if (!motions.length&&!gallery) run(panel, entering ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 1 }, { opacity: 0 }], 240);
     snapshots.clear();
     return Promise.allSettled(motions.map(motion => motion.finished));

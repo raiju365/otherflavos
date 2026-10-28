@@ -97,8 +97,10 @@ export function initSectionNavigation(signal) {
       previous.inert = true;
       if(footer)footer.inert = true;
       workspace.setAttribute('aria-busy', 'true');
-      document.dispatchEvent(new Event('portfolio:sectionstart'));
-      await reveal.play(previous, false, footer);
+      const departures=[];
+      document.dispatchEvent(new CustomEvent('portfolio:sectionstart',{detail:{entering:false,view:previous.id?.replace('panel-',''),
+        waitUntil:task=>departures.push(Promise.resolve(task))}}));
+      await Promise.allSettled([reveal.play(previous, false, footer),...departures]);
       if (signal.aborted || current !== revision) return;
     }
     const headerFrom = headerMotion.capture(moving);

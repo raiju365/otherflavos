@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {setMaxListeners} from 'node:events';
 import {initProjectGallery} from '../src/project-gallery.js';
-import {loopArrival,LOOP_ARRIVAL_MS} from '../src/project-loop-model.js';
+import {loopArrival,loopSequence,loopDeparture,loopDepartureDuration,loopPose,reelPose,LOOP_ARRIVAL_MS,LOOP_CARD_TRAVEL,LOOP_ANGULAR_STEP} from '../src/project-loop-model.js';
+import {initSectionNavigation} from '../src/section-navigation.js';
 import {createSectionReveal} from '../src/section-reveal.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
 const emit=(target,type,detail)=>target.dispatchEvent(detail===undefined?new Event(type):new CustomEvent(type,{detail}));
@@ -44,19 +45,35 @@ function fixture({width=390,gpu=false,loading=false,reduced=false,forced=false,c
  const drain=()=>{for(let i=0;i<400&&frames.size;i++)step();assert.equal(frames.size,0);};
  const enter=()=>{panel.hidden=false;workspace.dataset.view='projects';workspace.setAttribute('aria-busy','true');emit(document,'portfolio:sectionstart',{entering:true,view:'projects'});};
  const settled=()=>{workspace.setAttribute('aria-busy','false');emit(document,'portfolio:sectionsettled');};
- return {controller,frames,images,calls,root,panel,workspace,nodes,slots,media,control,step,drain,enter,settled,get resize(){return resize;}};
+ const leave=()=>{let task;workspace.setAttribute('aria-busy','true');emit(document,'portfolio:sectionstart',{entering:false,view:'projects',waitUntil:promise=>{task=promise;}});return task||Promise.resolve();};
+ return {controller,frames,images,calls,root,panel,workspace,nodes,slots,media,control,step,drain,enter,settled,leave,get resize(){return resize;}};
 }
-check('arrival has a smooth tail, a leading card and exact shared-cylinder settlement',()=>{
+check('one card changes at a time, with a real gap between successive cards',()=>{
  assert.equal(LOOP_ARRIVAL_MS,900);
- for(const relative of [-2,-1,0,1,2]){
-  assert.equal(loopArrival(relative,0,700).opacity,0);
-  assert.deepEqual(loopArrival(relative,1,700),{shift:0,rise:0,opacity:1});
-  let last=0;
-  for(let i=0;i<=100;i++){const pose=loopArrival(relative,i/100,700),lead=loopArrival(0,i/100,700);assert.equal(pose.shift,lead.shift);assert.equal(pose.rise,lead.rise);assert.ok(pose.opacity>=last);last=pose.opacity;}
+ for(const count of [1,2,3,4,5])for(let i=0;i<=1000;i++){
+  const values=Array.from({length:count},(_,rank)=>loopSequence(i/1000,rank,count));
+  assert.ok(values.filter(value=>value>0&&value<1).length<=1);
+  assert.ok(values.every((value,rank)=>rank===0||value<=values[rank-1]));
  }
- assert.ok(loopArrival(0,.2,700).opacity>loopArrival(1,.2,700).opacity);
- assert.ok(loopArrival(0,.2,700).opacity>loopArrival(-1,.2,700).opacity);
- assert.ok(loopArrival(0,.999,700).shift<1e-8);
+ assert.ok(loopSequence(.15,0,3)>0);assert.equal(loopSequence(.15,1,3),0);
+ assert.equal(loopSequence(.5,0,3),1);assert.ok(loopSequence(.5,1,3)>0);assert.equal(loopSequence(.5,2,3),0);
+});
+check('entry and exit retain exact endpoints and disjoint arcs on the common cylinder',()=>{
+ for(const poseFor of [loopPose,reelPose])for(let i=0;i<=100;i++){
+  const angles=[];
+  for(const relative of [-1,0,1]){
+   const arrival=loopArrival(relative,i/100,650),pose=poseFor(relative+arrival.shift,1280,650);
+   assert.ok(arrival.shift>=0&&arrival.shift<=LOOP_CARD_TRAVEL);angles.push(pose.angle);
+   if(i===0)assert.equal(arrival.opacity,0);
+   if(i===100)assert.deepEqual(arrival,{shift:0,rise:0,opacity:1});
+   const away=loopDeparture(poseFor(relative,1280,650),i/100,1-relative,3,650);
+   assert.ok(away.opacity>=0&&away.opacity<=1);
+   if(i===0)assert.deepEqual(away,poseFor(relative,1280,650));
+   if(i===100)assert.equal(away.opacity,0);
+  }
+  assert.ok(angles[1]-angles[0]>.9&&angles[2]-angles[1]>.9);
+ }
+ assert.ok(LOOP_CARD_TRAVEL*2*LOOP_ANGULAR_STEP<LOOP_ANGULAR_STEP-.9);
 });
 for(const width of [360,768,1280]){
  const f=fixture({width});
@@ -64,10 +81,16 @@ for(const width of [360,768,1280]){
  f.enter();
  check(`${width}px entrance starts during the section reveal with one pending frame`,()=>{assert.equal(f.frames.size,1);assert.equal(f.root.dataset.sectionEntering,'true');assert.equal(f.workspace.getAttribute('aria-busy'),'true');assert.equal(Number(f.slots[0].element.style.opacity),0);});
  for(let i=0;i<8;i++)f.step();
- check(`${width}px lead card fades and moves progressively before the tab settles`,()=>{const alpha=Number(f.slots[0].element.style.opacity);assert.ok(alpha>0&&alpha<1);assert.ok(alpha>Number(f.slots[1].element.style.opacity));});
+ check(`${width}px main project appears fully before the neighbouring cards take their turns`,()=>{const alpha=Number(f.slots[0].element.style.opacity);assert.ok(alpha>0&&alpha<1);assert.equal(Number(f.slots[4].element.style.opacity),0);assert.equal(Number(f.slots[1].element.style.opacity),0);});
  const frame=[...f.frames.keys()],pose=f.slots[0].element.style.transform,alpha=f.slots[0].element.style.opacity;f.settled();
  check(`${width}px section completion neither restarts nor snaps the card entrance`,()=>{assert.deepEqual([...f.frames.keys()],frame);assert.equal(f.slots[0].element.style.transform,pose);assert.equal(f.slots[0].element.style.opacity,alpha);assert.equal(f.root.dataset.sectionEntering,undefined);});
  f.drain();check(`${width}px arrival settles to the real card and releases all frames`,()=>assert.equal(Number(f.slots[0].element.style.opacity),1));
+ const exit=f.leave();let exited=false;exit.then(()=>{exited=true;});
+ check(`${width}px outgoing cards retain their initial pose and one running owner`,()=>{assert.equal(f.frames.size,1);assert.equal(f.root.dataset.sectionExiting,'true');assert.equal(Number(f.slots[0].element.style.opacity),1);});
+ for(let i=0;i<8;i++)f.step();await Promise.resolve();
+ check(`${width}px exit removes a neighbour first while the main project remains visible`,()=>{const alpha=Number(f.slots[4].element.style.opacity);assert.ok(alpha>0&&alpha<1);assert.equal(Number(f.slots[0].element.style.opacity),1);assert.equal(Number(f.slots[1].element.style.opacity),1);assert.equal(exited,false);});
+ f.drain();await exit;
+ check(`${width}px handoff resolves only when all cards have left`,()=>{assert.equal(exited,true);assert.equal(f.frames.size,0);assert.ok(f.slots.every(slot=>Number(slot.element.style.opacity)===0));});
  f.controller.abort();
 }
 {
@@ -115,6 +138,52 @@ for(const width of [360,768,1280]){
  check('rapid navigation clears obsolete arrivals and retains only the latest owner',()=>{assert.equal(f.frames.size,1);assert.equal(Number(f.slots[0].element.style.opacity),0);});
  f.settled();f.drain();f.controller.abort();
 }
+for(const width of [390,1280]){
+ const f=fixture({width});f.enter();f.settled();f.drain();
+ const exiting=f.leave();for(let i=0;i<8;i++)f.step();
+ const alphas=f.slots.map(slot=>slot.element.style.opacity),poses=f.slots.map(slot=>slot.element.style.transform.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g).map(Number));
+ f.settled();await exiting;
+ check(`${width}px reversing an exit retains every currently painted card`,()=>{
+  assert.deepEqual(f.slots.map(slot=>slot.element.style.opacity),alphas);
+  f.slots.forEach((slot,index)=>slot.element.style.transform.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g).map(Number).forEach((value,key)=>assert.ok(Math.abs(value-poses[index][key])<1e-7)));
+  assert.equal(f.frames.size,1);
+ });
+ f.drain();check(`${width}px reverse recovery settles without an obsolete exit or frame`,()=>{assert.equal(f.root.dataset.sectionExiting,undefined);assert.equal(Number(f.slots[0].element.style.opacity),1);});
+ f.controller.abort();
+}
+{
+ const f=fixture({gpu:true});f.enter();const pending=f.leave();await pending;
+ f.images.forEach(image=>image.load());
+ check('leaving before images are ready resolves immediately and cannot wake a stale sequence',()=>{assert.equal(f.frames.size,0);assert.equal(f.root.dataset.sectionExiting,undefined);});
+ f.controller.abort();
+}
+check('replacing an outgoing request cannot accumulate extra travel on its cylinder',()=>{
+ let pose=loopPose(1,1280,650);
+ for(let i=0;i<20;i++){pose=loopDeparture(pose,.2,0,3,650,LOOP_ANGULAR_STEP);assert.ok(pose.angle>=LOOP_ANGULAR_STEP*(1-LOOP_CARD_TRAVEL)-1e-9);}
+});
+{
+ const f=fixture();f.enter();f.settled();f.drain();const outgoing=f.leave();f.drain();await outgoing;
+ f.settled();
+ check('returning after the cards finish but before the panel swap restarts a gradual sequence',()=>{assert.equal(f.frames.size,1);assert.ok(f.slots.every(slot=>Number(slot.element.style.opacity)===0));});
+ f.drain();f.controller.abort();
+}
+for(const gate of ['hidden','reduced','forced','abort','blur','pagehide','dialog']){
+ const f=fixture();f.enter();f.settled();f.drain();const exiting=f.leave();
+ if(gate==='hidden'){document.hidden=true;emit(document,'visibilitychange');}
+ else if(gate==='abort')f.controller.abort();
+ else if(gate==='blur'||gate==='pagehide')emit(window,gate);
+ else if(gate==='dialog')f.control.setDialogOpen(true);
+ else {f.media[gate].matches=true;emit(f.media[gate],'change');}
+ await exiting;
+ check(`${gate} settles a pending exit task and releases its frame`,()=>{assert.equal(f.frames.size,0);assert.equal(f.root.dataset.sectionExiting,undefined);});
+ f.controller.abort();
+}
+{
+ const f=fixture();f.enter();f.settled();f.drain();const exiting=f.leave();
+ const event=new Event('wheel',{cancelable:true});Object.defineProperty(event,'deltaY',{value:180});f.nodes['.loop-viewport'].dispatchEvent(event);
+ check('outgoing cards do not accept a new gallery gesture while navigation awaits them',()=>assert.equal(event.defaultPrevented,false));
+ f.drain();await exiting;f.controller.abort();
+}
 for(const preference of ['reduced','forced']){
  const f=fixture({[preference]:true});f.enter();
  check(`${preference} mode shows the settled card immediately with no entrance frames`,()=>{assert.equal(f.frames.size,0);assert.equal(Number(f.slots[0].element.style.opacity),1);});
@@ -134,7 +203,36 @@ for(const preference of ['reduced','forced']){
  await reveal.play(panel,true,null);
  check('the incoming enhanced gallery never receives a duplicate whole-panel fade',()=>assert.equal(motions.length,0));
  reveal.freeze(panel);await reveal.play(panel,false,null);
- check('outgoing gallery fades from its sampled opacity through the navigation owner',()=>{assert.equal(motions.length,1);assert.equal(motions[0].element,gallery);assert.equal(motions[0].frames[0].opacity,'.63');assert.equal(motions[0].frames[1].opacity,0);assert.equal(motions[0].options.duration,220);});
+ check('the outgoing gallery also avoids any whole-group opacity fade',()=>assert.equal(motions.length,0));
  reveal.destroy();
 }
-console.log(`${passed.length} gallery entrance checks passed`);
+// Actual navigation + actual gallery: the next panel must wait for the cards.
+for(const width of [390,1280]){
+ const f=fixture({width}),home=new Element(),more=new Element(),marker=new Element();
+ home.id='panel-home';more.id='panel-more';f.panel.id='panel-projects';
+ const panels=[home,f.panel,more];panels.forEach(panel=>{panel.hidden=panel!==home;panel.querySelectorAll=()=>[];panel.querySelector=()=>panel===f.panel?f.root:null;panel.animate=()=>({finished:Promise.resolve(),cancel(){}});});
+ const make=()=>{const element=new Element();element.children=[];element.replaceChildren=(...children)=>{element.children=children;};element.animate=()=>({finished:Promise.resolve(),cancel(){}});element.getBoundingClientRect=()=>({width:50,height:20,top:0,bottom:20,left:0});return element;};
+ const tabs=['home','projects','more'].map((key,index)=>{const tab=make(),label=make();tab.dataset.tab=key;tab.offsetLeft=index*100;tab.offsetWidth=100;label.offsetWidth=50;label.textContent=key;tab.querySelector=()=>label;tab.querySelectorAll=()=>label.children;return tab;});
+ marker.offsetWidth=8;marker.getBoundingClientRect=()=>({});
+ document.querySelector=s=>({'.workspace':f.workspace,'.tab-art-marker':marker})[s];
+ document.querySelectorAll=s=>s==='[data-tab]'?tabs:panels;document.createElement=make;
+ f.workspace.scrollTo=()=>{};window.scrollTo=()=>{};window.innerHeight=900;
+ globalThis.location={hash:'#projects'};globalThis.history={pushState(_state,_title,hash){location.hash=hash;}};
+ globalThis.getComputedStyle=()=>({transform:'none',opacity:'1',clipPath:'none'});
+ const oldMedia=globalThis.matchMedia,desktop=new EventTarget();desktop.matches=width>800;
+ globalThis.matchMedia=q=>q.includes('min-width')?desktop:oldMedia(q);
+ const nav=initSectionNavigation(f.controller.signal);f.drain();
+ const change=nav.selectTab('more');await Promise.resolve();
+ check(`${width}px navigation keeps Projects present while its cards leave`,()=>{assert.equal(f.panel.hidden,false);assert.equal(more.hidden,true);assert.equal(f.root.dataset.sectionExiting,'true');});
+ for(let i=0;i<8;i++)f.step();await Promise.resolve();assert.equal(more.hidden,true);
+ f.drain();await change;for(let i=0;i<5;i++)await Promise.resolve();
+ check(`${width}px the next section commits only after the last project exits`,()=>{assert.equal(f.panel.hidden,true);assert.equal(more.hidden,false);assert.equal(f.frames.size,0);});
+ await nav.selectTab('projects');for(let i=0;i<5;i++)await Promise.resolve();f.drain();
+ const obsolete=nav.selectTab('more');for(let i=0;i<8;i++)f.step();
+ const alpha=f.slots.map(slot=>slot.element.style.opacity);await nav.selectTab('projects');
+ check(`${width}px rapid reverse navigation keeps the current card opacity`,()=>assert.deepEqual(f.slots.map(slot=>slot.element.style.opacity),alpha));
+ f.drain();await obsolete;
+ check(`${width}px an obsolete exit cannot switch back to the discarded destination`,()=>{assert.equal(f.panel.hidden,false);assert.equal(more.hidden,true);assert.equal(f.frames.size,0);});
+ f.controller.abort();
+}
+console.log(`${passed.length} gallery sequence checks passed`);

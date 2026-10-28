@@ -10,6 +10,8 @@ export function loopLens(x,y,width,height) {
 }
 export const LOOP_RIM_FADE=.18;
 export const LOOP_ARRIVAL_MS=900;
+export const LOOP_CARD_TRAVEL=.07;
+export const loopDepartureDuration=(count,compact=false)=>(220+Math.max(0,count-1)*180)*(compact ? .8 : 1);
 export const LOOP_GLASS_WIDTH=.07;
 const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
 export const loopRimOpacity=facing=>smooth(facing/LOOP_RIM_FADE);
@@ -27,11 +29,25 @@ export function loopPassage(angle,sway=0,quiet=false) {
     edgeDrive:quiet?0:Math.max(-1,Math.min(1,sway)),opticsEnabled:quiet?0:1
   };
 }
-export function loopArrival(relative,progress,height) {
-  const p=Math.max(0,Math.min(1,progress)),remaining=(1-p)**3;
-  // One cylinder settles together; only visibility staggers from the lead card.
-  const delay=Math.min(2,Math.abs(relative))*.075+(relative<0?.025:0);
-  return {shift:.30*remaining,rise:Math.min(height*.055,28)*remaining,opacity:smooth((p-delay)/(.64-delay))};
+export function loopSequence(progress,rank,count=3) {
+  const total=Math.max(1,count),gap=total>1 ? .045 : 0,span=(1-gap*(total-1))/total;
+  return smooth((Math.max(0,Math.min(1,progress))-rank*(span+gap))/span);
+}
+export function loopArrival(relative,progress,height,rank=Math.abs(relative)<.5?0:relative>0?1:2,count=3) {
+  const presence=loopSequence(progress,rank,count);
+  return {shift:LOOP_CARD_TRAVEL*(1-presence),rise:0,opacity:presence};
+}
+export function loopDeparture(pose,progress,rank,count,height,restAngle=pose.angle) {
+  const leaving=loopSequence(progress,rank,count);
+  if(leaving===0)return {...pose};
+  // A fixed destination prevents rapid replacement requests from adding drift.
+  const destination=restAngle-LOOP_CARD_TRAVEL*LOOP_ANGULAR_STEP;
+  const angle=pose.angle+(destination-pose.angle)*leaving;
+  const center=pose.axisRadius*.5*(1+Math.cos(pose.bend*.5));
+  return {...pose,angle,turn:angle*180/Math.PI,
+    x:pose.vertical?pose.x:center*Math.sin(angle),
+    y:pose.vertical?center*Math.sin(angle):pose.y+(Math.sin(pose.angle)-Math.sin(angle))*Math.min(height*.04,32),
+    z:center*Math.cos(angle)-pose.axisRadius,opacity:pose.opacity*(1-leaving)};
 }
 export function loopSlot(slot,position,count,pool=5) {
   const logical=slot+Math.round((position-slot)/pool)*pool;
