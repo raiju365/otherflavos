@@ -11,7 +11,6 @@ export async function initFigure(canvas, signal) {
   if(!ink||!glyphs)return ()=>{};
   const image=new Image();image.decoding='async';image.src=portraitSource;
   await image.decode();
-  try{await document.fonts?.load?.('48px "Segoe UI Symbol"');}catch{}
   if(signal.aborted)return ()=>{};
   const {width,height}=portraitSize,crop=portraitCrop(image.naturalWidth,image.naturalHeight);
   const motion=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)');
@@ -19,13 +18,13 @@ export async function initFigure(canvas, signal) {
   const dialog=document.querySelector('#project-detail');
   let frame=0,visible=true,pageActive=true,disposed=false,sectionMoving=false;
   let elapsed=0,lastTime=null,lastPaint=null,cells=[],columns=0,rows=0,spriteWidth=0,spriteHeight=0;
-  let cellWidth=0,cellHeight=0,dpr=1,inkColor='',fallback=false;
+  let cellWidth=0,cellHeight=0,tileWidth=0,tileHeight=0,tilePad=0,dpr=1,inkColor='',fallback=false;
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
   function drawMark(cell,slot,weight) {
     if(weight<=0||slot===0)return;
     ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*weight;
-    ctx.drawImage(atlas,slot*spriteWidth,0,spriteWidth,spriteHeight,
-      cell.x-cellWidth/2,cell.y-cellHeight/2,cellWidth,cellHeight);
+    ctx.drawImage(atlas,(slot%portraitTreatment.atlasColumns)*spriteWidth,Math.floor(slot/portraitTreatment.atlasColumns)*spriteHeight,spriteWidth,spriteHeight,
+      cell.x-cellWidth/2-tilePad,cell.y-cellHeight/2-tilePad,tileWidth,tileHeight);
   }
   function draw() {
     ctx.clearRect(0,0,width,height);
@@ -48,21 +47,23 @@ export async function initFigure(canvas, signal) {
     ctx.globalAlpha=1;
   }
   function cacheGlyphs() {
-    spriteWidth=Math.ceil(cellWidth*dpr);spriteHeight=Math.ceil(cellHeight*dpr);
-    atlas.width=spriteWidth*portraitTreatment.glyphCount;atlas.height=spriteHeight;
+    // A transparent gutter lets edge dots cross a character boundary without
+    // clipping or creating a white seam between neighbouring glyph cells.
+    tilePad=cellWidth/2;tileWidth=cellWidth+tilePad*2;tileHeight=cellHeight+tilePad*2;
+    spriteWidth=Math.ceil(tileWidth*dpr*2);spriteHeight=Math.ceil(tileHeight*dpr*2);
+    atlas.width=spriteWidth*portraitTreatment.atlasColumns;atlas.height=spriteHeight*Math.ceil(portraitTreatment.glyphCount/portraitTreatment.atlasColumns);
     glyphs.fillStyle=inkColor;
-    glyphs.strokeStyle=inkColor;glyphs.lineWidth=portraitTreatment.stroke;
-    glyphs.textAlign='left';glyphs.textBaseline='alphabetic';
-    glyphs.font='48px "Segoe UI Symbol", "DejaVu Sans", sans-serif';
-    const metrics=glyphs.measureText?.(portraitAsciiGlyph(255).mark)||{actualBoundingBoxLeft:-7,actualBoundingBoxRight:28,actualBoundingBoxAscent:36,actualBoundingBoxDescent:12};
-    const pad=portraitTreatment.stroke/2,left=-metrics.actualBoundingBoxLeft-pad,top=-metrics.actualBoundingBoxAscent-pad;
-    const boxWidth=metrics.actualBoundingBoxLeft+metrics.actualBoundingBoxRight+pad*2,boxHeight=metrics.actualBoundingBoxAscent+metrics.actualBoundingBoxDescent+pad*2;
-    const innerWidth=cellWidth*dpr*.9,innerHeight=cellHeight*dpr*.9,sx=innerWidth/boxWidth,sy=innerHeight/boxHeight;
+    const sx=spriteWidth/tileWidth,sy=spriteHeight/tileHeight;
     for(let i=0;i<portraitTreatment.glyphCount;i++) {
       const glyph=portraitAsciiGlyph(i);
-      glyphs.setTransform(sx,0,0,sy,i*spriteWidth+(spriteWidth-innerWidth)/2-left*sx,(spriteHeight-innerHeight)/2-top*sy);
+      glyphs.setTransform(sx,0,0,sy,(i%portraitTreatment.atlasColumns)*spriteWidth+tilePad*sx,Math.floor(i/portraitTreatment.atlasColumns)*spriteHeight+tilePad*sy);
       glyphs.globalAlpha=1;
-      glyphs.fillText(glyph.mark,0,0);glyphs.strokeText?.(glyph.mark,0,0);
+      glyphs.beginPath();
+      for(const dot of glyph.dots){
+        const x=dot.x*cellWidth/2,y=dot.y*cellHeight/4,radius=dot.radius*Math.min(cellWidth/2,cellHeight/4);
+        glyphs.moveTo(x+radius,y);glyphs.arc(x,y,radius,0,Math.PI*2);
+      }
+      glyphs.fill();
     }
     glyphs.globalAlpha=1;
   }

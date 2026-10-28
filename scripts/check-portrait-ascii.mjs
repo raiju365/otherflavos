@@ -42,6 +42,22 @@ check('paper-white samples stay blank and black samples produce full eight-dot c
 check('all 256 point glyphs use opaque ink without coarse alphabetic stroke patterns',()=>{
  for(let mask=0;mask<256;mask++){const glyph=portraitAsciiGlyph(mask);assert.equal(glyph.alpha,1);assert.equal(glyph.mark.codePointAt(0),0x2800+mask);}
 });
+check('each encoded point prints one round dot with no font boxes or connecting strokes',()=>{
+ for(let mask=0;mask<256;mask++){
+  const glyph=portraitAsciiGlyph(mask),count=mask.toString(2).replaceAll('0','').length;
+  assert.equal(glyph.dots.length,count);assert.ok(glyph.dots.every(dot=>dot.radius===portraitTreatment.dotRadius));
+ }
+});
+check('round dots form staggered rows with continuous spacing across character boundaries',()=>{
+ const dots=portraitAsciiGlyph(255).dots;
+ assert.notEqual(dots[0].x,dots[2].x);
+ for(let row=0;row<4;row++){
+  const left=dots[row*2],right=dots[row*2+1];
+  assert.ok(Math.abs(right.x-left.x-1)<1e-9);
+  assert.ok(Math.abs(left.x+2-right.x-1)<1e-9);
+  assert.ok(left.x-left.radius<0||right.x+right.radius>2,'edge ink crosses cells instead of leaving a boxed gutter');
+ }
+});
 check('the face grid stays anchored throughout the rhythm instead of moving as a shape',()=>{
  const cell={x:80,y:100,phase:1.25};
  for(let elapsed=0;elapsed<120000;elapsed+=137)assert.deepEqual(portraitAsciiPose(cell,elapsed),{x:80,y:100});
@@ -69,7 +85,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  const dialog={open:false};document.querySelector=()=>dialog;globalThis.devicePixelRatio=3;
  globalThis.getComputedStyle=()=>({color:'rgb(0, 0, 0)'});
  globalThis.matchMedia=query=>{if(!queries.has(query)){const media=new EventTarget();media.matches=query.includes('reduced-motion')?reduced:false;queries.set(query,media);}return queries.get(query);};
- function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[],inks:[],glyphAlphas:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},fillText(...args){log.glyphs.push(args);log.inks.push(this.fillStyle);log.glyphAlphas.push(this.globalAlpha);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
+ function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[],inks:[],glyphAlphas:[],arcs:[]};let path=[];const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},beginPath(){path=[];},moveTo(){},arc(...args){path.push(args);log.arcs.push(args);},fill(){log.glyphs.push(path);log.inks.push(this.fillStyle);log.glyphAlphas.push(this.globalAlpha);},fillText(){throw Error('Font glyph boxes must not return');},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
  const canvas=surface();canvas.clientWidth=200;canvas.clientHeight=250;if(!context)canvas.getContext=()=>null;
  document.createElement=()=>surface();let images=0;
  globalThis.Image=class{naturalWidth=736;naturalHeight=1119;constructor(){images++;}decode(){return gate||Promise.resolve();}};
@@ -98,6 +114,13 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('glyph pixels stay crisp while the separate photo sampler keeps smooth filtering',()=>{
   assert.equal(f.canvas.getContext('2d').imageSmoothingEnabled,false);
   assert.equal(f.surfaces[1].getContext('2d').imageSmoothingEnabled,true);
+ });
+ check('all point patterns are cached as circle paths with room for overhanging edge ink',()=>{
+  assert.equal(f.surfaces[2].log.arcs.length,1024);
+  const draw=f.canvas.log.draws[0];
+  assert.ok(draw[7]>200/portraitAsciiGrid(200).columns);
+  assert.ok(f.surfaces[2].log.arcs.every(dot=>dot[2]>0&&dot[3]===0&&dot[4]===Math.PI*2));
+  assert.ok(f.surfaces[2].width<=2048&&f.surfaces[2].height<=2048);
  });
  f.step(16);f.step(32);
  check('desktop skips paints above its 30fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
@@ -168,8 +191,8 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
   assert.notDeepEqual(later.map(draw=>draw[1]),first.map(draw=>draw[1]));
  });
  check('common facial points stay in one opaque layer instead of fading twice at a transition',()=>{
-  const width=f.surfaces[2].width/portraitTreatment.glyphCount,seen=new Map();
-  for(const draw of later){const key=`${draw[5]},${draw[6]}`,mask=Math.round(draw[1]/width),prior=seen.get(key)||0;assert.equal(prior&mask,0);seen.set(key,prior|mask);}
+  const columns=portraitTreatment.atlasColumns,width=f.surfaces[2].width/columns,height=f.surfaces[2].height/(portraitTreatment.glyphCount/columns),seen=new Map();
+  for(const draw of later){const key=`${draw[5]},${draw[6]}`,mask=Math.round(draw[1]/width)+Math.round(draw[2]/height)*columns,prior=seen.get(key)||0;assert.equal(prior&mask,0);seen.set(key,prior|mask);}
  });destroy();f.abort.abort();
 }
 {

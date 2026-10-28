@@ -7,7 +7,7 @@ export function portraitCrop(width,height){
   return {x,y,width:cropWidth,height:cropWidth*portraitSize.height/portraitSize.width};
 }
 
-export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,fontSize:48,stroke:2.6};
+export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,atlasColumns:16,dotRadius:.52,rowOffset:.24};
 export const portraitAsciiVariants=4;
 export const portraitAsciiTempo={bpm:72,beats:8};
 const events=[[0,.5],[1.5,.65],[4,.45],[5,1.05]];
@@ -34,12 +34,14 @@ export function portraitAsciiCells(pixels,columns,rows){
   const masks=Array.from({length:portraitAsciiVariants},()=>new Uint8Array(columns*rows));
   for(let variant=0;variant<portraitAsciiVariants;variant++){
     const work=Float32Array.from(values,(value,i)=>value<=.02||value>=.98?value:value+Math.sin(i*2.399963+variant*Math.PI/2)*.02);
-    for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
+    // Reverse alternate scanlines to avoid a single directional texture.
+    for(let y=0;y<ph;y++)for(let step=0;step<pw;step++){
+      const direction=y%2?-1:1,x=direction===1?step:pw-1-step;
       const i=y*pw+x;if(alphas[i]<.06)continue;
       const value=Math.max(0,Math.min(1,work[i])),dot=value>=.5?1:0,error=value-dot;
       if(dot)masks[variant][Math.floor(y/4)*columns+Math.floor(x/2)]|=dotBits[(y%4)*2+x%2];
-      if(x+1<pw)work[i+1]+=error*7/16;
-      if(y+1<ph){if(x>0)work[i+pw-1]+=error*3/16;work[i+pw]+=error*5/16;if(x+1<pw)work[i+pw+1]+=error/16;}
+      if(x+direction>=0&&x+direction<pw)work[i+direction]+=error*7/16;
+      if(y+1<ph){if(x-direction>=0&&x-direction<pw)work[i+pw-direction]+=error*3/16;work[i+pw]+=error*5/16;if(x+direction>=0&&x+direction<pw)work[i+pw+direction]+=error/16;}
     }
   }
   const cells=[];
@@ -54,8 +56,15 @@ export function portraitAsciiCells(pixels,columns,rows){
   return cells;
 }
 
-// Braille point patterns are Unicode character glyphs, not a photograph layer.
-export function portraitAsciiGlyph(mask){return {mark:String.fromCodePoint(0x2800+mask),alpha:1};}
+// Draw our point-character repertoire procedurally: evenly spaced round ink
+// dots continue across cell boundaries instead of repeating font-sized boxes.
+export function portraitAsciiGlyph(mask){
+  const dots=[];
+  for(let row=0;row<4;row++)for(let column=0;column<2;column++){
+    if(mask&dotBits[row*2+column])dots.push({x:column+.5+(row%2?1:-1)*portraitTreatment.rowOffset,y:row+.5,radius:portraitTreatment.dotRadius});
+  }
+  return {mark:String.fromCodePoint(0x2800+mask),alpha:1,dots};
+}
 export function portraitAsciiMask(cell,variant){return cell.masks[variant%portraitAsciiVariants];}
 export function portraitAsciiPose(cell){return {x:cell.x,y:cell.y};}
 
