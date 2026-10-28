@@ -3,7 +3,7 @@
 export function createSectionReveal({ animateElement, desktop }) {
   const prepared = new Map();
   let snapshots = new Map();
-  const textSelector = '#about-statement, #about-copy p, #about-draft, .social-item dt, .social-link > span:not(.social-arrow), .featured-caption h3, .featured-caption p, .project-title, .project-kind, .project-status, .project-note';
+  const textSelector = '#about-statement, #about-copy p, #about-draft, .social-item dt, .social-link > span:not(.social-arrow), .featured-caption h3, .featured-caption p, .project-title, .project-kind, .project-status, .project-note, .now-topline, .now-title-stack, .now-index, .now-details';
 
   function makeWord(token) {
     const mask = document.createElement('span');

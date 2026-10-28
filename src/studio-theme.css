@@ -180,9 +180,22 @@ body { font-weight: 450; letter-spacing: -.015em; }
 .portrait-studio {
   position: relative;
   display: grid;
-  border-radius: 50%;
-  overflow: hidden;
-  background: linear-gradient(145deg, color-mix(in srgb, #c7c7c3 86%, var(--bg)), color-mix(in srgb, #8c8d89 74%, var(--bg)));
+  isolation: isolate;
+  overflow: visible;
+  background: transparent;
+}
+/* Porous screen-print ground: a quiet, irregular field dissolves into the
+   rail instead of drawing a filled oval behind the ASCII photograph. */
+.portrait-studio::before {
+  content: '';
+  position: absolute;
+  inset: -6% -14%;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg);
+  opacity: .94;
+  -webkit-mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
+  mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
 }
 #figure {
   top: 0;
@@ -192,7 +205,9 @@ body { font-weight: 450; letter-spacing: -.015em; }
   opacity: 1;
   mix-blend-mode: normal;
   background: transparent;
-  filter: grayscale(1) contrast(1.1) brightness(1.03);
+  border-radius: 50%;
+  color: var(--figure-ink);
+  filter: none;
 }
 
 #tabs { background: var(--bg); }
@@ -313,6 +328,7 @@ html[data-entry=loading] .entry-loader[data-phase=reveal] { background: transpar
 }
 @media (forced-colors: active) {
   .portrait-studio { background: Canvas; }
+  .portrait-studio::before { display: none; }
   #figure { background: Canvas; }
   .profile-sticky::before, .rail-atmosphere { background: Canvas; filter: none; }
   .featured-preview img, .project-stage img, .project-stage video, .detail-image { filter: none; }
