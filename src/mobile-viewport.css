@@ -25,6 +25,14 @@
   .profile-sticky::before, .rail-atmosphere { top: calc(var(--mobile-top)*-1); }
   .workspace { display: flex; flex-direction: column; padding-top: 8px; }
   #tabs { flex: 0 0 48px; height: 48px; margin: 0; }
+  /* Continue only the rule through the page gutters; labels keep their axis. */
+  #tabs::before, #tabs::after {
+    content: ''; position: absolute; bottom: calc(var(--structure-weight)*-1);
+    width: var(--page-gutter); height: var(--structure-weight);
+    border-bottom: var(--structure-weight) solid var(--structure-line); pointer-events: none;
+  }
+  #tabs::before { right: 100%; }
+  #tabs::after { left: 100%; }
   #tabs > button { height: 44px; font-size: 14px; }
   html:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
     scrollbar-gutter: auto;
@@ -58,7 +66,8 @@
   html:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) { overflow: hidden; overscroll-behavior-y: none; }
   body:has(.workspace[data-view=projects] .loop-gallery[data-enhanced=true]) { height: 100svh; overflow: hidden; }
   .workspace[data-view=projects]:has(.loop-gallery[data-enhanced=true]) {
-    overflow: hidden;
+    /* Clip gallery content below the full-width navigation rule. */
+    .panels { overflow: hidden; }
     #panel-projects { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-block: 0 var(--mobile-bottom); }
     #panel-projects #project-list, .loop-gallery { display: flex; flex: 1; min-height: 0; flex-direction: column; }
     .loop-viewport { flex: 1; min-height: 0; height: auto; touch-action: pinch-zoom; overscroll-behavior: contain; }
