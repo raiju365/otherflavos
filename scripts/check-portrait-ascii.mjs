@@ -103,11 +103,16 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('desktop skips paints above its 30fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
  f.step(48);
  check('slow motion reuses sampled pixels and the glyph atlas without drawing a photo layer',()=>{assert.ok(f.canvas.log.draws.length>draws);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.surfaces[2].log.glyphs.length,glyphs);assert.ok(f.canvas.log.draws.every(draw=>draw[0]===f.surfaces[2]));});
+ const pending=[...f.frames.keys()];
  document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');
- check('opening the theme menu cancels portrait animation',()=>assert.equal(f.frames.size,0));
+ check('opening the theme menu preserves the same pending portrait frame',()=>assert.deepEqual([...f.frames.keys()],pending));
  document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);
- check('theme updates rebuild only glyph ink while paused',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+portraitTreatment.glyphCount);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.frames.size,0);});
+ check('theme updates rebuild only glyph ink without restarting its animation clock',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+portraitTreatment.glyphCount);assert.equal(f.surfaces[1].log.samples,samples);assert.deepEqual([...f.frames.keys()],pending);});
+ const openDraws=f.canvas.log.draws.length;f.step(96);
+ check('the portrait keeps painting at its existing tempo while the theme menu is open',()=>{assert.ok(f.canvas.log.draws.length>openDraws);assert.equal(f.frames.size,1);assert.equal(f.surfaces[1].log.samples,samples);});
+ const closingFrame=[...f.frames.keys()];
  document.documentElement.dataset.themeControlOpen='false';f.emit(document,'portfolio:themecontrol');
+ check('closing the theme menu leaves the same scheduled portrait frame intact',()=>assert.deepEqual([...f.frames.keys()],closingFrame));
  document.documentElement.dataset.galleryMoving='true';f.emit(document,'portfolio:gallerymotion');
  check('gallery input pauses portrait work',()=>assert.equal(f.frames.size,0));
  document.documentElement.dataset.galleryMoving='false';f.emit(document,'portfolio:gallerymotion');
@@ -176,6 +181,21 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
    assert.equal(f.surfaces[1].log.samples,samples);assert.ok(f.surfaces[2].log.glyphAlphas.every(alpha=>alpha===1));
   }
  });destroy();f.abort.abort();
+}
+{
+ async function phrase(menu){
+  const f=setup(),destroy=await initFigure(f.canvas,f.abort.signal),rendered=[];
+  for(let now=0;now<=1000;now+=50){
+   if(menu&&now===100){document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');}
+   if(menu&&now===300){document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);}
+   if(menu&&now===700){document.documentElement.dataset.themeControlOpen='false';f.emit(document,'portfolio:themecontrol');}
+   const start=f.canvas.log.draws.length,alphaStart=f.canvas.log.alphas.length;f.step(now);
+   rendered.push({draws:f.canvas.log.draws.slice(start).map(draw=>draw.slice(1)),alphas:f.canvas.log.alphas.slice(alphaStart)});
+  }
+  destroy();f.abort.abort();return rendered;
+ }
+ const uninterrupted=await phrase(false),menu=await phrase(true);
+ check('opening, recoloring and closing a menu preserves the exact patterned phrase phase',()=>assert.deepEqual(menu,uninterrupted));
 }
 mkdirSync(new URL('../artifacts/',import.meta.url),{recursive:true});
 writeFileSync(new URL('../artifacts/portrait-ascii-results.json',import.meta.url),JSON.stringify({checks:passed.length,passed,limits:'Model and Canvas/event/clock fixtures plus offline glyph study; no browser or physical-device rendering/FPS claim.'},null,2));

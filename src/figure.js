@@ -93,7 +93,7 @@ export async function initFigure(canvas, signal) {
   }
   const active=()=>!disposed&&!fallback&&visible&&pageActive&&!sectionMoving&&!document.hidden&&!motion.matches&&!forced.matches&&!dialog?.open
     &&document.documentElement.dataset.entry!=='loading'
-    &&document.documentElement.dataset.themeControlOpen!=='true'&&document.documentElement.dataset.galleryMoving!=='true';
+    &&document.documentElement.dataset.galleryMoving!=='true';
   function wake(){if(active()&&!frame)frame=requestAnimationFrame(tick);}
   function tick(now) {
     frame=0;if(!active()){lastTime=lastPaint=null;return;}
@@ -115,14 +115,14 @@ export async function initFigure(canvas, signal) {
   sizeObserver?.observe(canvas);
   const attributes=typeof MutationObserver==='function'?new MutationObserver(records=>{
     if(records.some(record=>record.attributeName==='data-theme'))palette();
-    sync();
+    // Recolor the print without interrupting its clock or pending frame.
+    if(records.some(record=>record.attributeName!=='data-theme'))sync();
   }):null;
-  attributes?.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','data-theme-control-open','data-gallery-moving','data-entry']});
+  attributes?.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','data-gallery-moving','data-entry']});
   if(dialog)attributes?.observe(dialog,{attributes:true,attributeFilter:['open']});
   on(window,'resize',resize);
   on(document,'visibilitychange',sync);
   on(document,'portfolio:entryready',sync);
-  on(document,'portfolio:themecontrol',sync);
   on(document,'portfolio:gallerymotion',sync);
   on(document,'portfolio:sectionstart',()=>{sectionMoving=true;sync();});
   on(document,'portfolio:sectionsettled',()=>{sectionMoving=false;sync();});

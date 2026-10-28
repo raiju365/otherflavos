@@ -330,3 +330,12 @@ Validation: 38 model/Canvas/event/clock checks passed, including mirrored patche
 The user confirms the new face is visible but requests darker, less soft ink (8a2be5dd). This is an incremental weight adjustment: cached character stroke increases from 1.2 to 2.6 font units and visible-canvas image smoothing is disabled, preserving crisp glyph pixels at display scale. The offscreen source sampler keeps smooth filtering. Source tone values, error diffusion, masks, crop, square frame, paper palettes and rhythm are unchanged.
 
 Validation: 39 model/renderer/lifecycle checks pass, including the separate glyph/source filtering contract. The offline Light study was regenerated to inspect the heavier ink. It is not a browser screenshot or native visual acceptance evidence.
+
+
+## Continuous animation behind the theme menu - 28 October 2026
+
+The e9796b5a screenshot identifies the open theme picker as a state where the user still wants both gradient and ASCII motion. The menu activity flag formerly paused both owners. The rail and portrait now ignore menu activity; theme-only atlas recoloring also preserves the pending portrait frame and elapsed phrase time. Keep the 72 BPM eight-beat point-pattern phrase, stationary grid, source crop, ink and paper. No motion redesign or reference research is needed for this lifecycle correction.
+
+Regression fixtures cover the real gradient pixel buffer changing behind an open menu, one pending owner, and portrait phase equality against an uninterrupted control sequence through opening, recoloring and closing. Existing visibility, entry, reduced-motion, gallery, section and dialog pauses remain. Node fixtures do not establish native mobile compositing, visual smoothness or device FPS; the established local-browser boundary remains in effect.
+
+Validation: 42 portrait checks, 14 atmosphere/real-flow lifecycle checks and 54 theme-control checks pass. npm run check and npm run build pass (44 modules), and git diff --check reports no whitespace errors.

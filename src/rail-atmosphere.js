@@ -19,7 +19,7 @@ export function initRailAtmosphere(signal) {
   const on = (target, type, listener) => target.addEventListener(type, listener, { signal, passive: true });
   function sync() {
     const running = visible && pageActive && !dialogOpen && !sectionMoving && !document.hidden && !reduced.matches && !forced.matches
-      && document.documentElement.dataset.themeControlOpen!=='true' && document.documentElement.dataset.galleryMoving!=='true'
+      && document.documentElement.dataset.galleryMoving!=='true'
       && document.documentElement.dataset.entry !== 'loading' && !signal.aborted;
     backdrop.dataset.running = String(running);
     flow?.setRunning(running);
@@ -33,7 +33,6 @@ export function initRailAtmosphere(signal) {
   observer?.observe(rail);
   on(document, 'visibilitychange', sync);
   on(document, 'portfolio:entryready', sync);
-  on(document, 'portfolio:themecontrol', sync);
   on(document, 'portfolio:gallerymotion', sync);
   on(document, 'portfolio:sectionstart',()=>{sectionMoving=true;sync();});
   on(document, 'portfolio:sectionsettled',()=>{sectionMoving=false;sync();});
