@@ -22,9 +22,10 @@ export async function initFigure(canvas, signal) {
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
   function drawMark(cell,slot,weight) {
     if(weight<=0||slot===0)return;
+    slot+=(cell.geometry||0)*portraitTreatment.glyphCount;
     ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*weight;
     ctx.drawImage(atlas,(slot%portraitTreatment.atlasColumns)*spriteWidth,Math.floor(slot/portraitTreatment.atlasColumns)*spriteHeight,spriteWidth,spriteHeight,
-      cell.x-cellWidth/2-tilePad,cell.y-cellHeight/2-tilePad,tileWidth,tileHeight);
+      cell.x-cellWidth/2-tilePad+(cell.offsetX||0)*cellWidth/2,cell.y-cellHeight/2-tilePad+(cell.offsetY||0)*cellHeight/4,tileWidth,tileHeight);
   }
   function draw() {
     ctx.clearRect(0,0,width,height);
@@ -50,12 +51,13 @@ export async function initFigure(canvas, signal) {
     // A transparent gutter lets edge dots cross a character boundary without
     // clipping or creating a white seam between neighbouring glyph cells.
     tilePad=cellWidth/2;tileWidth=cellWidth+tilePad*2;tileHeight=cellHeight+tilePad*2;
-    spriteWidth=Math.ceil(tileWidth*dpr*2);spriteHeight=Math.ceil(tileHeight*dpr*2);
-    atlas.width=spriteWidth*portraitTreatment.atlasColumns;atlas.height=spriteHeight*Math.ceil(portraitTreatment.glyphCount/portraitTreatment.atlasColumns);
+    spriteWidth=Math.ceil(tileWidth*dpr);spriteHeight=Math.ceil(tileHeight*dpr);
+    const count=portraitTreatment.glyphCount*portraitTreatment.geometryCount;
+    atlas.width=spriteWidth*portraitTreatment.atlasColumns;atlas.height=spriteHeight*Math.ceil(count/portraitTreatment.atlasColumns);
     glyphs.fillStyle=inkColor;
     const sx=spriteWidth/tileWidth,sy=spriteHeight/tileHeight;
-    for(let i=0;i<portraitTreatment.glyphCount;i++) {
-      const glyph=portraitAsciiGlyph(i);
+    for(let i=0;i<count;i++) {
+      const glyph=portraitAsciiGlyph(i%portraitTreatment.glyphCount,Math.floor(i/portraitTreatment.glyphCount));
       glyphs.setTransform(sx,0,0,sy,(i%portraitTreatment.atlasColumns)*spriteWidth+tilePad*sx,Math.floor(i/portraitTreatment.atlasColumns)*spriteHeight+tilePad*sy);
       glyphs.globalAlpha=1;
       glyphs.beginPath();
@@ -78,9 +80,9 @@ export async function initFigure(canvas, signal) {
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
-    // Keep cached ink pixels crisp when the tiny glyph tiles meet the display
-    // scale. The offscreen photo sampler retains its normal smooth filtering.
-    ctx.imageSmoothingEnabled=false;
+    // Properly filter fractional tile placement; nearest-neighbour sampling
+    // turns the dense dot field into thin repeated horizontal aliasing bands.
+    ctx.imageSmoothingEnabled=true;
     const grid=portraitAsciiGrid(displayWidth);
     if(grid.columns!==columns||grid.rows!==rows) {
       columns=grid.columns;rows=grid.rows;cellWidth=width/columns;cellHeight=height/rows;

@@ -7,11 +7,12 @@ export function portraitCrop(width,height){
   return {x,y,width:cropWidth,height:cropWidth*portraitSize.height/portraitSize.width};
 }
 
-export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,atlasColumns:16,dotRadius:.52,rowOffset:.24};
+export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,geometryCount:4,atlasColumns:32,dotRadius:.52};
 export const portraitAsciiVariants=4;
 export const portraitAsciiTempo={bpm:72,beats:8};
 const events=[[0,.5],[1.5,.65],[4,.45],[5,1.05]];
 const dotBits=[1,8,2,16,4,32,64,128];
+const noise=seed=>{const value=Math.sin(seed*127.1+311.7)*43758.5453;return value-Math.floor(value);};
 export function portraitEdgeAlpha(){return 1;}
 
 export function portraitAsciiGrid(displayWidth){
@@ -51,17 +52,20 @@ export function portraitAsciiCells(pixels,columns,rows){
     if(alpha<.06)continue;
     const phase=column*.31+row*.17,x=(column+.5)*portraitSize.width/columns,y=(row+.5)*portraitSize.height/rows;
     const random=Math.sin(phase*12.9898+x*78.233+y*37.719)*43758.5453;
-    cells.push({x,y,alpha,luminance,phase,rhythmSeed:random-Math.floor(random),masks:masks.map(mask=>mask[row*columns+column])});
+    const seed=row*columns+column;
+    cells.push({x,y,alpha,luminance,phase,rhythmSeed:random-Math.floor(random),geometry:Math.floor(noise(seed+83)*portraitTreatment.geometryCount),
+      offsetX:(noise(seed+19)-.5)*.24,offsetY:(noise(seed+47)-.5)*.24,masks:masks.map(mask=>mask[row*columns+column])});
   }
   return cells;
 }
 
-// Draw our point-character repertoire procedurally: evenly spaced round ink
-// dots continue across cell boundaries instead of repeating font-sized boxes.
-export function portraitAsciiGlyph(mask){
+// Fixed microvariation breaks long rows without making the face jitter.
+// Geometry is independent of the changing masks, so shared dots never move.
+export function portraitAsciiGlyph(mask,geometry=0){
   const dots=[];
   for(let row=0;row<4;row++)for(let column=0;column<2;column++){
-    if(mask&dotBits[row*2+column])dots.push({x:column+.5+(row%2?1:-1)*portraitTreatment.rowOffset,y:row+.5,radius:portraitTreatment.dotRadius});
+    const seed=geometry*29+row*2+column;
+    if(mask&dotBits[row*2+column])dots.push({x:column+.5+(noise(seed+5)-.5)*.46,y:row+.5+(noise(seed+37)-.5)*.46,radius:portraitTreatment.dotRadius});
   }
   return {mark:String.fromCodePoint(0x2800+mask),alpha:1,dots};
 }

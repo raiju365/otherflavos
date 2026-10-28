@@ -4,6 +4,7 @@ import {setMaxListeners} from 'node:events';
 import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiGlyph,portraitAsciiMask,portraitAsciiPose,portraitAsciiPulse,portraitAsciiVariants,portraitAsciiTempo} from '../src/portrait-image.js';
 import {initFigure} from '../src/figure.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
+const atlasCount=portraitTreatment.glyphCount*portraitTreatment.geometryCount;
 const NativeAbort=AbortController;
 globalThis.AbortController=class extends NativeAbort{constructor(){super();setMaxListeners(0,this.signal);}};
 check('the original supplied PNG and proportional face crop remain the source',()=>{
@@ -48,14 +49,33 @@ check('each encoded point prints one round dot with no font boxes or connecting 
   assert.equal(glyph.dots.length,count);assert.ok(glyph.dots.every(dot=>dot.radius===portraitTreatment.dotRadius));
  }
 });
-check('round dots form staggered rows with continuous spacing across character boundaries',()=>{
- const dots=portraitAsciiGlyph(255).dots;
- assert.notEqual(dots[0].x,dots[2].x);
+check('point geometries break straight rows and retain the same coordinates for every mask',()=>{
+ const shapes=[];
+ for(let geometry=0;geometry<portraitTreatment.geometryCount;geometry++){
+  const full=portraitAsciiGlyph(255,geometry).dots;
+  assert.equal(new Set(full.map(dot=>dot.y)).size,8);
+  assert.ok(full.every(dot=>dot.x-dot.radius>-1&&dot.x+dot.radius<3&&dot.y-dot.radius>-1&&dot.y+dot.radius<5));
+  shapes.push(full);
+  for(let bit=0;bit<8;bit++)assert.ok(full.some(dot=>JSON.stringify(dot)===JSON.stringify(portraitAsciiGlyph(1<<bit,geometry).dots[0])));
+ }
+ assert.equal(new Set(shapes.map(shape=>JSON.stringify(shape))).size,portraitTreatment.geometryCount);
+});
+check('cell placement is stable, varied and independent of the animation phase',()=>{
+ const pixels=new Uint8ClampedArray(16*16*4).fill(255),a=portraitAsciiCells(pixels,16,16),b=portraitAsciiCells(pixels,16,16);
+ assert.deepEqual(a,b);assert.equal(new Set(a.map(cell=>cell.geometry)).size,portraitTreatment.geometryCount);
+ assert.ok(new Set(a.map(cell=>cell.offsetY)).size>200);
+ assert.ok(a.every(cell=>Math.abs(cell.offsetX)<=.12&&Math.abs(cell.offsetY)<=.12));
+});
+check('dense areas cannot align a full character row into one horizontal stripe',()=>{
+ const pixels=new Uint8ClampedArray(32*20*4).fill(255);
+ for(let i=0;i<pixels.length;i+=4)pixels[i]=pixels[i+1]=pixels[i+2]=0;
+ const cells=portraitAsciiCells(pixels,32,20).slice(0,32);
  for(let row=0;row<4;row++){
-  const left=dots[row*2],right=dots[row*2+1];
-  assert.ok(Math.abs(right.x-left.x-1)<1e-9);
-  assert.ok(Math.abs(left.x+2-right.x-1)<1e-9);
-  assert.ok(left.x-left.radius<0||right.x+right.radius>2,'edge ink crosses cells instead of leaving a boxed gutter');
+  const bins=new Map();
+  for(const cell of cells)for(const dot of portraitAsciiGlyph(255,cell.geometry).dots.slice(row*2,row*2+2)){
+   const key=Math.round((dot.y+cell.offsetY)*50);bins.set(key,(bins.get(key)||0)+1);
+  }
+  assert.ok(Math.max(...bins.values())<=12,'no narrow band may collect more than 12 of 64 neighbouring dots');
  }
 });
 check('the face grid stays anchored throughout the rhythm instead of moving as a shape',()=>{
@@ -99,7 +119,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 {
  const f=setup({loading:true}),destroy=await initFigure(f.canvas,f.abort.signal);
  check('entry gets a real ASCII draw after decode and no running frame',()=>{
-  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,portraitTreatment.glyphCount);
+  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,atlasCount);
   assert.ok(f.canvas.log.draws.length>0);assert.equal(f.canvas.width,400);assert.equal(f.canvas.height,500);assert.equal(f.frames.size,0);
  });
  document.documentElement.dataset.entry='ready';f.emit(document,'portfolio:entryready');f.step(0);
@@ -111,12 +131,12 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('no mask or tone-wash cache crops the reconstructed character portrait',()=>{
   assert.ok(f.surfaces.every(surface=>surface.log.masks.length===0));
  });
- check('glyph pixels stay crisp while the separate photo sampler keeps smooth filtering',()=>{
-  assert.equal(f.canvas.getContext('2d').imageSmoothingEnabled,false);
+ check('fractional tile placement and source sampling both use antialias filtering',()=>{
+  assert.equal(f.canvas.getContext('2d').imageSmoothingEnabled,true);
   assert.equal(f.surfaces[1].getContext('2d').imageSmoothingEnabled,true);
  });
  check('all point patterns are cached as circle paths with room for overhanging edge ink',()=>{
-  assert.equal(f.surfaces[2].log.arcs.length,1024);
+  assert.equal(f.surfaces[2].log.arcs.length,1024*portraitTreatment.geometryCount);
   const draw=f.canvas.log.draws[0];
   assert.ok(draw[7]>200/portraitAsciiGrid(200).columns);
   assert.ok(f.surfaces[2].log.arcs.every(dot=>dot[2]>0&&dot[3]===0&&dot[4]===Math.PI*2));
@@ -130,7 +150,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');
  check('opening the theme menu preserves the same pending portrait frame',()=>assert.deepEqual([...f.frames.keys()],pending));
  document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);
- check('theme updates rebuild only glyph ink without restarting its animation clock',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+portraitTreatment.glyphCount);assert.equal(f.surfaces[1].log.samples,samples);assert.deepEqual([...f.frames.keys()],pending);});
+ check('theme updates rebuild only glyph ink without restarting its animation clock',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+atlasCount);assert.equal(f.surfaces[1].log.samples,samples);assert.deepEqual([...f.frames.keys()],pending);});
  const openDraws=f.canvas.log.draws.length;f.step(96);
  check('the portrait keeps painting at its existing tempo while the theme menu is open',()=>{assert.ok(f.canvas.log.draws.length>openDraws);assert.equal(f.frames.size,1);assert.equal(f.surfaces[1].log.samples,samples);});
  const closingFrame=[...f.frames.keys()];
@@ -160,7 +180,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  reduced.matches=false;f.emit(reduced,'change');const forced=f.queries.get('(forced-colors: active)');forced.matches=true;f.emit(forced,'change');
  check('forced colors freezes the face and repaints system ink',()=>assert.equal(f.frames.size,0));
  forced.matches=false;f.emit(forced,'change');f.canvas.clientWidth=90;f.canvas.clientHeight=112.5;f.observers[1].callback();
- check('mobile layout changes resample at an appropriate smaller grid',()=>{assert.equal(f.canvas.width,180);assert.equal(f.canvas.height,225);assert.equal(f.surfaces[1].log.samples,samples+1);assert.equal(f.images,1);});
+ check('mobile layout changes resample at an appropriate smaller grid with a bounded pattern cache',()=>{assert.equal(f.canvas.width,180);assert.equal(f.canvas.height,225);assert.equal(f.surfaces[1].log.samples,samples+1);assert.equal(f.images,1);assert.ok(f.surfaces[2].width*f.surfaces[2].height<=1048576);});
  f.step(100100);const mobile=f.canvas.log.draws.length;f.step(100116);f.step(100132);
  check('mobile skips paints above its 24fps drawing cap',()=>assert.equal(f.canvas.log.draws.length,mobile));
  f.step(100148);assert.ok(f.canvas.log.draws.length>mobile);
@@ -191,8 +211,8 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
   assert.notDeepEqual(later.map(draw=>draw[1]),first.map(draw=>draw[1]));
  });
  check('common facial points stay in one opaque layer instead of fading twice at a transition',()=>{
-  const columns=portraitTreatment.atlasColumns,width=f.surfaces[2].width/columns,height=f.surfaces[2].height/(portraitTreatment.glyphCount/columns),seen=new Map();
-  for(const draw of later){const key=`${draw[5]},${draw[6]}`,mask=Math.round(draw[1]/width)+Math.round(draw[2]/height)*columns,prior=seen.get(key)||0;assert.equal(prior&mask,0);seen.set(key,prior|mask);}
+  const columns=portraitTreatment.atlasColumns,width=f.surfaces[2].width/columns,height=f.surfaces[2].height/(atlasCount/columns),seen=new Map();
+  for(const draw of later){const key=`${draw[5]},${draw[6]}`,mask=(Math.round(draw[1]/width)+Math.round(draw[2]/height)*columns)%portraitTreatment.glyphCount,prior=seen.get(key)||0;assert.equal(prior&mask,0);seen.set(key,prior|mask);}
  });destroy();f.abort.abort();
 }
 {

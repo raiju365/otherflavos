@@ -350,3 +350,12 @@ Reference / observation / adaptation / evidence limit: Codrops Efecto (https://t
 Validation: 45 model/renderer/lifecycle portrait checks pass, including encoded dot counts, circular geometry, staggered rows, spacing across neighbouring character boundaries, cached paths, stable facial anchors and exact phrase continuity through theme-menu use. Four offline palette studies and a native-size 200x250 model study were inspected; an animated study covers the full eight-beat phrase. These studies are generated from production helpers, not browser screenshots, native compositing evidence or device FPS measurements.
 
 Final checks: portrait 45, rail atmosphere 14, theme controls 54; npm run check and npm run build pass (44 modules).
+
+
+## Horizontal stripe correction - 28 October 2026
+
+The f1265357 screenshot shows the previous regular staggered pattern still produces long horizontal lines in dense hair and clothing. Replace its repeated lattice with four cached irregular geometries. Local dots vary by +/- .23 dot pitch, and each cell receives a deterministic geometry and fixed offsets within +/- .12 pitch. These are static spatial variations, independent of pulse masks and time, so common facial points do not jitter. All masks of a given geometry share exactly the same point coordinates.
+
+Visible canvas filtering now uses antialias interpolation: nearest-neighbour sampling of fractional tile positions can reinforce repeated thin bands. Opaque black ink and .52-pitch point radius are preserved. A 32x32 atlas stores 1024 pattern/geometry combinations at capped DPR, dropping the previous extra 2x cache supersampling to keep the smallest grid under one million cached pixels. Photo source/crop, all paper tints, the 72 BPM phrase and continuous motion behind the open theme menu remain. This is a correction of our own pattern/raster design using the supplied screenshot; no new external reference or animation owner is introduced.
+
+Validation: 47 portrait checks pass, including dense-row alignment limits, deterministic geometry/offsets, fixed point coordinates across masks, antialias state, bounded mobile cache and phrase continuity. Rail atmosphere (14) and theme controls (54) pass; npm run check and npm run build pass (44 modules). Offline model studies show the new placement at native sizes; native browser/device rasterization and perceived motion remain unverified under the existing browser boundary.
