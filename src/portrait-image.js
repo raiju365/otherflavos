@@ -25,8 +25,8 @@ export function portraitEffect({ rx, ry, elapsed, still }) {
 
 // Each point retains the source alpha and brightness; no random face/noise.
 export function portraitAsciiGrid(displayWidth) {
-  const columns=Math.max(40,Math.min(80,Math.round(displayWidth/2.5)));
-  return {columns,rows:Math.round(columns*1.15)};
+  const columns=Math.max(28,Math.min(56,Math.round(displayWidth/3.7)));
+  return {columns,rows:Math.round(columns*.95)};
 }
 
 export function portraitAsciiCells(pixels,columns,rows) {
@@ -48,8 +48,10 @@ export function portraitAsciiCells(pixels,columns,rows) {
       sum+=luma(cx,cy);count++;
     }
     const luminance=Math.max(0,Math.min(1,source+.85*(source-sum/Math.max(1,count))));
+    const phase=column*.31+row*.17,x=(column+.5)*portraitSize.width/columns,y=(row+.5)*portraitSize.height/rows;
+    const random=Math.sin(phase*12.9898+x*78.233+y*37.719)*43758.5453;
     cells.push({x:(column+.5)*portraitSize.width/columns,y:(row+.5)*portraitSize.height/rows,
-      luminance,alpha,phase:column*.31+row*.17});
+      luminance,alpha,phase,rhythmSeed:random-Math.floor(random)});
   }
   return cells;
 }
@@ -60,21 +62,35 @@ export function portraitAsciiTone(luminance,light) {
   return Math.max(0,Math.min(31,Math.round(Math.pow(light?1-exposed:exposed,.9)*31)));
 }
 
-export function portraitAsciiGlyph(tone) {
-  // No horizontal -/= bands across skin. More tone steps describe real features.
-  const marks=['.',':','+','*','#','%','@','M'];
-  return {mark:marks[Math.min(7,Math.floor(tone/4))],alpha:.18+.82*Math.pow(tone/31,.7)};
+export const portraitAsciiVariants=4;
+export const portraitAsciiTempo={bpm:72,beats:8};
+const portraitAsciiEvents=[[0,.5],[1.5,.65],[4,.45],[5,1.05]];
+
+export function portraitAsciiGlyph(tone,variant=0) {
+  // Substitutions stay in one brightness family; the photo's tone never sweeps.
+  const marks=[['.',',',"'",'`'],[':', ';', '!', 'i'],['+', 'x', '*', 't'],
+    ['*','o','s','v'],['#','H','X','N'],['%','B','8','R'],['@','M','W','Q'],['M','W','#','@']];
+  return {mark:marks[Math.min(7,Math.floor(tone/4))][variant%portraitAsciiVariants],alpha:.18+.82*Math.pow(tone/31,.7)};
 }
 
-export function portraitAsciiPose(cell,elapsed,still=false) {
-  if(still)return {x:cell.x,y:cell.y};
-  const t=elapsed/1000;
-  return {x:cell.x+Math.sin(t*.9+cell.y*.032)*1.65+Math.sin(t*.5+cell.phase)*.35,
-    y:cell.y+Math.sin(t*.8+cell.x*.038)*1.15};
+export function portraitAsciiPose(cell) {
+  // The grid is anchored. Only character identity changes, never the silhouette.
+  return {x:cell.x,y:cell.y};
 }
 
 export function portraitAsciiPulse(cell,elapsed,still=false) {
-  if(still)return {toneOffset:0,alpha:1};
-  const wave=Math.sin(elapsed*.001*1.1-cell.y*.055+cell.x*.025);
-  return {toneOffset:Math.round(wave*4),alpha:.76+.24*(wave+1)/2};
+  if(still)return {from:0,to:0,mix:0};
+  const random=cell.rhythmSeed??Math.sin(cell.phase*12.9898+cell.x*78.233+cell.y*37.719)*43758.5453;
+  const seed=random-Math.floor(random),beatMs=60000/portraitAsciiTempo.bpm;
+  const beat=(Math.max(0,elapsed)/beatMs)%portraitAsciiTempo.beats;
+  let variant=Math.floor(seed*portraitAsciiVariants);
+  // Two short gestures, a rest, then an accent and a longer resolving change.
+  for(const [start,duration] of portraitAsciiEvents) {
+    const local=(beat-start-seed*.38)/duration;
+    if(local<0)break;
+    const next=(variant+1)%portraitAsciiVariants;
+    if(local<1)return {from:variant,to:next,mix:local*local*(3-2*local)};
+    variant=next;
+  }
+  return {from:variant,to:variant,mix:0};
 }

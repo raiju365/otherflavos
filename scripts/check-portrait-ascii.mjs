@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {setMaxListeners} from 'node:events';
-import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose,portraitAsciiPulse} from '../src/portrait-image.js';
+import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose,portraitAsciiPulse,portraitAsciiVariants,portraitAsciiTempo} from '../src/portrait-image.js';
 import {initFigure} from '../src/figure.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
 const NativeAbort=AbortController;
@@ -23,7 +23,7 @@ check('the original-photo core carries sufficient opacity without overpowering t
 });
 check('mobile grid is readable and bounded while desktop detail is capped',()=>{
  const a=portraitAsciiGrid(72),b=portraitAsciiGrid(112),c=portraitAsciiGrid(200),d=portraitAsciiGrid(1200);
- assert.equal(a.columns,40);assert.ok(b.columns>a.columns);assert.ok(c.columns>b.columns);assert.equal(d.columns,80);
+ assert.equal(a.columns,28);assert.ok(b.columns>a.columns);assert.ok(c.columns>b.columns);assert.equal(d.columns,56);
 });
 check('transparent pixels never produce glyphs; source alpha and luminance survive',()=>{
  const cells=portraitAsciiCells(Uint8ClampedArray.from([255,255,255,0,255,255,255,128,0,0,0,255]),3,1);
@@ -40,16 +40,26 @@ check('skin midtones retain separation rather than clipping facial features to w
  assert.ok(portraitAsciiTone(.4,false)<portraitAsciiTone(.5,false));
  assert.ok(!Array.from({length:32},(_,i)=>portraitAsciiGlyph(i).mark).some(mark=>mark==='-'||mark==='='));
 });
-check('visible point motion travels over one pixel while staying within 2px/1.15px bounds',()=>{
- const cell={x:80,y:100,phase:1.25};let moved=false;
- for(let elapsed=0;elapsed<120000;elapsed+=137){const p=portraitAsciiPose(cell,elapsed);assert.ok(Math.abs(p.x-cell.x)<=2.0000001);assert.ok(Math.abs(p.y-cell.y)<=1.1500001);if(elapsed>5000&&Math.abs(p.x-cell.x)>1.2)moved=true;}
- assert.ok(moved);assert.deepEqual(portraitAsciiPose(cell,10000,true),{x:80,y:100});
+check('the face grid stays anchored throughout the rhythm instead of moving as a shape',()=>{
+ const cell={x:80,y:100,phase:1.25};
+ for(let elapsed=0;elapsed<120000;elapsed+=137)assert.deepEqual(portraitAsciiPose(cell,elapsed),{x:80,y:100});
 });
-check('traveling density changes visible glyph tiers and alpha without changing the source face',()=>{
- const cell={x:80,y:100,phase:1.25,luminance:.35},marks=new Set(),alphas=[];
- for(let ms=0;ms<8000;ms+=100){const p=portraitAsciiPulse(cell,ms);assert.ok(Math.abs(p.toneOffset)<=4);assert.ok(p.alpha>=.76&&p.alpha<=1);alphas.push(p.alpha);marks.add(portraitAsciiGlyph(portraitAsciiTone(cell.luminance,false)+p.toneOffset).mark);}
- assert.ok(marks.size>=2);assert.ok(Math.max(...alphas)-Math.min(...alphas)>.2);
- assert.deepEqual(portraitAsciiPulse(cell,10000,true),{toneOffset:0,alpha:1});
+check('tempo changes actual character identities inside one tonal family',()=>{
+ const cell={x:80,y:100,phase:1.25,luminance:.35},marks=new Set();
+ for(let ms=0;ms<8000;ms+=100){const p=portraitAsciiPulse(cell,ms);assert.ok(p.from>=0&&p.from<4&&p.to>=0&&p.to<4);assert.ok(p.mix>=0&&p.mix<=1);marks.add(portraitAsciiGlyph(portraitAsciiTone(cell.luminance,false),p.to).mark);}
+ assert.equal(marks.size,4);assert.deepEqual(portraitAsciiPulse(cell,10000,true),{from:0,to:0,mix:0});
+});
+check('the eight-beat phrase has active gestures, a real rest and local staggering',()=>{
+ const beat=60000/portraitAsciiTempo.bpm,a={x:80,y:100,phase:1,rhythmSeed:0},b={...a,rhythmSeed:.9};
+ const active=portraitAsciiPulse(a,beat*.4),delayed=portraitAsciiPulse(b,beat*.4),rest=portraitAsciiPulse(a,beat*3.2);
+ assert.notEqual(active.from,active.to);assert.ok(Math.abs(active.mix-delayed.mix)>.5);
+ assert.equal(rest.from,rest.to);assert.equal(rest.mix,0);
+});
+check('crossfades and the phrase loop remain continuous through event boundaries',()=>{
+ const cell={x:80,y:100,phase:1.25},period=60000/portraitAsciiTempo.bpm*portraitAsciiTempo.beats;
+ const weights=ms=>{const p=portraitAsciiPulse(cell,ms),a=[0,0,0,0];a[p.from]+=1-p.mix;a[p.to]+=p.mix;return a;};
+ for(let ms=0;ms<=period+10;ms+=5){const a=weights(ms),b=weights(ms+1);assert.ok(a.every((value,i)=>Math.abs(value-b[i])<.01));}
+ const a=weights(400),b=weights(period+400);assert.ok(a.every((v,i)=>Math.abs(v-b[i])<1e-10));
 });
 function setup({loading=false,reduced=false,context=true,gate,badSamples=false,animations=true}={}){
  const abort=new AbortController(),frames=new Map(),surfaces=[],queries=new Map(),observers=[];let id=0;
@@ -71,7 +81,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 {
  const f=setup({loading:true}),destroy=await initFigure(f.canvas,f.abort.signal);
  check('entry gets a real ASCII draw after decode and no running frame',()=>{
-  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,32);
+  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,32*portraitAsciiVariants);
   assert.ok(f.canvas.log.draws.length>0);assert.equal(f.canvas.width,400);assert.equal(f.canvas.height,500);assert.equal(f.frames.size,0);
  });
  document.documentElement.dataset.entry='ready';f.emit(document,'portfolio:entryready');f.step(0);
@@ -86,14 +96,14 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
   assert.equal(f.canvas.log.alphas[index],portraitTreatment.reliefOpacity);
   assert.deepEqual(f.surfaces[3].log.masks,['destination-in','destination-in']);
  });
- f.step(16);f.step(32);f.step(48);
- check('desktop skips paints above its 18fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
- f.step(64);
+ f.step(16);f.step(32);
+ check('desktop skips paints above its 30fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
+ f.step(48);
  check('slow motion reuses sampled pixels, the tonal cache and the glyph atlas',()=>{assert.ok(f.canvas.log.draws.length>draws);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.surfaces[2].log.glyphs.length,glyphs);assert.equal(f.surfaces[3].log.draws.length,reliefDraws);});
  document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');
  check('opening the theme menu cancels portrait animation',()=>assert.equal(f.frames.size,0));
  document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);
- check('theme updates rebuild only glyph ink while paused',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+32);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.frames.size,0);});
+ check('theme updates rebuild only glyph ink while paused',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+32*portraitAsciiVariants);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.frames.size,0);});
  document.documentElement.dataset.themeControlOpen='false';f.emit(document,'portfolio:themecontrol');
  document.documentElement.dataset.galleryMoving='true';f.emit(document,'portfolio:gallerymotion');
  check('gallery input pauses portrait work',()=>assert.equal(f.frames.size,0));
@@ -120,9 +130,9 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('forced colors freezes the face and repaints system ink',()=>assert.equal(f.frames.size,0));
  forced.matches=false;f.emit(forced,'change');f.canvas.clientWidth=90;f.canvas.clientHeight=112.5;f.observers[1].callback();
  check('mobile layout changes resample at an appropriate smaller grid',()=>{assert.equal(f.canvas.width,180);assert.equal(f.canvas.height,225);assert.equal(f.surfaces[1].log.samples,samples+1);assert.equal(f.images,1);});
- f.step(100100);const mobile=f.canvas.log.draws.length;f.step(100164);
- check('mobile skips paints above its 12fps drawing cap',()=>assert.equal(f.canvas.log.draws.length,mobile));
- f.step(100196);assert.ok(f.canvas.log.draws.length>mobile);
+ f.step(100100);const mobile=f.canvas.log.draws.length;f.step(100116);f.step(100132);
+ check('mobile skips paints above its 24fps drawing cap',()=>assert.equal(f.canvas.log.draws.length,mobile));
+ f.step(100148);assert.ok(f.canvas.log.draws.length>mobile);
  destroy();destroy();f.abort.abort();const total=f.canvas.log.draws.length;f.emit(window,'resize');f.emit(document,'visibilitychange');
  check('cleanup releases frames, all observers, rasters and listeners idempotently',()=>{
   assert.equal(f.frames.size,0);assert.ok(f.observers.every(o=>o.disconnected));assert.equal(f.surfaces[1].width,1);assert.equal(f.surfaces[2].width,1);assert.equal(f.surfaces[3].width,1);assert.equal(f.canvas.log.draws.length,total);
@@ -139,6 +149,16 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 {
  const f=setup({badSamples:true,reduced:true});const destroy=await initFigure(f.canvas,f.abort.signal);
  check('unreadable image pixels retain a static, softly bounded source-photo fallback',()=>{assert.equal(f.canvas.log.draws.at(-1)[0],f.surfaces[3]);assert.equal(f.canvas.log.draws.at(-1).length,5);assert.equal(f.frames.size,0);});destroy();f.abort.abort();
+}
+{
+ const f=setup(),destroy=await initFigure(f.canvas,f.abort.signal);
+ const frame=now=>{const start=f.canvas.log.draws.length;f.step(now);return f.canvas.log.draws.slice(start).filter(draw=>draw[0]===f.surfaces[2]);};
+ const first=frame(0);let later=[];for(let now=100;now<=500;now+=100)later=frame(now);
+ check('the renderer changes character slots while every destination cell stays fixed',()=>{
+  const anchors=draws=>[...new Set(draws.map(draw=>`${draw[5]},${draw[6]}`))].sort();
+  assert.deepEqual(anchors(later),anchors(first));
+  assert.notDeepEqual(later.map(draw=>draw[1]),first.map(draw=>draw[1]));
+ });destroy();f.abort.abort();
 }
 mkdirSync(new URL('../artifacts/',import.meta.url),{recursive:true});
 writeFileSync(new URL('../artifacts/portrait-ascii-results.json',import.meta.url),JSON.stringify({checks:passed.length,passed,limits:'Model and Canvas/event/clock fixtures plus offline glyph study; no browser or physical-device rendering/FPS claim.'},null,2));

@@ -1,7 +1,7 @@
-import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiPose, portraitAsciiPulse } from './portrait-image.js';
+import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiVariants, portraitAsciiPulse } from './portrait-image.js';
 
-// The user's real portrait, printed in tiny ASCII marks. One capped frame owner
-// moves the individual points; image sampling and glyph rasterization are cached.
+// The user's real portrait, printed in readable ASCII marks. One capped owner
+// crossfades characters in anchored cells; source sampling/atlases are cached.
 export async function initFigure(canvas, signal) {
   if (!canvas || signal.aborted) return () => {};
   const ctx=canvas.getContext('2d',{alpha:true});
@@ -19,8 +19,15 @@ export async function initFigure(canvas, signal) {
   const dialog=document.querySelector('#project-detail');
   let frame=0,visible=true,pageActive=true,disposed=false,sectionMoving=false;
   let elapsed=0,lastTime=null,lastPaint=null,cells=[],columns=0,rows=0,spriteWidth=0,spriteHeight=0;
-  let cellWidth=0,cellHeight=0,light=false,dpr=1,inkColor='',fallback=false,movementScale=1;
+  let cellWidth=0,cellHeight=0,light=false,dpr=1,inkColor='',fallback=false,gains=new Float32Array(32*portraitAsciiVariants).fill(1);
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
+  function drawMark(cell,tone,variant,weight) {
+    if(weight<=0)return;
+    const slot=tone*portraitAsciiVariants+variant;
+    ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*weight*gains[slot];
+    ctx.drawImage(atlas,slot*spriteWidth,0,spriteWidth,spriteHeight,
+      cell.x-cellWidth/2,cell.y-cellHeight/2,cellWidth,cellHeight);
+  }
   function draw() {
     ctx.clearRect(0,0,width,height);
     // A strong source-photo core prevents the background screen from showing
@@ -32,27 +39,37 @@ export async function initFigure(canvas, signal) {
     const still=motion.matches||forced.matches;
     for(const cell of cells) {
       const pulse=portraitAsciiPulse(cell,elapsed,still);
-      const tone=Math.max(0,Math.min(31,portraitAsciiTone(cell.luminance,light)+pulse.toneOffset));
-      const point=portraitAsciiPose(cell,elapsed,still);
-      ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*pulse.alpha;
-      ctx.drawImage(atlas,tone*spriteWidth,0,spriteWidth,spriteHeight,
-        cell.x+(point.x-cell.x)*movementScale-cellWidth/2,cell.y+(point.y-cell.y)*movementScale-cellHeight/2,cellWidth,cellHeight);
+      const tone=portraitAsciiTone(cell.luminance,light);
+      drawMark(cell,tone,pulse.from,1-pulse.mix);
+      if(pulse.mix>0)drawMark(cell,tone,pulse.to,pulse.mix);
     }
     ctx.globalAlpha=1;
   }
   function cacheGlyphs() {
     spriteWidth=Math.ceil(cellWidth*dpr);spriteHeight=Math.ceil(cellHeight*dpr);
-    atlas.width=spriteWidth*32;atlas.height=spriteHeight;
+    atlas.width=spriteWidth*32*portraitAsciiVariants;atlas.height=spriteHeight;
     glyphs.setTransform(dpr,0,0,dpr,0,0);
     glyphs.fillStyle=inkColor;
     glyphs.textAlign='center';glyphs.textBaseline='middle';
     glyphs.font=`700 ${Math.min(cellHeight*1.03,cellWidth/0.6)}px ui-monospace, Consolas, monospace`;
-    for(let i=0;i<32;i++) {
-      const glyph=portraitAsciiGlyph(i);
+    for(let i=0;i<32*portraitAsciiVariants;i++) {
+      const glyph=portraitAsciiGlyph(Math.floor(i/portraitAsciiVariants),i%portraitAsciiVariants);
       glyphs.globalAlpha=glyph.alpha;
       glyphs.fillText(glyph.mark,(i+.5)*spriteWidth/dpr,cellHeight*.49);
     }
     glyphs.globalAlpha=1;
+    // Normalize variant coverage once so letter swaps do not make large bright
+    // regions pulse like a moving shape. No pixel reads in the animation loop.
+    gains.fill(1);
+    try {
+      const pixels=glyphs.getImageData(0,0,atlas.width,atlas.height).data;
+      const energy=new Float32Array(gains.length);
+      for(let slot=0;slot<energy.length;slot++)for(let y=0;y<spriteHeight;y++)for(let x=0;x<spriteWidth;x++)energy[slot]+=pixels[(y*atlas.width+slot*spriteWidth+x)*4+3];
+      for(let tone=0;tone<32;tone++) {
+        const offset=tone*portraitAsciiVariants,reference=Math.min(...energy.slice(offset,offset+portraitAsciiVariants).filter(value=>value>0));
+        for(let v=0;v<portraitAsciiVariants;v++)gains[offset+v]=energy[offset+v]>0&&Number.isFinite(reference)?reference/energy[offset+v]:1;
+      }
+    } catch { /* Static atlas remains usable if pixel reads are unavailable. */ }
   }
   function palette() {
     if(disposed)return;
@@ -63,7 +80,6 @@ export async function initFigure(canvas, signal) {
   function resize() {
     if(disposed)return;
     const displayWidth=canvas.clientWidth||width,displayHeight=canvas.clientHeight||height;
-    movementScale=Math.min(2.5,Math.max(1,width/displayWidth));
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
@@ -100,8 +116,8 @@ export async function initFigure(canvas, signal) {
     if(lastTime!==null)elapsed+=Math.max(0,Math.min(100,now-lastTime));
     lastTime=now;
     // Small mobile portraits have a lower drawing budget. These are caps, not FPS measurements.
-    const interval=1000/(canvas.clientWidth<140?12:18);
-    if(lastPaint===null||now-lastPaint>=interval){draw();lastPaint=now;}
+    const interval=1000/(canvas.clientWidth<140?24:30);
+    if(lastPaint===null||now-lastPaint>=interval){draw();lastPaint=lastPaint===null?now:now-(now-lastPaint)%interval;}
     wake();
   }
   function sync() {
