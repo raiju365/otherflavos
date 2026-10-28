@@ -28,7 +28,8 @@
   --rail-flow-deep: #0d0d0d;
   --rail-flow-warm: #dddbe0;
   --figure-ink: #fffff8;
-  --portrait-ink: #ffffff;
+  --portrait-ink: #000000;
+  --portrait-paper: #e8e8e2;
   --rail-tone-filter: brightness(.78);
   --media-tone-filter: brightness(.9) saturate(.85);
   --accent-ink: #fff;
@@ -51,11 +52,13 @@
   --rail-muted: #30342b;
   --figure-ink: #20221d;
   --portrait-ink: #000000;
+  --portrait-paper: #f4f4ef;
   --rail-edge: rgb(255 255 248 / .85);
   --rail-shadow: rgb(255 255 248 / .45);
 
 }
 :root[data-theme=unexpected] {
+  --portrait-paper: #dee5d4;
   --bg: #252d24;
   --fg: #f0f3e5;
   --muted: #bac4b0;
@@ -66,6 +69,7 @@
   --media-tone-filter: sepia(.2) hue-rotate(35deg) saturate(.8);
 }
 :root[data-theme=amethyst] {
+  --portrait-paper: #e4dbef;
   --bg: #282136;
   --fg: #f2e9ff;
   --muted: #bbaecb;
@@ -186,8 +190,7 @@ body { font-weight: 450; letter-spacing: -.015em; }
   overflow: hidden;
   border-radius: 0;
   background:
-    radial-gradient(ellipse at 18% 0%,color-mix(in srgb,var(--fg) 13%,var(--bg)),transparent 68%),
-    linear-gradient(155deg,var(--surface),var(--bg) 78%);
+    linear-gradient(135deg,color-mix(in srgb,var(--portrait-paper) 96%,white),var(--portrait-paper));
 }
 /* Square studio ground beneath the character-only portrait. */
 .portrait-studio::before {
@@ -196,8 +199,8 @@ body { font-weight: 450; letter-spacing: -.015em; }
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--fg);
-  opacity: .18;
+  background: var(--portrait-ink);
+  opacity: .035;
   -webkit-mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
   mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
 }

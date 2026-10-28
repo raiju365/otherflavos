@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {setMaxListeners} from 'node:events';
-import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose,portraitAsciiPulse,portraitAsciiVariants,portraitAsciiTempo} from '../src/portrait-image.js';
+import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiGlyph,portraitAsciiMask,portraitAsciiPose,portraitAsciiPulse,portraitAsciiVariants,portraitAsciiTempo} from '../src/portrait-image.js';
 import {initFigure} from '../src/figure.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
 const NativeAbort=AbortController;
@@ -22,34 +22,33 @@ check('the character-only treatment has no visible photographic core',()=>{
 });
 check('mobile grid is readable and bounded while desktop detail is capped',()=>{
  const a=portraitAsciiGrid(72),b=portraitAsciiGrid(112),c=portraitAsciiGrid(200),d=portraitAsciiGrid(1200);
- assert.equal(a.columns,28);assert.ok(b.columns>a.columns);assert.ok(c.columns>b.columns);assert.equal(d.columns,56);
+ assert.equal(a.columns,32);assert.ok(b.columns>a.columns);assert.ok(c.columns>b.columns);assert.equal(d.columns,64);
+ assert.equal(c.rows,Math.round(c.columns*.625));
 });
 check('transparent pixels never produce glyphs; source alpha and luminance survive',()=>{
  const cells=portraitAsciiCells(Uint8ClampedArray.from([255,255,255,0,255,255,255,128,0,0,0,255]),3,1);
- assert.equal(cells.length,2);assert.equal(cells[0].luminance,1);assert.equal(cells[0].alpha,128/255);assert.equal(cells[1].luminance,0);
+ assert.equal(cells.length,2);assert.equal(cells[0].luminance,1);assert.ok(Math.abs(cells[0].alpha-128/255)<1e-6);assert.equal(cells[1].luminance,0);
 });
-check('light mode reverses ink density and both ramps remain monotonic',()=>{
- assert.equal(portraitAsciiTone(0,false),0);assert.equal(portraitAsciiTone(1,false),31);
- assert.equal(portraitAsciiTone(0,true),31);assert.equal(portraitAsciiTone(1,true),0);
- let prior=0;for(let i=0;i<=100;i++){const tone=portraitAsciiTone(i/100,false);assert.ok(tone>=prior);prior=tone;}
+check('equal-brightness patches retain different left/right spatial dot patterns',()=>{
+ const patch=mirror=>{const a=new Uint8ClampedArray(2*4*4);for(let y=0;y<4;y++)for(let x=0;x<2;x++){const o=(y*2+x)*4,v=(mirror?1-x:x)*255;a[o]=a[o+1]=a[o+2]=v;a[o+3]=255;}return portraitAsciiCells(a,1,1)[0];};
+ const a=patch(false),b=patch(true);assert.equal(a.luminance,b.luminance);
+ assert.ok(a.masks.every(mask=>mask===71));assert.ok(b.masks.every(mask=>mask===184));
 });
-check('skin midtones retain separation rather than clipping facial features to white',()=>{
- const tone=portraitAsciiTone(.35,false),glyph=portraitAsciiGlyph(tone);
- assert.ok(tone>=14&&tone<24);assert.ok(glyph.alpha>=.6);assert.ok(['#','%','@'].includes(glyph.mark));
- assert.ok(portraitAsciiTone(.4,false)<portraitAsciiTone(.5,false));
- assert.ok(!Array.from({length:32},(_,i)=>portraitAsciiGlyph(i).mark).some(mark=>mark==='-'||mark==='='));
+check('paper-white samples stay blank and black samples produce full eight-dot characters',()=>{
+ const black=Uint8ClampedArray.from([0,0,0,255]),white=Uint8ClampedArray.from([255,255,255,255]);
+ assert.ok(portraitAsciiCells(black,1,1)[0].masks.every(mask=>mask===255));
+ assert.ok(portraitAsciiCells(white,1,1)[0].masks.every(mask=>mask===0));
 });
-check('all tone families use opaque ink and retain at least 90 percent variant strength',()=>{
- for(let tone=0;tone<32;tone++)for(let variant=0;variant<portraitAsciiVariants;variant++)assert.equal(portraitAsciiGlyph(tone,variant).alpha,1);
- assert.ok(portraitTreatment.coverageFloor>=.9);
+check('all 256 point glyphs use opaque ink without coarse alphabetic stroke patterns',()=>{
+ for(let mask=0;mask<256;mask++){const glyph=portraitAsciiGlyph(mask);assert.equal(glyph.alpha,1);assert.equal(glyph.mark.codePointAt(0),0x2800+mask);}
 });
 check('the face grid stays anchored throughout the rhythm instead of moving as a shape',()=>{
  const cell={x:80,y:100,phase:1.25};
  for(let elapsed=0;elapsed<120000;elapsed+=137)assert.deepEqual(portraitAsciiPose(cell,elapsed),{x:80,y:100});
 });
 check('tempo changes actual character identities inside one tonal family',()=>{
- const cell={x:80,y:100,phase:1.25,luminance:.35},marks=new Set();
- for(let ms=0;ms<8000;ms+=100){const p=portraitAsciiPulse(cell,ms);assert.ok(p.from>=0&&p.from<4&&p.to>=0&&p.to<4);assert.ok(p.mix>=0&&p.mix<=1);marks.add(portraitAsciiGlyph(portraitAsciiTone(cell.luminance,false),p.to).mark);}
+ const cell={x:80,y:100,phase:1.25,masks:[1,8,64,128]},marks=new Set();
+ for(let ms=0;ms<8000;ms+=100){const p=portraitAsciiPulse(cell,ms);assert.ok(p.from>=0&&p.from<4&&p.to>=0&&p.to<4);assert.ok(p.mix>=0&&p.mix<=1);marks.add(portraitAsciiGlyph(portraitAsciiMask(cell,p.to)).mark);}
  assert.equal(marks.size,4);assert.deepEqual(portraitAsciiPulse(cell,10000,true),{from:0,to:0,mix:0});
 });
 check('the eight-beat phrase has active gestures, a real rest and local staggering',()=>{
@@ -68,7 +67,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  const abort=new AbortController(),frames=new Map(),surfaces=[],queries=new Map(),observers=[];let id=0;
  globalThis.window=new EventTarget();globalThis.document=new EventTarget();document.hidden=false;document.documentElement={dataset:{entry:loading?'loading':'ready',theme:'dark'}};
  const dialog={open:false};document.querySelector=()=>dialog;globalThis.devicePixelRatio=3;
- globalThis.getComputedStyle=()=>({color:document.documentElement.dataset.theme==='light'?'rgb(0, 0, 0)':'rgb(255, 255, 255)'});
+ globalThis.getComputedStyle=()=>({color:'rgb(0, 0, 0)'});
  globalThis.matchMedia=query=>{if(!queries.has(query)){const media=new EventTarget();media.matches=query.includes('reduced-motion')?reduced:false;queries.set(query,media);}return queries.get(query);};
  function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[],inks:[],glyphAlphas:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},fillText(...args){log.glyphs.push(args);log.inks.push(this.fillStyle);log.glyphAlphas.push(this.globalAlpha);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
  const canvas=surface();canvas.clientWidth=200;canvas.clientHeight=250;if(!context)canvas.getContext=()=>null;
@@ -84,7 +83,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 {
  const f=setup({loading:true}),destroy=await initFigure(f.canvas,f.abort.signal);
  check('entry gets a real ASCII draw after decode and no running frame',()=>{
-  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,32*portraitAsciiVariants);
+  assert.equal(f.images,1);assert.ok(f.surfaces[1].log.samples===1);assert.equal(f.surfaces[2].log.glyphs.length,portraitTreatment.glyphCount);
   assert.ok(f.canvas.log.draws.length>0);assert.equal(f.canvas.width,400);assert.equal(f.canvas.height,500);assert.equal(f.frames.size,0);
  });
  document.documentElement.dataset.entry='ready';f.emit(document,'portfolio:entryready');f.step(0);
@@ -103,7 +102,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');
  check('opening the theme menu cancels portrait animation',()=>assert.equal(f.frames.size,0));
  document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);
- check('theme updates rebuild only glyph ink while paused',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+32*portraitAsciiVariants);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.frames.size,0);});
+ check('theme updates rebuild only glyph ink while paused',()=>{assert.equal(f.surfaces[2].log.glyphs.length,glyphs+portraitTreatment.glyphCount);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.frames.size,0);});
  document.documentElement.dataset.themeControlOpen='false';f.emit(document,'portfolio:themecontrol');
  document.documentElement.dataset.galleryMoving='true';f.emit(document,'portfolio:gallerymotion');
  check('gallery input pauses portrait work',()=>assert.equal(f.frames.size,0));
@@ -158,6 +157,10 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
   const anchors=draws=>[...new Set(draws.map(draw=>`${draw[5]},${draw[6]}`))].sort();
   assert.deepEqual(anchors(later),anchors(first));
   assert.notDeepEqual(later.map(draw=>draw[1]),first.map(draw=>draw[1]));
+ });
+ check('common facial points stay in one opaque layer instead of fading twice at a transition',()=>{
+  const width=f.surfaces[2].width/portraitTreatment.glyphCount,seen=new Map();
+  for(const draw of later){const key=`${draw[5]},${draw[6]}`,mask=Math.round(draw[1]/width),prior=seen.get(key)||0;assert.equal(prior&mask,0);seen.set(key,prior|mask);}
  });destroy();f.abort.abort();
 }
 {
@@ -165,7 +168,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('all four theme changes rebuild high-contrast ink without resampling or fading the source',()=>{
   for(const theme of ['dark','light','unexpected','amethyst']){
    document.documentElement.dataset.theme=theme;f.observers[2].callback([{attributeName:'data-theme'}]);
-   assert.equal(f.surfaces[2].log.inks.at(-1),theme==='light'?'rgb(0, 0, 0)':'rgb(255, 255, 255)');
+   assert.equal(f.surfaces[2].log.inks.at(-1),'rgb(0, 0, 0)');
    assert.equal(f.surfaces[1].log.samples,samples);assert.ok(f.surfaces[2].log.glyphAlphas.every(alpha=>alpha===1));
   }
  });destroy();f.abort.abort();

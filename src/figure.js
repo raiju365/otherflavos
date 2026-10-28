@@ -1,4 +1,4 @@
-import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiVariants, portraitAsciiPulse } from './portrait-image.js';
+import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitAsciiGrid, portraitAsciiCells, portraitAsciiGlyph, portraitAsciiMask, portraitAsciiPulse } from './portrait-image.js';
 
 // The user's real portrait, printed in readable ASCII marks. One capped owner
 // crossfades characters in anchored cells; source sampling/atlases are cached.
@@ -11,6 +11,7 @@ export async function initFigure(canvas, signal) {
   if(!ink||!glyphs)return ()=>{};
   const image=new Image();image.decoding='async';image.src=portraitSource;
   await image.decode();
+  try{await document.fonts?.load?.('48px "Segoe UI Symbol"');}catch{}
   if(signal.aborted)return ()=>{};
   const {width,height}=portraitSize,crop=portraitCrop(image.naturalWidth,image.naturalHeight);
   const motion=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)');
@@ -18,12 +19,11 @@ export async function initFigure(canvas, signal) {
   const dialog=document.querySelector('#project-detail');
   let frame=0,visible=true,pageActive=true,disposed=false,sectionMoving=false;
   let elapsed=0,lastTime=null,lastPaint=null,cells=[],columns=0,rows=0,spriteWidth=0,spriteHeight=0;
-  let cellWidth=0,cellHeight=0,light=false,dpr=1,inkColor='',fallback=false,gains=new Float32Array(32*portraitAsciiVariants).fill(1);
+  let cellWidth=0,cellHeight=0,dpr=1,inkColor='',fallback=false;
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
-  function drawMark(cell,tone,variant,weight) {
-    if(weight<=0)return;
-    const slot=tone*portraitAsciiVariants+variant;
-    ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*weight*gains[slot];
+  function drawMark(cell,slot,weight) {
+    if(weight<=0||slot===0)return;
+    ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*weight;
     ctx.drawImage(atlas,slot*spriteWidth,0,spriteWidth,spriteHeight,
       cell.x-cellWidth/2,cell.y-cellHeight/2,cellWidth,cellHeight);
   }
@@ -36,41 +36,38 @@ export async function initFigure(canvas, signal) {
     const still=motion.matches||forced.matches;
     for(const cell of cells) {
       const pulse=portraitAsciiPulse(cell,elapsed,still);
-      const tone=portraitAsciiTone(cell.luminance,light);
-      drawMark(cell,tone,pulse.from,1-pulse.mix);
-      if(pulse.mix>0)drawMark(cell,tone,pulse.to,pulse.mix);
+      const from=portraitAsciiMask(cell,pulse.from),to=portraitAsciiMask(cell,pulse.to);
+      if(pulse.mix===0||from===to)drawMark(cell,from,1);
+      else {
+        // Shared facial points stay fully inked; only differing points fade.
+        drawMark(cell,from&to,1);
+        drawMark(cell,from&~to,1-pulse.mix);
+        drawMark(cell,to&~from,pulse.mix);
+      }
     }
     ctx.globalAlpha=1;
   }
   function cacheGlyphs() {
     spriteWidth=Math.ceil(cellWidth*dpr);spriteHeight=Math.ceil(cellHeight*dpr);
-    atlas.width=spriteWidth*32*portraitAsciiVariants;atlas.height=spriteHeight;
-    glyphs.setTransform(dpr,0,0,dpr,0,0);
+    atlas.width=spriteWidth*portraitTreatment.glyphCount;atlas.height=spriteHeight;
     glyphs.fillStyle=inkColor;
-    glyphs.textAlign='center';glyphs.textBaseline='middle';
-    glyphs.font=`700 ${Math.min(cellHeight*1.03,cellWidth/0.6)}px ui-monospace, Consolas, monospace`;
-    for(let i=0;i<32*portraitAsciiVariants;i++) {
-      const glyph=portraitAsciiGlyph(Math.floor(i/portraitAsciiVariants),i%portraitAsciiVariants);
-      glyphs.globalAlpha=glyph.alpha;
-      glyphs.fillText(glyph.mark,(i+.5)*spriteWidth/dpr,cellHeight*.49);
+    glyphs.strokeStyle=inkColor;glyphs.lineWidth=portraitTreatment.stroke;
+    glyphs.textAlign='left';glyphs.textBaseline='alphabetic';
+    glyphs.font='48px "Segoe UI Symbol", "DejaVu Sans", sans-serif';
+    const metrics=glyphs.measureText?.(portraitAsciiGlyph(255).mark)||{actualBoundingBoxLeft:-7,actualBoundingBoxRight:28,actualBoundingBoxAscent:36,actualBoundingBoxDescent:12};
+    const pad=portraitTreatment.stroke/2,left=-metrics.actualBoundingBoxLeft-pad,top=-metrics.actualBoundingBoxAscent-pad;
+    const boxWidth=metrics.actualBoundingBoxLeft+metrics.actualBoundingBoxRight+pad*2,boxHeight=metrics.actualBoundingBoxAscent+metrics.actualBoundingBoxDescent+pad*2;
+    const innerWidth=cellWidth*dpr*.9,innerHeight=cellHeight*dpr*.9,sx=innerWidth/boxWidth,sy=innerHeight/boxHeight;
+    for(let i=0;i<portraitTreatment.glyphCount;i++) {
+      const glyph=portraitAsciiGlyph(i);
+      glyphs.setTransform(sx,0,0,sy,i*spriteWidth+(spriteWidth-innerWidth)/2-left*sx,(spriteHeight-innerHeight)/2-top*sy);
+      glyphs.globalAlpha=1;
+      glyphs.fillText(glyph.mark,0,0);glyphs.strokeText?.(glyph.mark,0,0);
     }
     glyphs.globalAlpha=1;
-    // Normalize variant coverage once so letter swaps do not make large bright
-    // regions pulse like a moving shape. No pixel reads in the animation loop.
-    gains.fill(1);
-    try {
-      const pixels=glyphs.getImageData(0,0,atlas.width,atlas.height).data;
-      const energy=new Float32Array(gains.length);
-      for(let slot=0;slot<energy.length;slot++)for(let y=0;y<spriteHeight;y++)for(let x=0;x<spriteWidth;x++)energy[slot]+=pixels[(y*atlas.width+slot*spriteWidth+x)*4+3];
-      for(let tone=0;tone<32;tone++) {
-        const offset=tone*portraitAsciiVariants,reference=Math.min(...energy.slice(offset,offset+portraitAsciiVariants).filter(value=>value>0));
-        for(let v=0;v<portraitAsciiVariants;v++)gains[offset+v]=energy[offset+v]>0&&Number.isFinite(reference)?Math.max(portraitTreatment.coverageFloor,reference/energy[offset+v]):1;
-      }
-    } catch { /* Static atlas remains usable if pixel reads are unavailable. */ }
   }
   function palette() {
     if(disposed)return;
-    light=document.documentElement.dataset.theme==='light';
     inkColor=getComputedStyle(canvas).color;
     cacheGlyphs();draw();
   }
@@ -83,9 +80,9 @@ export async function initFigure(canvas, signal) {
     const grid=portraitAsciiGrid(displayWidth);
     if(grid.columns!==columns||grid.rows!==rows) {
       columns=grid.columns;rows=grid.rows;cellWidth=width/columns;cellHeight=height/rows;
-      sample.width=columns;sample.height=rows;
-      ink.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,columns,rows);
-      try{cells=portraitAsciiCells(ink.getImageData(0,0,columns,rows).data,columns,rows);fallback=false;}
+      sample.width=columns*2;sample.height=rows*4;
+      ink.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,sample.width,sample.height);
+      try{cells=portraitAsciiCells(ink.getImageData(0,0,sample.width,sample.height).data,columns,rows);fallback=false;}
       catch{fallback=true;}
     }
     palette();
