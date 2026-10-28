@@ -15,11 +15,10 @@ export function initRailAtmosphere(signal) {
   backdrop.append(canvas);
   const flow = createRailFlow(canvas);
   rail.prepend(backdrop);
-  let visible = false, dialogOpen = false, pageActive = true, sectionMoving=false;
+  let visible = false, dialogOpen = false, pageActive = true;
   const on = (target, type, listener) => target.addEventListener(type, listener, { signal, passive: true });
   function sync() {
-    const running = visible && pageActive && !dialogOpen && !sectionMoving && !document.hidden && !reduced.matches && !forced.matches
-      && document.documentElement.dataset.galleryMoving!=='true'
+    const running = visible && pageActive && !dialogOpen && !document.hidden && !reduced.matches && !forced.matches
       && document.documentElement.dataset.entry !== 'loading' && !signal.aborted;
     backdrop.dataset.running = String(running);
     flow?.setRunning(running);
@@ -33,9 +32,6 @@ export function initRailAtmosphere(signal) {
   observer?.observe(rail);
   on(document, 'visibilitychange', sync);
   on(document, 'portfolio:entryready', sync);
-  on(document, 'portfolio:gallerymotion', sync);
-  on(document, 'portfolio:sectionstart',()=>{sectionMoving=true;sync();});
-  on(document, 'portfolio:sectionsettled',()=>{sectionMoving=false;sync();});
   on(reduced, 'change', sync);
   on(forced, 'change', sync);
   on(window, 'pagehide', () => { pageActive = false; sync(); });

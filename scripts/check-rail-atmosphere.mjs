@@ -92,11 +92,37 @@ check('opening and changing themes keeps the same gradient frame and grain runni
  for(let i=0;i<12;i++)step(50);
  assert.equal(frames.size,1);assert.equal(running(),'true');assert.ok(!before.equals(samples.at(-1)));
 });
-check('gallery motion still pauses the field independently of the theme menu',()=>{
+check('tab transitions in both directions preserve one frame owner and keep the field changing',()=>{
+ const before=samples.at(-1);
+ for(let transition=0;transition<5;transition++){
+  const pending=[...frames.keys()];
+  emit(document,'portfolio:sectionstart');emit(document,'portfolio:sectionstart');
+  assert.deepEqual([...frames.keys()],pending);assert.equal(running(),'true');
+  for(let i=0;i<4;i++)step(50);
+  const settling=[...frames.keys()];emit(document,'portfolio:sectionsettled');
+  assert.deepEqual([...frames.keys()],settling);assert.equal(frames.size,1);
+ }
+ assert.ok(!before.equals(samples.at(-1)));
+});
+check('the Projects entrance and subsequent gallery motion cannot suspend the gradient',()=>{
+ const pending=[...frames.keys()],before=samples.at(-1);
  document.documentElement.dataset.galleryMoving='true';emit(document,'portfolio:gallerymotion');
+ assert.equal(running(),'true');assert.deepEqual([...frames.keys()],pending);
+ for(let i=0;i<4;i++)step(50);
+ assert.ok(!before.equals(samples.at(-1)));assert.equal(frames.size,1);
+ const settling=[...frames.keys()];
+ document.documentElement.dataset.themeControlOpen='false';emit(document,'portfolio:themecontrol');
+ document.documentElement.dataset.galleryMoving='false';emit(document,'portfolio:gallerymotion');
+ assert.equal(running(),'true');assert.deepEqual([...frames.keys()],settling);
+});
+check('navigation events cannot restart a hidden or reduced-motion background',()=>{
+ document.hidden=true;emit(document,'visibilitychange');
+ emit(document,'portfolio:sectionstart');emit(document,'portfolio:sectionsettled');emit(document,'portfolio:gallerymotion');
  assert.equal(running(),'false');assert.equal(frames.size,0);
- document.documentElement.dataset.themeControlOpen='false';emit(document,'portfolio:themecontrol');assert.equal(running(),'false');
- document.documentElement.dataset.galleryMoving='false';emit(document,'portfolio:gallerymotion');assert.equal(running(),'true');
+ document.hidden=false;reduced.matches=true;emit(reduced,'change');
+ emit(document,'portfolio:sectionstart');emit(document,'portfolio:sectionsettled');
+ assert.equal(running(),'false');assert.equal(frames.size,0);
+ reduced.matches=false;emit(reduced,'change');assert.equal(running(),'true');
 });
 check('abort removes the backdrop, disconnects visibility tracking and releases listeners', () => {
   abort.abort(); assert.equal(observer.disconnected, true); assert.equal(running(), 'false');

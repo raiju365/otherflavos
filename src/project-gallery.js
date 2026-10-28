@@ -178,8 +178,8 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }));
   on(document,'portfolio:sectionstart',()=>{pause();wasActive=false;needsEntrance=true;});
   on(document,'portfolio:sectionsettled',sync);on(document,'portfolio:entryready',sync);
-  // The preview stays interactive behind the open glass. Decorative rail and
-  // portrait still pause independently; this gallery only runs while moving.
+  // The preview stays interactive behind the open glass. Its movement signal
+  // gates the portrait; the rail field flows independently of navigation.
   on(document,'visibilitychange',sync);on(window,'blur',()=>{focused=false;sync();});
   on(window,'focus',()=>{focused=true;sync();});on(window,'pagehide',()=>{pageActive=false;sync();});on(window,'pageshow',()=>{pageActive=true;sync();});
   on(window,'resize',()=>{pause();measure();sync();});
