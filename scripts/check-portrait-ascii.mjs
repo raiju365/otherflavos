@@ -39,6 +39,10 @@ check('skin midtones retain separation rather than clipping facial features to w
  assert.ok(portraitAsciiTone(.4,false)<portraitAsciiTone(.5,false));
  assert.ok(!Array.from({length:32},(_,i)=>portraitAsciiGlyph(i).mark).some(mark=>mark==='-'||mark==='='));
 });
+check('all tone families use opaque ink and retain at least 90 percent variant strength',()=>{
+ for(let tone=0;tone<32;tone++)for(let variant=0;variant<portraitAsciiVariants;variant++)assert.equal(portraitAsciiGlyph(tone,variant).alpha,1);
+ assert.ok(portraitTreatment.coverageFloor>=.9);
+});
 check('the face grid stays anchored throughout the rhythm instead of moving as a shape',()=>{
  const cell={x:80,y:100,phase:1.25};
  for(let elapsed=0;elapsed<120000;elapsed+=137)assert.deepEqual(portraitAsciiPose(cell,elapsed),{x:80,y:100});
@@ -64,9 +68,9 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  const abort=new AbortController(),frames=new Map(),surfaces=[],queries=new Map(),observers=[];let id=0;
  globalThis.window=new EventTarget();globalThis.document=new EventTarget();document.hidden=false;document.documentElement={dataset:{entry:loading?'loading':'ready',theme:'dark'}};
  const dialog={open:false};document.querySelector=()=>dialog;globalThis.devicePixelRatio=3;
- globalThis.getComputedStyle=()=>({color:document.documentElement.dataset.theme==='light'?'rgb(32, 34, 29)':'rgb(255, 255, 248)'});
+ globalThis.getComputedStyle=()=>({color:document.documentElement.dataset.theme==='light'?'rgb(0, 0, 0)':'rgb(255, 255, 255)'});
  globalThis.matchMedia=query=>{if(!queries.has(query)){const media=new EventTarget();media.matches=query.includes('reduced-motion')?reduced:false;queries.set(query,media);}return queries.get(query);};
- function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},fillText(...args){log.glyphs.push(args);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
+ function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[],inks:[],glyphAlphas:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},fillText(...args){log.glyphs.push(args);log.inks.push(this.fillStyle);log.glyphAlphas.push(this.globalAlpha);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
  const canvas=surface();canvas.clientWidth=200;canvas.clientHeight=250;if(!context)canvas.getContext=()=>null;
  document.createElement=()=>surface();let images=0;
  globalThis.Image=class{naturalWidth=736;naturalHeight=1119;constructor(){images++;}decode(){return gate||Promise.resolve();}};
@@ -154,6 +158,16 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
   const anchors=draws=>[...new Set(draws.map(draw=>`${draw[5]},${draw[6]}`))].sort();
   assert.deepEqual(anchors(later),anchors(first));
   assert.notDeepEqual(later.map(draw=>draw[1]),first.map(draw=>draw[1]));
+ });destroy();f.abort.abort();
+}
+{
+ const f=setup(),destroy=await initFigure(f.canvas,f.abort.signal),samples=f.surfaces[1].log.samples;
+ check('all four theme changes rebuild high-contrast ink without resampling or fading the source',()=>{
+  for(const theme of ['dark','light','unexpected','amethyst']){
+   document.documentElement.dataset.theme=theme;f.observers[2].callback([{attributeName:'data-theme'}]);
+   assert.equal(f.surfaces[2].log.inks.at(-1),theme==='light'?'rgb(0, 0, 0)':'rgb(255, 255, 255)');
+   assert.equal(f.surfaces[1].log.samples,samples);assert.ok(f.surfaces[2].log.glyphAlphas.every(alpha=>alpha===1));
+  }
  });destroy();f.abort.abort();
 }
 mkdirSync(new URL('../artifacts/',import.meta.url),{recursive:true});

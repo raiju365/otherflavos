@@ -28,6 +28,7 @@
   --rail-flow-deep: #0d0d0d;
   --rail-flow-warm: #dddbe0;
   --figure-ink: #fffff8;
+  --portrait-ink: #ffffff;
   --rail-tone-filter: brightness(.78);
   --media-tone-filter: brightness(.9) saturate(.85);
   --accent-ink: #fff;
@@ -49,6 +50,7 @@
   --rail-ink: #20221d;
   --rail-muted: #30342b;
   --figure-ink: #20221d;
+  --portrait-ink: #000000;
   --rail-edge: rgb(255 255 248 / .85);
   --rail-shadow: rgb(255 255 248 / .45);
 
@@ -208,7 +210,7 @@ body { font-weight: 450; letter-spacing: -.015em; }
   mix-blend-mode: normal;
   background: transparent;
   border-radius: 0;
-  color: var(--figure-ink);
+  color: var(--portrait-ink);
   filter: none;
 }
 
@@ -340,7 +342,7 @@ html[data-entry=loading] .entry-loader[data-phase=reveal] { background: transpar
   .profile-sticky { --figure-ink: CanvasText; }
   .profile-sticky > .identity { text-shadow: none; }
   .identity h1 { -webkit-text-stroke: 0; }
-  #figure { filter: none; }
+  #figure { color: CanvasText; filter: none; }
   .tab-art-marker { background: Highlight; }
 }
 

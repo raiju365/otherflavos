@@ -8,7 +8,7 @@ export function portraitCrop(width, height) {
   return { x, y, width: cropWidth, height: cropWidth * portraitSize.height / portraitSize.width };
 }
 
-export const portraitTreatment={asciiOpacity:1};
+export const portraitTreatment={asciiOpacity:1,coverageFloor:.9};
 
 // The rectangle retains all source pixels: no feathered sides or faded shirt.
 export function portraitEdgeAlpha() { return 1; }
@@ -68,7 +68,8 @@ export function portraitAsciiGlyph(tone,variant=0) {
   // Substitutions stay in one brightness family; the photo's tone never sweeps.
   const marks=[['.',',',"'",'`'],[':', ';', '!', 'i'],['+', 'x', '*', 't'],
     ['*','o','s','v'],['#','H','X','N'],['%','B','8','R'],['@','M','W','Q'],['M','W','#','@']];
-  return {mark:marks[Math.min(7,Math.floor(tone/4))][variant%portraitAsciiVariants],alpha:.28+.72*Math.pow(tone/31,.55)};
+  // Tone is carried by character density, not translucent gray strokes.
+  return {mark:marks[Math.min(7,Math.floor(tone/4))][variant%portraitAsciiVariants],alpha:1};
 }
 
 export function portraitAsciiPose(cell) {

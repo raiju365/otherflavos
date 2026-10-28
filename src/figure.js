@@ -64,7 +64,7 @@ export async function initFigure(canvas, signal) {
       for(let slot=0;slot<energy.length;slot++)for(let y=0;y<spriteHeight;y++)for(let x=0;x<spriteWidth;x++)energy[slot]+=pixels[(y*atlas.width+slot*spriteWidth+x)*4+3];
       for(let tone=0;tone<32;tone++) {
         const offset=tone*portraitAsciiVariants,reference=Math.min(...energy.slice(offset,offset+portraitAsciiVariants).filter(value=>value>0));
-        for(let v=0;v<portraitAsciiVariants;v++)gains[offset+v]=energy[offset+v]>0&&Number.isFinite(reference)?reference/energy[offset+v]:1;
+        for(let v=0;v<portraitAsciiVariants;v++)gains[offset+v]=energy[offset+v]>0&&Number.isFinite(reference)?Math.max(portraitTreatment.coverageFloor,reference/energy[offset+v]):1;
       }
     } catch { /* Static atlas remains usable if pixel reads are unavailable. */ }
   }
