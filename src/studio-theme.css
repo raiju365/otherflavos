@@ -38,6 +38,7 @@
   --media-radius: 18px;
 }
 :root[data-theme=light] {
+  /* The profile inherits Dark's monochrome material and white identity ink. */
   --bg: #f0f0eb;
   --fg: #20221d;
   --muted: #64675e;
@@ -46,16 +47,9 @@
   --surface: #fafbf5;
   --focus: #bf2e00;
   --accent-copy: #b5320a;
-  /* Keep the moving field within a light range beneath the dark identity ink. */
-  --rail-tone-filter: grayscale(1) brightness(.28) invert(1);
   --media-tone-filter: none;
-  --rail-ink: #20221d;
-  --rail-muted: #30342b;
-  --figure-ink: #20221d;
   --portrait-ink: #000000;
   --portrait-paper: #f4f4ef;
-  --rail-edge: rgb(255 255 248 / .85);
-  --rail-shadow: rgb(255 255 248 / .45);
 
 }
 :root[data-theme=unexpected] {
@@ -135,14 +129,6 @@ body { font-weight: 450; letter-spacing: -.015em; }
   background: radial-gradient(circle, rgb(255 255 255 / .26) .65px, transparent .9px) 0 0 / 5px 5px;
   mix-blend-mode: difference;
 }
-@media (forced-colors: none) {
-  /* Tone only the field in Light; filtering the whole stack washes out grain.
-     The filtered ::before beneath it remains the no-canvas fallback. */
-  :root[data-theme=light] .rail-atmosphere { filter: none; background: transparent; }
-  :root[data-theme=light] .rail-flow-canvas { filter: blur(13px) var(--rail-tone-filter); }
-  :root[data-theme=light] .rail-atmosphere::before { opacity: .22; mix-blend-mode: multiply; }
-  :root[data-theme=light] .rail-atmosphere::after { mix-blend-mode: screen; }
-}
 @keyframes rail-grain-drift {
   from { transform: translate3d(-18px, 12px, 0); }
   to { transform: translate3d(18px, -12px, 0); }
@@ -191,8 +177,6 @@ body { font-weight: 450; letter-spacing: -.015em; }
   font-weight: 550;
   letter-spacing: 0;
 }
-:root[data-theme=light] .profile-sticky > .identity { text-shadow: none; }
-:root[data-theme=light] .identity h1 { -webkit-text-stroke: 0; }
 .figure-cross { display: none; }
 .portrait-studio {
   position: relative;
