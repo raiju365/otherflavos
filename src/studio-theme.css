@@ -48,10 +48,10 @@
   --focus: #bf2e00;
   --accent-copy: #b5320a;
   --rail-tone-filter: brightness(.78) invert(1);
-  --rail-ink: #20221d;
-  --rail-muted: #30342b;
-  --rail-edge: rgb(255 255 248 / .85);
-  --rail-shadow: rgb(255 255 248 / .45);
+  --rail-ink: #fffff8;
+  --rail-muted: #f5f6ef;
+  --rail-edge: #080a08;
+  --rail-shadow: rgb(8 10 8 / .8);
   --figure-ink: #20221d;
   --media-tone-filter: none;
   --portrait-ink: #000000;
@@ -182,6 +182,23 @@ body { font-weight: 450; letter-spacing: -.015em; }
   gap: 8px 12px;
   font-weight: 550;
   letter-spacing: 0;
+}
+@media (forced-colors: none) {
+  /* Support the letters themselves while the user's full-range field moves. */
+  :root[data-theme=light] .profile-sticky > .identity {
+    text-shadow: -1px 0 var(--rail-edge), 1px 0 var(--rail-edge),
+      0 -1px var(--rail-edge), 0 1px var(--rail-edge), 0 1px 4px var(--rail-shadow);
+  }
+  :root[data-theme=light] .identity h1 {
+    font-weight: 600;
+    -webkit-text-stroke: 1px var(--rail-edge);
+  }
+  :root[data-theme=light] .identity-meta .handle,
+  :root[data-theme=light] .identity-meta .profile-role {
+    font-weight: 600;
+    -webkit-text-stroke: .7px var(--rail-edge);
+    paint-order: stroke fill;
+  }
 }
 .figure-cross { display: none; }
 .portrait-studio {
