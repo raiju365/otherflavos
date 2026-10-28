@@ -15,6 +15,7 @@ export function initSectionNavigation(signal) {
   const reveal = createSectionReveal({ animateElement, desktop });
   let transitioning = false;
   let active = 'home', revision = 0;
+  let viewportWidth = window.innerWidth, viewportHeight = window.innerHeight;
 
   tabs.forEach(tab => {
     const label = tab.querySelector('.tab-label');
@@ -155,8 +156,15 @@ export function initSectionNavigation(signal) {
     if (location.hash.slice(1) !== active) selectTab(location.hash.slice(1), { historyMode: 'none' });
   });
   on(window, 'resize', () => {
-    headerMotion.settle();
+    const widthChanged = Math.abs(window.innerWidth - viewportWidth) > .5;
+    const heightChanged = Math.abs(window.innerHeight - viewportHeight) > .5;
+    viewportWidth = window.innerWidth; viewportHeight = window.innerHeight;
     positionMarker();
+    // Mobile browser chrome can resize only the visible height during scroll
+    // restoration. Keep both the header FLIP and content reveal on their clocks.
+    // A real width/breakpoint change still commits the responsive layout safely.
+    if (!widthChanged && (!desktop.matches || !heightChanged)) return;
+    headerMotion.settle();
     if (transitioning) selectTab(active, { historyMode: 'none', animate: false });
   });
   on(document, 'visibilitychange', () => {

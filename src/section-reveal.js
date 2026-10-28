@@ -63,7 +63,11 @@ export function createSectionReveal({ animateElement, desktop }) {
       const motion = animateElement(element, frames, { duration, delay, easing, fill: 'both' });
       if (motion) motions.push(motion);
     };
-    groups.filter(inViewport).forEach((group, groupIndex) => {
+    // The mobile header is still carrying the nav/content toward About's final
+    // position. A group below the initial viewport may become visible halfway
+    // through that move, so prepare all of this small panel before its first paint.
+    const mobileAboutEntry = entering && !desktop.matches && panel.id === 'panel-more';
+    (mobileAboutEntry ? groups : groups.filter(inViewport)).forEach((group, groupIndex) => {
       const words=[...group.querySelectorAll('.section-word')],targets=group.dataset.sectionDisplay==='true'&&words.length?words:[group];
       const display=group.dataset.sectionDisplay==='true',groupDelay=entering?Math.min(groupIndex*40,120):0;
       const step=display?18:Math.min(4,65/Math.max(1,targets.length-1));
