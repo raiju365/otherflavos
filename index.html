@@ -109,20 +109,18 @@
               <p class="profile-role" id="profile-role"></p>
             </div>
           </header>
-          <section class="rail-play" data-type-play aria-label="Interactive typography" hidden>
-            <p class="type-play-heading">TYPE / PLAY</p>
-            <div class="type-play-stage" data-type-stage role="group" aria-label="Play with four letters" aria-describedby="type-play-help">
-              <button type="button" class="type-play-letter" data-type-letter aria-label="Letter P. Drag or press to toss."><span aria-hidden="true">P</span></button>
-              <button type="button" class="type-play-letter" data-type-letter aria-label="Letter L. Drag or press to toss."><span aria-hidden="true">L</span></button>
-              <button type="button" class="type-play-letter" data-type-letter aria-label="Letter A. Drag or press to toss."><span aria-hidden="true">A</span></button>
-              <button type="button" class="type-play-letter" data-type-letter aria-label="Letter Y. Drag or press to toss."><span aria-hidden="true">Y</span></button>
+          <section class="water-play" data-water-play aria-label="Interactive water" hidden>
+            <p class="water-play-heading">WATER / PLAY</p>
+            <button type="button" class="water-board" data-water-board aria-label="Water surface. Move to stir; click to drop a stone." aria-describedby="water-play-help">
+              <canvas width="300" height="160" aria-hidden="true"></canvas>
+              <span class="water-fallback" aria-hidden="true"><i></i><i></i><i></i></span>
+            </button>
+            <div class="water-play-footer">
+              <p class="water-play-hint">Move · click.</p>
+              <div class="water-play-actions"><button type="button" class="water-play-action" data-water-drop>Drop</button><button type="button" class="water-play-action" data-water-clear>Clear</button></div>
             </div>
-            <div class="type-play-footer">
-              <p class="type-play-hint">Drag &amp; let go.</p>
-              <div class="type-play-actions"><button type="button" class="type-play-action" data-type-mix>Mix</button><button type="button" class="type-play-action" data-type-reset>Reset</button></div>
-            </div>
-            <p id="type-play-help" class="sr-only">Drag and release a letter, or use Tab to focus it. Arrow keys nudge; Enter or Space tosses; Home resets. Mix moves all four letters.</p>
-            <p class="sr-only" data-type-status role="status" aria-live="polite"></p>
+            <p id="water-play-help" class="sr-only">Move across the water to stir it. Click, Enter or Space drops a stone. Arrow keys create waves at nearby points; Home or Escape clears the water.</p>
+            <p class="sr-only" data-water-status role="status" aria-live="polite"></p>
           </section>
           <div class="theme-picker" data-open="false">
             <div class="theme-glass">

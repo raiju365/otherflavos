@@ -65,17 +65,17 @@ check('child accents share their axes without a second perpendicular offset',()=
   assert.equal(focusHorizontal.style.transform,'translate3d(999px, 0, 0)');
   assert.equal(focusVertical.style.transform,'translate3d(0, 400px, 0)');
 });
-move({target:{closest:selector=>selector==='.social-link'||selector==='[data-type-play]'?null:{}}});settle();
+move({target:{closest:selector=>selector==='.social-link'||selector==='[data-water-play]'?null:{}}});settle();
 check('hovering an interactive element enables the restrained tick expansion',()=>assert.equal(root.dataset.interactive,'true'));
 check('ordinary controls keep their existing guide response',()=>assert.equal(root.dataset.contact,'false'));
-move({target:{closest:selector=>selector==='[data-type-play]'?null:{}}});settle();
+move({target:{closest:selector=>selector==='[data-water-play]'?null:{}}});settle();
 check('social links signal the quiet contact treatment without hiding tracking',()=>{
   assert.equal(root.dataset.contact,'true');assert.equal(root.dataset.interactive,'true');assert.equal(root.hidden,false);
 });
 move();settle();
 check('leaving a social link restores the normal guide treatment',()=>assert.equal(root.dataset.contact,'false'));
-move({clientX:650});move({target:{closest:selector=>selector==='[data-type-play]'?{}:null}});
-check('the letter playground hides guides and cancels tracking only within its own surface',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
+move({clientX:650});move({target:{closest:selector=>selector==='[data-water-play]'?{}:null}});
+check('the water playground hides guides and cancels tracking only within its own surface',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
 move();
 check('leaving the playground restores normal pointer guides',()=>assert.equal(root.hidden,false));
 emit(window,'pointerdown',{pointerType:'mouse',button:0});

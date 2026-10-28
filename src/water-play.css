@@ -1,0 +1,44 @@
+.water-play { display: none; }
+@media (min-width: 801px) and (min-height: 540px) {
+  .water-play:not([hidden]) {
+    position: relative; z-index: 1; isolation: isolate;
+    display: flex; flex-direction: column; flex: 0 1 auto;
+    width: min(300px, calc(100% - 48px));
+    height: clamp(144px, calc(100svh - 470px), 248px); min-height: 144px;
+    margin-top: clamp(20px, 3vh, 32px);
+    color: var(--rail-ink); font-family: 'Overused Grotesk', sans-serif;
+    text-shadow: 0 1px 2px #080a08, 0 0 4px #080a08;
+    -webkit-text-stroke: .6px #080a08; paint-order: stroke fill;
+  }
+  .water-play-heading { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 650; line-height: 18px; letter-spacing: .12em; margin-bottom: 8px; }
+  .water-play-heading::before { content: ''; width: 4px; height: 4px; background: var(--accent); border-radius: 50%; }
+  .water-board {
+    display: block; position: relative; flex: 1; min-height: 0; width: 100%;
+    appearance: none; padding: 0; border: 1px solid color-mix(in srgb, var(--rail-ink) 32%, transparent); border-radius: 0;
+    background: var(--surface); color: var(--fg); overflow: hidden;
+    cursor: crosshair; touch-action: none; text-shadow: none; -webkit-text-stroke: 0;
+  }
+  .water-board canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .water-fallback { display: none; position: absolute; left: var(--wave-x, 50%); top: var(--wave-y, 50%); width: 90px; height: 60px; translate: -50% -50%; pointer-events: none; }
+  .water-fallback i { position: absolute; inset: 0; border: 1px solid currentColor; border-radius: 50%; }
+  .water-fallback i:nth-child(2) { inset: 10px 15px; }.water-fallback i:nth-child(3) { inset: 20px 30px; }
+  .water-play[data-fallback=true] .water-board[data-disturbed] .water-fallback { display: block; }
+  .water-play-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 32px; }
+  .water-play-hint { font-size: 11px; font-weight: 600; line-height: 1.4; }
+  .water-play-actions { display: flex; gap: 14px; }
+  .water-play-action {
+    appearance: none; border: 0; border-radius: 0; background: transparent; color: inherit;
+    font: 650 11px/32px 'Overused Grotesk', sans-serif; padding: 0; cursor: pointer;
+    text-shadow: inherit; -webkit-text-stroke: inherit; paint-order: stroke fill;
+    text-decoration: underline; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+  }
+  .water-play-action:hover { text-decoration-color: var(--accent); }
+  .water-play button:focus-visible { outline: 2px solid var(--rail-ink); outline-offset: 3px; box-shadow: 0 0 0 4px #080a08; }
+}
+@media (forced-colors: active) {
+  .water-play:not([hidden]), .water-play .water-play-action { color: CanvasText; -webkit-text-stroke: 0; text-shadow: none; }
+  .water-play-heading::before { background: Highlight; }
+  .water-board { background: Canvas; color: CanvasText; border-color: CanvasText; }
+  .water-board canvas { display: none; }.water-board[data-disturbed] .water-fallback { display: block; }
+  .water-play button:focus-visible { outline-color: Highlight; box-shadow: none; }
+}
