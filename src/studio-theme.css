@@ -38,7 +38,7 @@
   --media-radius: 18px;
 }
 :root[data-theme=light] {
-  /* The profile inherits Dark's monochrome material and white identity ink. */
+  /* Reverse Dark's complete material: its deepest blacks become whites. */
   --bg: #f0f0eb;
   --fg: #20221d;
   --muted: #64675e;
@@ -47,6 +47,12 @@
   --surface: #fafbf5;
   --focus: #bf2e00;
   --accent-copy: #b5320a;
+  --rail-tone-filter: brightness(.78) invert(1);
+  --rail-ink: #20221d;
+  --rail-muted: #30342b;
+  --rail-edge: rgb(255 255 248 / .85);
+  --rail-shadow: rgb(255 255 248 / .45);
+  --figure-ink: #20221d;
   --media-tone-filter: none;
   --portrait-ink: #000000;
   --portrait-paper: #f4f4ef;
