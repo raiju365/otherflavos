@@ -1,6 +1,6 @@
 import { prepareEntryFonts, prepareEntryAssets } from './entry-readiness.js';
 import { createEntryCounter } from './entry-counter.js';
-import { createEntryNumerals } from './entry-numerals.js';
+import { createEntryNumerals, entryCompletionFrames } from './entry-numerals.js';
 import { entryWaveFrames } from './entry-reveal.js';
 
 export function initEntryLoader({ signal }) {
@@ -10,7 +10,8 @@ export function initEntryLoader({ signal }) {
   const page=document.querySelector('.portfolio'), number=stage.querySelector('#entry-number');
   const meter=stage.querySelector('#entry-progress'), surface=stage.querySelector('.entry-surface');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)'), desktop=matchMedia('(min-width: 801px)');
-  const counter=createEntryCounter(number,{render:createEntryNumerals(number)}), animations=new Set();
+  const renderNumber=createEntryNumerals(number);
+  const counter=createEntryCounter(number,{render:renderNumber}), animations=new Set();
   let finished=false,started=false,ready=false,keyboard=false;
   let settle=reduced.matches||typeof stage.animate!=='function';
   let revealContent=()=>Promise.resolve(),settleContent=()=>{};
@@ -93,7 +94,9 @@ export function initEntryLoader({ signal }) {
       if(settle||reduced.matches){finish('settled');return;}
       await counter.done;if(finished||settle)return;
       stage.dataset.phase='hold';
-      await complete([animate(stage,[{opacity:1},{opacity:1}],{duration:220})]);
+      await complete([animate(renderNumber.completion,entryCompletionFrames(),{
+        duration:220,easing:'cubic-bezier(.25,.1,.25,1)'
+      })]);
       if(finished||settle)return;await reveal();finish();
     }catch{finish('error');}
   }};

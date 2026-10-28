@@ -2,7 +2,7 @@
 
 Root: **D:\portofolio-web**. A wide editorial portfolio with a stationary identity rail, a scrolling work pane, centered Now/Projects/About tabs, and prominent project screenshots. The current Sybiosme-inspired studio theme combines mineral/charcoal grounds, orange accents, a slowly flowing grain-textured identity background, a monochrome studio portrait and close-set Overused Grotesk type. The initial compact reference was superseded by the user's layout feedback. Research and design rationale are in `DESIGN-RESEARCH.md`.
 
-Entry now uses continuous rolling 0-100 numerals. After readiness, 100 expands into outline type while five background fields open in a staggered center-out sequence. Reduced motion opens the prepared content directly. Source/lifecycle checks pass; native motion appearance remains unverified.
+Entry uses continuous asset-linked 0-100 numerals. The last 99 -> 100 is one centered 380ms whole-word carry with restrained rolling depth. During the existing 220ms confirmation, the real 100 row lands with a small squash/rebound and returns to its exact flat pose. The intact number then departs into the current curved page reveal. Cached rows and the existing counter/native animation owners handle the sequence; reduced motion opens the prepared content directly. Run `node scripts/check-entry-loader.mjs` for 57 counter/numeral/readiness/lifecycle fixture checks. Physical-device appearance/performance remains separate from these checks.
 
 ## Run locally
 

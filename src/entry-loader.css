@@ -10,7 +10,7 @@
 #entry-number { position:relative; display:flex; }
 .entry-reel-group { display:flex; }
 .entry-finish-window { position:absolute; inset:0; overflow:hidden; mask-image:linear-gradient(transparent,#000 7% 93%,transparent); }
-.entry-finish-row { display:flex; justify-content:center; height:1.05em; }
+.entry-finish-row { display:flex; justify-content:center; height:1.05em; transform-origin:50% 50%; backface-visibility:hidden; }
 .entry-finish-row > .entry-reel-glyph { flex:0 0 .58em; }
 .entry-reel-window { display:block; width:.58em; height:1.05em; overflow:hidden; mask-image:linear-gradient(transparent,#000 7% 93%,transparent); }
 .entry-reel-track { display:block; }

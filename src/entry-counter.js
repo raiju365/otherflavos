@@ -14,8 +14,8 @@ export function createEntryCounter(element, {render}={}) {
     if(target===100&&value>=99){
       // Finish the last carry exactly, without the former .18-unit snap.
       completion||={from:value,elapsed:0};
-      completion.elapsed=Math.min(300,completion.elapsed+dt);
-      const t=completion.elapsed/300;
+      completion.elapsed=Math.min(380,completion.elapsed+dt);
+      const t=completion.elapsed/380;
       value=completion.from+(100-completion.from)*t*t*(3-2*t);
     }else{
       value+=Math.min(dt*.065,(target-value)*(1-Math.exp(-dt/170)));
