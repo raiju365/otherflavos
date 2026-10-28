@@ -182,12 +182,12 @@ body { font-weight: 450; letter-spacing: -.015em; }
   display: grid;
   isolation: isolate;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
   background:
     radial-gradient(ellipse at 18% 0%,color-mix(in srgb,var(--fg) 13%,var(--bg)),transparent 68%),
     linear-gradient(155deg,var(--surface),var(--bg) 78%);
 }
-/* A bounded studio ground gives the fading shoulders a deliberate ending. */
+/* Square studio ground beneath the character-only portrait. */
 .portrait-studio::before {
   content: '';
   position: absolute;
@@ -198,14 +198,6 @@ body { font-weight: 450; letter-spacing: -.015em; }
   opacity: .18;
   -webkit-mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
   mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
-}
-.portrait-studio::after {
-  content: '';
-  position: absolute;
-  inset: 69% 0 0;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(transparent,var(--bg) 96%);
 }
 #figure {
   top: 0;
@@ -338,7 +330,7 @@ html[data-entry=loading] .entry-loader[data-phase=reveal] { background: transpar
 }
 @media (forced-colors: active) {
   .portrait-studio { background: Canvas; }
-  .portrait-studio::before, .portrait-studio::after { display: none; }
+  .portrait-studio::before { display: none; }
   #figure { background: Canvas; }
   .profile-sticky::before, .rail-atmosphere { background: Canvas; filter: none; }
   .featured-preview img, .project-stage img, .project-stage video, .detail-image { filter: none; }

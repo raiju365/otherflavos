@@ -12,14 +12,13 @@ check('the original supplied PNG and proportional face crop remain the source',(
  assert.ok(crop.y<335&&crop.y+crop.height>730);assert.ok(crop.x>=0&&crop.x+crop.width<=736);
  assert.ok(readFileSync(new URL('../index.html',import.meta.url),'utf8').includes('href="/profile/selfphoto.png"'));
 });
-check('eyes and mouth stay fully opaque while side and lower boundaries dissolve continuously',()=>{
- assert.equal(portraitEdgeAlpha(.5,.4),1);assert.equal(portraitEdgeAlpha(.5,.65),1);
- assert.equal(portraitEdgeAlpha(0,.5),0);assert.equal(portraitEdgeAlpha(1,.5),0);assert.equal(portraitEdgeAlpha(.5,1),0);
- assert.ok(portraitEdgeAlpha(.5,.99)<.01);let previous=1;
- for(let y=.74;y<=1;y+=.005){const alpha=portraitEdgeAlpha(.5,y);assert.ok(alpha<=previous&&alpha>=0);previous=alpha;}
+check('the full rectangular source is retained with no side or lower dissolve',()=>{
+ for(const x of [0,.05,.5,.95,1])for(const y of [0,.5,.7,.9,1])assert.equal(portraitEdgeAlpha(x,y),1);
+ const pixels=new Uint8ClampedArray(2*2*4).fill(255),cells=portraitAsciiCells(pixels,2,2);
+ assert.equal(cells.length,4);assert.ok(cells.every(cell=>cell.alpha===1));
 });
-check('the original-photo core carries sufficient opacity without overpowering the ASCII layer',()=>{
- assert.ok(portraitTreatment.reliefOpacity>=.85);assert.ok(portraitTreatment.asciiOpacity>=.8&&portraitTreatment.asciiOpacity<=1);
+check('the character-only treatment has no visible photographic core',()=>{
+ assert.equal(portraitTreatment.reliefOpacity,undefined);assert.equal(portraitTreatment.asciiOpacity,1);
 });
 check('mobile grid is readable and bounded while desktop detail is capped',()=>{
  const a=portraitAsciiGrid(72),b=portraitAsciiGrid(112),c=portraitAsciiGrid(200),d=portraitAsciiGrid(1200);
@@ -86,20 +85,17 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  });
  document.documentElement.dataset.entry='ready';f.emit(document,'portfolio:entryready');f.step(0);
  const draws=f.canvas.log.draws.length,samples=f.surfaces[1].log.samples,glyphs=f.surfaces[2].log.glyphs.length;
- const reliefDraws=f.surfaces[3].log.draws.length;
- check('the tonal relief caches the exact cropped original once, beneath ASCII',()=>{
-  assert.equal(reliefDraws,1);assert.equal(f.surfaces[3].width,400);assert.equal(f.surfaces[3].height,500);
-  assert.ok(f.canvas.log.draws.some(draw=>draw[0]===f.surfaces[3]));
+ check('the original photo is sampled offscreen once and never drawn to the visible canvas',()=>{
+  assert.equal(f.surfaces.length,3);assert.equal(f.surfaces[1].log.draws.length,1);
+  assert.ok(f.canvas.log.draws.every(draw=>draw[0]===f.surfaces[2]));
  });
- check('source opacity and cached side/bottom masks reach the actual drawing context',()=>{
-  const index=f.canvas.log.draws.findIndex(draw=>draw[0]===f.surfaces[3]);
-  assert.equal(f.canvas.log.alphas[index],portraitTreatment.reliefOpacity);
-  assert.deepEqual(f.surfaces[3].log.masks,['destination-in','destination-in']);
+ check('no mask or tone-wash cache crops the reconstructed character portrait',()=>{
+  assert.ok(f.surfaces.every(surface=>surface.log.masks.length===0));
  });
  f.step(16);f.step(32);
  check('desktop skips paints above its 30fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
  f.step(48);
- check('slow motion reuses sampled pixels, the tonal cache and the glyph atlas',()=>{assert.ok(f.canvas.log.draws.length>draws);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.surfaces[2].log.glyphs.length,glyphs);assert.equal(f.surfaces[3].log.draws.length,reliefDraws);});
+ check('slow motion reuses sampled pixels and the glyph atlas without drawing a photo layer',()=>{assert.ok(f.canvas.log.draws.length>draws);assert.equal(f.surfaces[1].log.samples,samples);assert.equal(f.surfaces[2].log.glyphs.length,glyphs);assert.ok(f.canvas.log.draws.every(draw=>draw[0]===f.surfaces[2]));});
  document.documentElement.dataset.themeControlOpen='true';f.emit(document,'portfolio:themecontrol');
  check('opening the theme menu cancels portrait animation',()=>assert.equal(f.frames.size,0));
  document.documentElement.dataset.theme='light';f.observers[2].callback([{attributeName:'data-theme'}]);
@@ -135,7 +131,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  f.step(100148);assert.ok(f.canvas.log.draws.length>mobile);
  destroy();destroy();f.abort.abort();const total=f.canvas.log.draws.length;f.emit(window,'resize');f.emit(document,'visibilitychange');
  check('cleanup releases frames, all observers, rasters and listeners idempotently',()=>{
-  assert.equal(f.frames.size,0);assert.ok(f.observers.every(o=>o.disconnected));assert.equal(f.surfaces[1].width,1);assert.equal(f.surfaces[2].width,1);assert.equal(f.surfaces[3].width,1);assert.equal(f.canvas.log.draws.length,total);
+  assert.equal(f.frames.size,0);assert.ok(f.observers.every(o=>o.disconnected));assert.equal(f.surfaces[1].width,1);assert.equal(f.surfaces[2].width,1);assert.equal(f.canvas.log.draws.length,total);
  });
 }
 {
@@ -148,7 +144,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 }
 {
  const f=setup({badSamples:true,reduced:true});const destroy=await initFigure(f.canvas,f.abort.signal);
- check('unreadable image pixels retain a static, softly bounded source-photo fallback',()=>{assert.equal(f.canvas.log.draws.at(-1)[0],f.surfaces[3]);assert.equal(f.canvas.log.draws.at(-1).length,5);assert.equal(f.frames.size,0);});destroy();f.abort.abort();
+ check('unreadable image pixels resolve readiness without exposing a photo or running frames',()=>{assert.equal(f.canvas.log.draws.length,0);assert.equal(f.frames.size,0);});destroy();f.abort.abort();
 }
 {
  const f=setup(),destroy=await initFigure(f.canvas,f.abort.signal);

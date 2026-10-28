@@ -8,12 +8,10 @@ export function portraitCrop(width, height) {
   return { x, y, width: cropWidth, height: cropWidth * portraitSize.height / portraitSize.width };
 }
 
-export const portraitTreatment={reliefOpacity:.9,asciiOpacity:.88,contrast:1.18,brightness:1.15};
+export const portraitTreatment={asciiOpacity:1};
 
-export function portraitEdgeAlpha(x,y) {
-  const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
-  return smooth(x/.08)*smooth((1-x)/.08)*(1-smooth((y-.7)/.3));
-}
+// The rectangle retains all source pixels: no feathered sides or faded shirt.
+export function portraitEdgeAlpha() { return 1; }
 
 export function portraitEffect({ rx, ry, elapsed, still }) {
   if (still) return { x: 0, y: 0 };
@@ -36,7 +34,7 @@ export function portraitAsciiCells(pixels,columns,rows) {
     return (pixels[offset]*.2126+pixels[offset+1]*.7152+pixels[offset+2]*.0722)/255;
   };
   for(let row=0;row<rows;row++)for(let column=0;column<columns;column++) {
-    const offset=(row*columns+column)*4,alpha=pixels[offset+3]/255*portraitEdgeAlpha((column+.5)/columns,(row+.5)/rows);
+    const offset=(row*columns+column)*4,alpha=pixels[offset+3]/255;
     if(alpha<.06)continue;
     const source=luma(column,row);
     // One cached unsharp pass preserves the small dark boundaries of the eyes,
@@ -58,7 +56,7 @@ export function portraitAsciiCells(pixels,columns,rows) {
 
 export function portraitAsciiTone(luminance,light) {
   // Keep a broad midtone range instead of clipping whole cheeks to white.
-  const exposed=Math.min(1,Math.max(0,luminance*1.38));
+  const exposed=Math.min(1,Math.max(0,luminance*1.5));
   return Math.max(0,Math.min(31,Math.round(Math.pow(light?1-exposed:exposed,.9)*31)));
 }
 
@@ -70,7 +68,7 @@ export function portraitAsciiGlyph(tone,variant=0) {
   // Substitutions stay in one brightness family; the photo's tone never sweeps.
   const marks=[['.',',',"'",'`'],[':', ';', '!', 'i'],['+', 'x', '*', 't'],
     ['*','o','s','v'],['#','H','X','N'],['%','B','8','R'],['@','M','W','Q'],['M','W','#','@']];
-  return {mark:marks[Math.min(7,Math.floor(tone/4))][variant%portraitAsciiVariants],alpha:.18+.82*Math.pow(tone/31,.7)};
+  return {mark:marks[Math.min(7,Math.floor(tone/4))][variant%portraitAsciiVariants],alpha:.28+.72*Math.pow(tone/31,.55)};
 }
 
 export function portraitAsciiPose(cell) {

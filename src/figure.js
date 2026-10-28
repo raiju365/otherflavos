@@ -1,4 +1,4 @@
-import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiVariants, portraitAsciiPulse } from './portrait-image.js';
+import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiVariants, portraitAsciiPulse } from './portrait-image.js';
 
 // The user's real portrait, printed in readable ASCII marks. One capped owner
 // crossfades characters in anchored cells; source sampling/atlases are cached.
@@ -8,8 +8,7 @@ export async function initFigure(canvas, signal) {
   if(!ctx)return ()=>{};
   const sample=document.createElement('canvas'), ink=sample.getContext('2d',{willReadFrequently:true});
   const atlas=document.createElement('canvas'), glyphs=atlas.getContext('2d');
-  const relief=document.createElement('canvas'), reliefInk=relief.getContext('2d');
-  if(!ink||!glyphs||!reliefInk)return ()=>{};
+  if(!ink||!glyphs)return ()=>{};
   const image=new Image();image.decoding='async';image.src=portraitSource;
   await image.decode();
   if(signal.aborted)return ()=>{};
@@ -30,12 +29,10 @@ export async function initFigure(canvas, signal) {
   }
   function draw() {
     ctx.clearRect(0,0,width,height);
-    // A strong source-photo core prevents the background screen from showing
-    // through the face. The cached perimeter alone dissolves into the rail.
+    // The original photo is sampled offscreen only. Every visible mark is a
+    // cached character; no photographic underlay, mask or lower wash remains.
     ctx.globalCompositeOperation='source-over';
-    ctx.globalAlpha=portraitTreatment.reliefOpacity;
-    ctx.drawImage(relief,0,0,width,height);
-    if(fallback){ctx.globalAlpha=1;return;}
+    if(fallback)return;
     const still=motion.matches||forced.matches;
     for(const cell of cells) {
       const pulse=portraitAsciiPulse(cell,elapsed,still);
@@ -83,20 +80,6 @@ export async function initFigure(canvas, signal) {
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
-    relief.width=canvas.width;relief.height=canvas.height;
-    reliefInk.globalCompositeOperation='source-over';
-    reliefInk.filter=`grayscale(1) contrast(${portraitTreatment.contrast}) brightness(${portraitTreatment.brightness})`;
-    reliefInk.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,relief.width,relief.height);
-    reliefInk.filter='none';
-    // Apply only to cached pixels, not as a second animation or an oval clip.
-    reliefInk.globalCompositeOperation='destination-in';
-    const across=reliefInk.createLinearGradient(0,0,relief.width,0);
-    [0,.02,.04,.06,.08,.92,.94,.96,.98,1].forEach(x=>across.addColorStop(x,`rgba(0,0,0,${portraitEdgeAlpha(x,.4)})`));
-    reliefInk.fillStyle=across;reliefInk.fillRect(0,0,relief.width,relief.height);
-    const down=reliefInk.createLinearGradient(0,0,0,relief.height);
-    [0,.7,.75,.8,.85,.9,.94,.98,1].forEach(y=>down.addColorStop(y,`rgba(0,0,0,${portraitEdgeAlpha(.5,y)})`));
-    reliefInk.fillStyle=down;reliefInk.fillRect(0,0,relief.width,relief.height);
-    reliefInk.globalCompositeOperation='source-over';
     const grid=portraitAsciiGrid(displayWidth);
     if(grid.columns!==columns||grid.rows!==rows) {
       columns=grid.columns;rows=grid.rows;cellWidth=width/columns;cellHeight=height/rows;
@@ -149,7 +132,7 @@ export async function initFigure(canvas, signal) {
     if(disposed)return;disposed=true;cancelAnimationFrame(frame);frame=0;
     observer?.disconnect();sizeObserver?.disconnect();attributes?.disconnect();listeners.abort();
     signal.removeEventListener('abort',destroy);
-    sample.width=sample.height=atlas.width=atlas.height=relief.width=relief.height=1;cells=[];
+    sample.width=sample.height=atlas.width=atlas.height=1;cells=[];
   }
   signal.addEventListener('abort',destroy,{once:true});
   resize();sync();return destroy;
