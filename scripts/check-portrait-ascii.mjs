@@ -1,15 +1,25 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {setMaxListeners} from 'node:events';
-import {portraitSource,portraitCrop,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose} from '../src/portrait-image.js';
+import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose} from '../src/portrait-image.js';
 import {initFigure} from '../src/figure.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
 const NativeAbort=AbortController;
 globalThis.AbortController=class extends NativeAbort{constructor(){super();setMaxListeners(0,this.signal);}};
 check('the original supplied PNG and proportional face crop remain the source',()=>{
  assert.equal(portraitSource,'/profile/selfphoto.png');const crop=portraitCrop(736,1119);
- assert.equal(crop.width,736*.42);assert.equal(crop.width/crop.height,.8);
+ assert.equal(crop.width,736*.52);assert.equal(crop.width/crop.height,.8);
+ assert.ok(crop.y<335&&crop.y+crop.height>730);assert.ok(crop.x>=0&&crop.x+crop.width<=736);
  assert.ok(readFileSync(new URL('../index.html',import.meta.url),'utf8').includes('href="/profile/selfphoto.png"'));
+});
+check('eyes and mouth stay fully opaque while side and lower boundaries dissolve continuously',()=>{
+ assert.equal(portraitEdgeAlpha(.5,.4),1);assert.equal(portraitEdgeAlpha(.5,.65),1);
+ assert.equal(portraitEdgeAlpha(0,.5),0);assert.equal(portraitEdgeAlpha(1,.5),0);assert.equal(portraitEdgeAlpha(.5,1),0);
+ assert.ok(portraitEdgeAlpha(.5,.99)<.01);let previous=1;
+ for(let y=.74;y<=1;y+=.005){const alpha=portraitEdgeAlpha(.5,y);assert.ok(alpha<=previous&&alpha>=0);previous=alpha;}
+});
+check('the original-photo core carries sufficient opacity without overpowering the ASCII layer',()=>{
+ assert.ok(portraitTreatment.reliefOpacity>=.85);assert.ok(portraitTreatment.asciiOpacity>=.5&&portraitTreatment.asciiOpacity<.8);
 });
 check('mobile grid is readable and bounded while desktop detail is capped',()=>{
  const a=portraitAsciiGrid(72),b=portraitAsciiGrid(112),c=portraitAsciiGrid(200),d=portraitAsciiGrid(1200);
@@ -41,7 +51,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  const dialog={open:false};document.querySelector=()=>dialog;globalThis.devicePixelRatio=3;
  globalThis.getComputedStyle=()=>({color:document.documentElement.dataset.theme==='light'?'rgb(32, 34, 29)':'rgb(255, 255, 248)'});
  globalThis.matchMedia=query=>{if(!queries.has(query)){const media=new EventTarget();media.matches=query.includes('reduced-motion')?reduced:false;queries.set(query,media);}return queries.get(query);};
- function surface(){const log={draws:[],samples:0,glyphs:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);},fillText(...args){log.glyphs.push(args);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
+ function surface(){const log={draws:[],samples:0,glyphs:[],alphas:[],masks:[]};const ctx={globalAlpha:1,clearRect(){},setTransform(){},drawImage(...args){log.draws.push(args);log.alphas.push(this.globalAlpha);},fillRect(){log.masks.push(this.globalCompositeOperation);},createLinearGradient(){return {addColorStop(){}};},fillText(...args){log.glyphs.push(args);},getImageData(x,y,w,h){if(badSamples)throw Error('sample');log.samples++;const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data[i]=160;data[i+1]=110;data[i+2]=80;data[i+3]=255;}return {data};}};const canvas={width:0,height:0,log,getContext:()=>ctx};surfaces.push(canvas);return canvas;}
  const canvas=surface();canvas.clientWidth=200;canvas.clientHeight=250;if(!context)canvas.getContext=()=>null;
  document.createElement=()=>surface();let images=0;
  globalThis.Image=class{naturalWidth=736;naturalHeight=1119;constructor(){images++;}decode(){return gate||Promise.resolve();}};
@@ -64,6 +74,11 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('the tonal relief caches the exact cropped original once, beneath ASCII',()=>{
   assert.equal(reliefDraws,1);assert.equal(f.surfaces[3].width,400);assert.equal(f.surfaces[3].height,500);
   assert.ok(f.canvas.log.draws.some(draw=>draw[0]===f.surfaces[3]));
+ });
+ check('source opacity and cached side/bottom masks reach the actual drawing context',()=>{
+  const index=f.canvas.log.draws.findIndex(draw=>draw[0]===f.surfaces[3]);
+  assert.equal(f.canvas.log.alphas[index],portraitTreatment.reliefOpacity);
+  assert.deepEqual(f.surfaces[3].log.masks,['destination-in','destination-in']);
  });
  f.step(16);f.step(32);f.step(48);
  check('desktop skips paints above its 18fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
@@ -117,7 +132,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
 }
 {
  const f=setup({badSamples:true,reduced:true});const destroy=await initFigure(f.canvas,f.abort.signal);
- check('unreadable image pixels retain a static source-photo fallback',()=>{assert.equal(f.canvas.log.draws.at(-1).length,9);assert.equal(f.frames.size,0);});destroy();f.abort.abort();
+ check('unreadable image pixels retain a static, softly bounded source-photo fallback',()=>{assert.equal(f.canvas.log.draws.at(-1)[0],f.surfaces[3]);assert.equal(f.canvas.log.draws.at(-1).length,5);assert.equal(f.frames.size,0);});destroy();f.abort.abort();
 }
 mkdirSync(new URL('../artifacts/',import.meta.url),{recursive:true});
 writeFileSync(new URL('../artifacts/portrait-ascii-results.json',import.meta.url),JSON.stringify({checks:passed.length,passed,limits:'Model and Canvas/event/clock fixtures plus offline glyph study; no browser or physical-device rendering/FPS claim.'},null,2));

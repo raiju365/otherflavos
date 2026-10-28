@@ -1,11 +1,18 @@
 export const portraitSource = '/profile/selfphoto.png';
 export const portraitSize = { width: 200, height: 250 };
 
-// Prioritize eyes/nose/mouth within the existing oval, with less shirt below.
+// More headroom and shoulders: keep a proportional crop without enlarging the face.
 export function portraitCrop(width, height) {
-  const x = width * .29, y = height * .29;
-  const cropWidth = Math.min(width * .42, (height - y) * portraitSize.width / portraitSize.height);
+  const x = width * .24, y = height * .265;
+  const cropWidth = Math.min(width * .52, (height - y) * portraitSize.width / portraitSize.height);
   return { x, y, width: cropWidth, height: cropWidth * portraitSize.height / portraitSize.width };
+}
+
+export const portraitTreatment={reliefOpacity:.9,asciiOpacity:.62,contrast:1.18,brightness:1.15};
+
+export function portraitEdgeAlpha(x,y) {
+  const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
+  return smooth(x/.08)*smooth((1-x)/.08)*(1-smooth((y-.74)/.26));
 }
 
 export function portraitEffect({ rx, ry, elapsed, still }) {
@@ -29,7 +36,7 @@ export function portraitAsciiCells(pixels,columns,rows) {
     return (pixels[offset]*.2126+pixels[offset+1]*.7152+pixels[offset+2]*.0722)/255;
   };
   for(let row=0;row<rows;row++)for(let column=0;column<columns;column++) {
-    const offset=(row*columns+column)*4,alpha=pixels[offset+3]/255;
+    const offset=(row*columns+column)*4,alpha=pixels[offset+3]/255*portraitEdgeAlpha((column+.5)/columns,(row+.5)/rows);
     if(alpha<.06)continue;
     const source=luma(column,row);
     // One cached unsharp pass preserves the small dark boundaries of the eyes,

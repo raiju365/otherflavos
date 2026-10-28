@@ -1,4 +1,4 @@
-import { portraitSource, portraitSize, portraitCrop, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiPose } from './portrait-image.js';
+import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiPose } from './portrait-image.js';
 
 // The user's real portrait, printed in tiny ASCII marks. One capped frame owner
 // moves the individual points; image sampling and glyph rasterization are cached.
@@ -23,18 +23,17 @@ export async function initFigure(canvas, signal) {
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
   function draw() {
     ctx.clearRect(0,0,width,height);
-    if(fallback){ctx.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,width,height);return;}
-    // Preserve real eyelids, nose and lips beneath the character texture at
-    // small sizes. Screen/multiply leave the theme ground intact in the gaps.
-    ctx.globalCompositeOperation=light?'multiply':'screen';
-    ctx.globalAlpha=.38;
-    ctx.drawImage(relief,0,0,width,height);
+    // A strong source-photo core prevents the background screen from showing
+    // through the face. The cached perimeter alone dissolves into the rail.
     ctx.globalCompositeOperation='source-over';
+    ctx.globalAlpha=portraitTreatment.reliefOpacity;
+    ctx.drawImage(relief,0,0,width,height);
+    if(fallback){ctx.globalAlpha=1;return;}
     const still=motion.matches||forced.matches;
     for(const cell of cells) {
       const tone=portraitAsciiTone(cell.luminance,light);
       const point=portraitAsciiPose(cell,elapsed,still);
-      ctx.globalAlpha=cell.alpha;
+      ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity;
       ctx.drawImage(atlas,tone*spriteWidth,0,spriteWidth,spriteHeight,
         point.x-cellWidth/2,point.y-cellHeight/2,cellWidth,cellHeight);
     }
@@ -67,8 +66,19 @@ export async function initFigure(canvas, signal) {
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
     relief.width=canvas.width;relief.height=canvas.height;
-    reliefInk.filter='grayscale(1) contrast(1.2) brightness(1.25)';
+    reliefInk.globalCompositeOperation='source-over';
+    reliefInk.filter=`grayscale(1) contrast(${portraitTreatment.contrast}) brightness(${portraitTreatment.brightness})`;
     reliefInk.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,relief.width,relief.height);
+    reliefInk.filter='none';
+    // Apply only to cached pixels, not as a second animation or an oval clip.
+    reliefInk.globalCompositeOperation='destination-in';
+    const across=reliefInk.createLinearGradient(0,0,relief.width,0);
+    [0,.02,.04,.06,.08,.92,.94,.96,.98,1].forEach(x=>across.addColorStop(x,`rgba(0,0,0,${portraitEdgeAlpha(x,.4)})`));
+    reliefInk.fillStyle=across;reliefInk.fillRect(0,0,relief.width,relief.height);
+    const down=reliefInk.createLinearGradient(0,0,0,relief.height);
+    [0,.74,.78,.82,.86,.9,.94,.98,1].forEach(y=>down.addColorStop(y,`rgba(0,0,0,${portraitEdgeAlpha(.5,y)})`));
+    reliefInk.fillStyle=down;reliefInk.fillRect(0,0,relief.width,relief.height);
+    reliefInk.globalCompositeOperation='source-over';
     const grid=portraitAsciiGrid(displayWidth);
     if(grid.columns!==columns||grid.rows!==rows) {
       columns=grid.columns;rows=grid.rows;cellWidth=width/columns;cellHeight=height/rows;
