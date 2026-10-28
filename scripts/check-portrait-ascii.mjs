@@ -95,6 +95,10 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  check('no mask or tone-wash cache crops the reconstructed character portrait',()=>{
   assert.ok(f.surfaces.every(surface=>surface.log.masks.length===0));
  });
+ check('glyph pixels stay crisp while the separate photo sampler keeps smooth filtering',()=>{
+  assert.equal(f.canvas.getContext('2d').imageSmoothingEnabled,false);
+  assert.equal(f.surfaces[1].getContext('2d').imageSmoothingEnabled,true);
+ });
  f.step(16);f.step(32);
  check('desktop skips paints above its 30fps budget with exactly one pending owner',()=>{assert.equal(f.canvas.log.draws.length,draws);assert.equal(f.frames.size,1);});
  f.step(48);

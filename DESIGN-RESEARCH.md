@@ -324,3 +324,9 @@ The 72 BPM phrase retains fixed cell positions. Common dots across two variants 
 References opened: Codrops Beyond the Luminance Ramp (https://tympanus.net/codrops/2026/09/04/beyond-the-luminance-ramp-a-shape-aware-ascii-renderer-in-three-js/) informs local spatial sampling instead of one average brightness per cell. This adaptation uses eight dot samples and error diffusion, not its 95-glyph shape-search/WebGL implementation. Unicode Braille Patterns (https://www.unicode.org/charts/PDF/U2800.pdf) verifies the point-pattern repertoire. The result is Unicode dot-character art, not strictly seven-bit ASCII. No reference branding, code or glyph font was extracted from the chart.
 
 Validation: 38 model/Canvas/event/clock checks passed, including mirrored patches with equal brightness producing distinct spatial patterns, fully opaque common dots, all-theme ink changes, character-only visible drawing and teardown. npm run check and npm run build passed (44 modules). Four offline paper-tint studies and a full-phrase animated study were generated; these are not browser screenshots or physical-device performance evidence. Visual acceptance remains separate from fixture success.
+
+## Darker point-print ink - 28 October 2026
+
+The user confirms the new face is visible but requests darker, less soft ink (8a2be5dd). This is an incremental weight adjustment: cached character stroke increases from 1.2 to 2.6 font units and visible-canvas image smoothing is disabled, preserving crisp glyph pixels at display scale. The offscreen source sampler keeps smooth filtering. Source tone values, error diffusion, masks, crop, square frame, paper palettes and rhythm are unchanged.
+
+Validation: 39 model/renderer/lifecycle checks pass, including the separate glyph/source filtering contract. The offline Light study was regenerated to inspect the heavier ink. It is not a browser screenshot or native visual acceptance evidence.

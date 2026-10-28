@@ -7,7 +7,7 @@ export function portraitCrop(width,height){
   return {x,y,width:cropWidth,height:cropWidth*portraitSize.height/portraitSize.width};
 }
 
-export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,fontSize:48,stroke:1.2};
+export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,fontSize:48,stroke:2.6};
 export const portraitAsciiVariants=4;
 export const portraitAsciiTempo={bpm:72,beats:8};
 const events=[[0,.5],[1.5,.65],[4,.45],[5,1.05]];

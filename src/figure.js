@@ -77,10 +77,14 @@ export async function initFigure(canvas, signal) {
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
+    // Keep cached ink pixels crisp when the tiny glyph tiles meet the display
+    // scale. The offscreen photo sampler retains its normal smooth filtering.
+    ctx.imageSmoothingEnabled=false;
     const grid=portraitAsciiGrid(displayWidth);
     if(grid.columns!==columns||grid.rows!==rows) {
       columns=grid.columns;rows=grid.rows;cellWidth=width/columns;cellHeight=height/rows;
       sample.width=columns*2;sample.height=rows*4;
+      ink.imageSmoothingEnabled=true;
       ink.drawImage(image,crop.x,crop.y,crop.width,crop.height,0,0,sample.width,sample.height);
       try{cells=portraitAsciiCells(ink.getImageData(0,0,sample.width,sample.height).data,columns,rows);fallback=false;}
       catch{fallback=true;}
