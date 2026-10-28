@@ -8,11 +8,11 @@ export function portraitCrop(width, height) {
   return { x, y, width: cropWidth, height: cropWidth * portraitSize.height / portraitSize.width };
 }
 
-export const portraitTreatment={reliefOpacity:.9,asciiOpacity:.62,contrast:1.18,brightness:1.15};
+export const portraitTreatment={reliefOpacity:.9,asciiOpacity:.88,contrast:1.18,brightness:1.15};
 
 export function portraitEdgeAlpha(x,y) {
   const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
-  return smooth(x/.08)*smooth((1-x)/.08)*(1-smooth((y-.74)/.26));
+  return smooth(x/.08)*smooth((1-x)/.08)*(1-smooth((y-.7)/.3));
 }
 
 export function portraitEffect({ rx, ry, elapsed, still }) {
@@ -69,6 +69,12 @@ export function portraitAsciiGlyph(tone) {
 export function portraitAsciiPose(cell,elapsed,still=false) {
   if(still)return {x:cell.x,y:cell.y};
   const t=elapsed/1000;
-  return {x:cell.x+Math.sin(t*.42+cell.y*.032)*.4+Math.sin(t*.24+cell.phase)*.1,
-    y:cell.y+Math.sin(t*.33+cell.x*.038)*.28};
+  return {x:cell.x+Math.sin(t*.9+cell.y*.032)*1.65+Math.sin(t*.5+cell.phase)*.35,
+    y:cell.y+Math.sin(t*.8+cell.x*.038)*1.15};
+}
+
+export function portraitAsciiPulse(cell,elapsed,still=false) {
+  if(still)return {toneOffset:0,alpha:1};
+  const wave=Math.sin(elapsed*.001*1.1-cell.y*.055+cell.x*.025);
+  return {toneOffset:Math.round(wave*4),alpha:.76+.24*(wave+1)/2};
 }

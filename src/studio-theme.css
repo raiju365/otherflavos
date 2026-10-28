@@ -181,21 +181,31 @@ body { font-weight: 450; letter-spacing: -.015em; }
   position: relative;
   display: grid;
   isolation: isolate;
-  overflow: visible;
-  background: transparent;
+  overflow: hidden;
+  border-radius: 12px;
+  background:
+    radial-gradient(ellipse at 18% 0%,color-mix(in srgb,var(--fg) 13%,var(--bg)),transparent 68%),
+    linear-gradient(155deg,var(--surface),var(--bg) 78%);
 }
-/* Porous screen-print ground: a quiet, irregular field dissolves into the
-   rail instead of drawing a filled oval behind the ASCII photograph. */
+/* A bounded studio ground gives the fading shoulders a deliberate ending. */
 .portrait-studio::before {
   content: '';
   position: absolute;
-  inset: -6% -14%;
-  z-index: -1;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
-  background: var(--bg);
-  opacity: .94;
+  background: var(--fg);
+  opacity: .18;
   -webkit-mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
   mask: url('/profile/portrait-screen.png') center / 100% 100% no-repeat;
+}
+.portrait-studio::after {
+  content: '';
+  position: absolute;
+  inset: 69% 0 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(transparent,var(--bg) 96%);
 }
 #figure {
   top: 0;
@@ -328,7 +338,7 @@ html[data-entry=loading] .entry-loader[data-phase=reveal] { background: transpar
 }
 @media (forced-colors: active) {
   .portrait-studio { background: Canvas; }
-  .portrait-studio::before { display: none; }
+  .portrait-studio::before, .portrait-studio::after { display: none; }
   #figure { background: Canvas; }
   .profile-sticky::before, .rail-atmosphere { background: Canvas; filter: none; }
   .featured-preview img, .project-stage img, .project-stage video, .detail-image { filter: none; }

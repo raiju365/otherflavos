@@ -1,4 +1,4 @@
-import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiPose } from './portrait-image.js';
+import { portraitSource, portraitSize, portraitCrop, portraitTreatment, portraitEdgeAlpha, portraitAsciiGrid, portraitAsciiCells, portraitAsciiTone, portraitAsciiGlyph, portraitAsciiPose, portraitAsciiPulse } from './portrait-image.js';
 
 // The user's real portrait, printed in tiny ASCII marks. One capped frame owner
 // moves the individual points; image sampling and glyph rasterization are cached.
@@ -17,9 +17,9 @@ export async function initFigure(canvas, signal) {
   const motion=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)');
   const listeners=new AbortController();
   const dialog=document.querySelector('#project-detail');
-  let frame=0,visible=true,pageActive=true,focused=true,disposed=false,sectionMoving=false;
+  let frame=0,visible=true,pageActive=true,disposed=false,sectionMoving=false;
   let elapsed=0,lastTime=null,lastPaint=null,cells=[],columns=0,rows=0,spriteWidth=0,spriteHeight=0;
-  let cellWidth=0,cellHeight=0,light=false,dpr=1,inkColor='',fallback=false;
+  let cellWidth=0,cellHeight=0,light=false,dpr=1,inkColor='',fallback=false,movementScale=1;
   const on=(target,type,listener)=>target?.addEventListener(type,listener,{signal:listeners.signal,passive:true});
   function draw() {
     ctx.clearRect(0,0,width,height);
@@ -31,11 +31,12 @@ export async function initFigure(canvas, signal) {
     if(fallback){ctx.globalAlpha=1;return;}
     const still=motion.matches||forced.matches;
     for(const cell of cells) {
-      const tone=portraitAsciiTone(cell.luminance,light);
+      const pulse=portraitAsciiPulse(cell,elapsed,still);
+      const tone=Math.max(0,Math.min(31,portraitAsciiTone(cell.luminance,light)+pulse.toneOffset));
       const point=portraitAsciiPose(cell,elapsed,still);
-      ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity;
+      ctx.globalAlpha=cell.alpha*portraitTreatment.asciiOpacity*pulse.alpha;
       ctx.drawImage(atlas,tone*spriteWidth,0,spriteWidth,spriteHeight,
-        point.x-cellWidth/2,point.y-cellHeight/2,cellWidth,cellHeight);
+        cell.x+(point.x-cell.x)*movementScale-cellWidth/2,cell.y+(point.y-cell.y)*movementScale-cellHeight/2,cellWidth,cellHeight);
     }
     ctx.globalAlpha=1;
   }
@@ -62,6 +63,7 @@ export async function initFigure(canvas, signal) {
   function resize() {
     if(disposed)return;
     const displayWidth=canvas.clientWidth||width,displayHeight=canvas.clientHeight||height;
+    movementScale=Math.min(2.5,Math.max(1,width/displayWidth));
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=Math.max(1,Math.round(displayWidth*dpr));canvas.height=Math.max(1,Math.round(displayHeight*dpr));
     ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);
@@ -76,7 +78,7 @@ export async function initFigure(canvas, signal) {
     [0,.02,.04,.06,.08,.92,.94,.96,.98,1].forEach(x=>across.addColorStop(x,`rgba(0,0,0,${portraitEdgeAlpha(x,.4)})`));
     reliefInk.fillStyle=across;reliefInk.fillRect(0,0,relief.width,relief.height);
     const down=reliefInk.createLinearGradient(0,0,0,relief.height);
-    [0,.74,.78,.82,.86,.9,.94,.98,1].forEach(y=>down.addColorStop(y,`rgba(0,0,0,${portraitEdgeAlpha(.5,y)})`));
+    [0,.7,.75,.8,.85,.9,.94,.98,1].forEach(y=>down.addColorStop(y,`rgba(0,0,0,${portraitEdgeAlpha(.5,y)})`));
     reliefInk.fillStyle=down;reliefInk.fillRect(0,0,relief.width,relief.height);
     reliefInk.globalCompositeOperation='source-over';
     const grid=portraitAsciiGrid(displayWidth);
@@ -89,7 +91,7 @@ export async function initFigure(canvas, signal) {
     }
     palette();
   }
-  const active=()=>!disposed&&!fallback&&visible&&pageActive&&focused&&!sectionMoving&&!document.hidden&&!motion.matches&&!forced.matches&&!dialog?.open
+  const active=()=>!disposed&&!fallback&&visible&&pageActive&&!sectionMoving&&!document.hidden&&!motion.matches&&!forced.matches&&!dialog?.open
     &&document.documentElement.dataset.entry!=='loading'
     &&document.documentElement.dataset.themeControlOpen!=='true'&&document.documentElement.dataset.galleryMoving!=='true';
   function wake(){if(active()&&!frame)frame=requestAnimationFrame(tick);}
@@ -127,8 +129,6 @@ export async function initFigure(canvas, signal) {
   on(motion,'change',sync);on(forced,'change',()=>{palette();sync();});
   on(window,'pagehide',()=>{pageActive=false;sync();});
   on(window,'pageshow',()=>{pageActive=true;sync();});
-  on(window,'blur',()=>{focused=false;sync();});
-  on(window,'focus',()=>{focused=true;sync();});
   function destroy() {
     if(disposed)return;disposed=true;cancelAnimationFrame(frame);frame=0;
     observer?.disconnect();sizeObserver?.disconnect();attributes?.disconnect();listeners.abort();

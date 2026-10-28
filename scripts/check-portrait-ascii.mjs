@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {setMaxListeners} from 'node:events';
-import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose} from '../src/portrait-image.js';
+import {portraitSource,portraitCrop,portraitTreatment,portraitEdgeAlpha,portraitAsciiGrid,portraitAsciiCells,portraitAsciiTone,portraitAsciiGlyph,portraitAsciiPose,portraitAsciiPulse} from '../src/portrait-image.js';
 import {initFigure} from '../src/figure.js';
 const passed=[],check=(name,fn)=>{fn();passed.push(name);};
 const NativeAbort=AbortController;
@@ -19,7 +19,7 @@ check('eyes and mouth stay fully opaque while side and lower boundaries dissolve
  for(let y=.74;y<=1;y+=.005){const alpha=portraitEdgeAlpha(.5,y);assert.ok(alpha<=previous&&alpha>=0);previous=alpha;}
 });
 check('the original-photo core carries sufficient opacity without overpowering the ASCII layer',()=>{
- assert.ok(portraitTreatment.reliefOpacity>=.85);assert.ok(portraitTreatment.asciiOpacity>=.5&&portraitTreatment.asciiOpacity<.8);
+ assert.ok(portraitTreatment.reliefOpacity>=.85);assert.ok(portraitTreatment.asciiOpacity>=.8&&portraitTreatment.asciiOpacity<=1);
 });
 check('mobile grid is readable and bounded while desktop detail is capped',()=>{
  const a=portraitAsciiGrid(72),b=portraitAsciiGrid(112),c=portraitAsciiGrid(200),d=portraitAsciiGrid(1200);
@@ -40,10 +40,16 @@ check('skin midtones retain separation rather than clipping facial features to w
  assert.ok(portraitAsciiTone(.4,false)<portraitAsciiTone(.5,false));
  assert.ok(!Array.from({length:32},(_,i)=>portraitAsciiGlyph(i).mark).some(mark=>mark==='-'||mark==='='));
 });
-check('slow point motion stays within .5px horizontally and .28px vertically',()=>{
+check('visible point motion travels over one pixel while staying within 2px/1.15px bounds',()=>{
  const cell={x:80,y:100,phase:1.25};let moved=false;
- for(let elapsed=0;elapsed<120000;elapsed+=137){const p=portraitAsciiPose(cell,elapsed);assert.ok(Math.abs(p.x-cell.x)<=.5000001);assert.ok(Math.abs(p.y-cell.y)<=.2800001);if(elapsed>5000&&Math.abs(p.x-cell.x)>.4)moved=true;}
+ for(let elapsed=0;elapsed<120000;elapsed+=137){const p=portraitAsciiPose(cell,elapsed);assert.ok(Math.abs(p.x-cell.x)<=2.0000001);assert.ok(Math.abs(p.y-cell.y)<=1.1500001);if(elapsed>5000&&Math.abs(p.x-cell.x)>1.2)moved=true;}
  assert.ok(moved);assert.deepEqual(portraitAsciiPose(cell,10000,true),{x:80,y:100});
+});
+check('traveling density changes visible glyph tiers and alpha without changing the source face',()=>{
+ const cell={x:80,y:100,phase:1.25,luminance:.35},marks=new Set(),alphas=[];
+ for(let ms=0;ms<8000;ms+=100){const p=portraitAsciiPulse(cell,ms);assert.ok(Math.abs(p.toneOffset)<=4);assert.ok(p.alpha>=.76&&p.alpha<=1);alphas.push(p.alpha);marks.add(portraitAsciiGlyph(portraitAsciiTone(cell.luminance,false)+p.toneOffset).mark);}
+ assert.ok(marks.size>=2);assert.ok(Math.max(...alphas)-Math.min(...alphas)>.2);
+ assert.deepEqual(portraitAsciiPulse(cell,10000,true),{toneOffset:0,alpha:1});
 });
 function setup({loading=false,reduced=false,context=true,gate,badSamples=false,animations=true}={}){
  const abort=new AbortController(),frames=new Map(),surfaces=[],queries=new Map(),observers=[];let id=0;
@@ -106,7 +112,7 @@ function setup({loading=false,reduced=false,context=true,gate,badSamples=false,a
  f.observers[0].callback([{isIntersecting:false}]);f.emit(window,'pagehide');f.emit(window,'pageshow');
  check('offscreen and cached pages cannot restart an invisible portrait',()=>assert.equal(f.frames.size,0));
  f.observers[0].callback([{isIntersecting:true}]);f.emit(window,'blur');
- check('blur suspends motion until focus returns',()=>assert.equal(f.frames.size,0));
+ check('a visible page continues animating when another window has focus',()=>assert.equal(f.frames.size,1));
  f.emit(window,'focus');assert.equal(f.frames.size,1);
  const reduced=f.queries.get('(prefers-reduced-motion: reduce)');reduced.matches=true;f.emit(reduced,'change');
  check('reduced motion renders the stationary ASCII face with zero frames',()=>{assert.equal(f.frames.size,0);assert.ok(f.canvas.log.draws.length>0);});
