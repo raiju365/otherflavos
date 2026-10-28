@@ -46,7 +46,8 @@
   --surface: #fafbf5;
   --focus: #bf2e00;
   --accent-copy: #b5320a;
-  --rail-tone-filter: sepia(.12) brightness(1.05);
+  /* Keep the moving field within a light range beneath the dark identity ink. */
+  --rail-tone-filter: grayscale(1) brightness(.28) invert(1);
   --media-tone-filter: none;
   --rail-ink: #20221d;
   --rail-muted: #30342b;
@@ -182,6 +183,8 @@ body { font-weight: 450; letter-spacing: -.015em; }
   font-weight: 550;
   letter-spacing: 0;
 }
+:root[data-theme=light] .profile-sticky > .identity { text-shadow: none; }
+:root[data-theme=light] .identity h1 { -webkit-text-stroke: 0; }
 .figure-cross { display: none; }
 .portrait-studio {
   position: relative;
