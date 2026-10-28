@@ -31,7 +31,7 @@ export function initPointerGuides(signal) {
     if (frame) cancelAnimationFrame(frame);
     frame = 0; previous = null; point = target = null;
     guides.hidden = true;
-    guides.dataset.moving = guides.dataset.pressed = guides.dataset.interactive = 'false';
+    guides.dataset.moving = guides.dataset.pressed = guides.dataset.interactive = guides.dataset.contact = 'false';
   }
   function paint(dx = 0, dy = 0) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -66,6 +66,7 @@ export function initPointerGuides(signal) {
     if (event.pointerType === 'touch' || !allowed() || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) { hide(); return; }
     target = { x: event.clientX, y: event.clientY };
     guides.dataset.interactive = String(Boolean(event.target?.closest?.('a[href],button,[role="tab"],[role="button"],.loop-viewport')));
+    guides.dataset.contact = String(Boolean(event.target?.closest?.('.social-link')));
     if (!point || reduced.matches || typeof requestAnimationFrame !== 'function') {
       if (frame) cancelAnimationFrame(frame);
       frame = 0; previous = null; point = { ...target }; paint();

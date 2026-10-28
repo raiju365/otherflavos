@@ -228,6 +228,25 @@ body { font-weight: 450; letter-spacing: -.015em; }
   box-shadow: 0 4px 15px rgb(0 0 0 / .12);
 }
 .social-arrow { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--accent); }
+#panel-more .social-link {
+  border-bottom-color: transparent;
+  transition: color 180ms ease-out;
+}
+#panel-more .social-link .social-arrow {
+  transform: none;
+  transition: transform 220ms var(--studio-ease), color 180ms ease-out;
+}
+#panel-more .social-link:focus-visible { color: var(--accent-copy); }
+#panel-more .social-link:focus-visible .social-arrow { color: var(--accent-copy); transform: translateX(4px); }
+@media (any-hover: hover) and (any-pointer: fine) {
+  #panel-more .social-link:hover { color: var(--accent-copy); }
+  #panel-more .social-link:hover .social-arrow { color: var(--accent-copy); transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel-more .social-link, #panel-more .social-link .social-arrow { transition: none; }
+  #panel-more .social-link:hover .social-arrow,
+  #panel-more .social-link:focus-visible .social-arrow { transform: none; }
+}
 .email-link { text-decoration-color: var(--accent); }
 
 #panel-more { font-family: 'Overused Grotesk', Inter, Arial, sans-serif; }

@@ -21,8 +21,8 @@
 .pointer-guide-vertical .pointer-guide-focus { width: 100%; height: 1px; }
 .pointer-guide-focus::before, .pointer-guide-focus::after {
   content: ''; position: absolute; pointer-events: none;
-  background: var(--accent);
-  transition: transform 180ms cubic-bezier(.2,.65,.3,1);
+  background: var(--accent); opacity: 1;
+  transition: transform 180ms cubic-bezier(.2,.65,.3,1), opacity 140ms ease-out;
 }
 .pointer-guide-horizontal .pointer-guide-focus::before,
 .pointer-guide-horizontal .pointer-guide-focus::after {
@@ -50,6 +50,12 @@
 .pointer-guides[data-moving=true] .pointer-guide-vertical { opacity: 1; }
 .pointer-guides[data-interactive=true] { --guide-hover: 1.16; }
 .pointer-guides[data-pressed=true] { --guide-press: .76; }
+/* Contact type takes priority over the registration mark while hovered. */
+.pointer-guides[data-contact=true] { --guide-hover: 0; }
+.pointer-guides[data-contact=true] .pointer-guide-horizontal,
+.pointer-guides[data-contact=true] .pointer-guide-vertical { opacity: .18; }
+.pointer-guides[data-contact=true] .pointer-guide-focus::before,
+.pointer-guides[data-contact=true] .pointer-guide-focus::after { opacity: 0; }
 :root[data-theme=light] .pointer-guides {
   --guide-ink: color-mix(in srgb, var(--fg) 38%, transparent);
 }
