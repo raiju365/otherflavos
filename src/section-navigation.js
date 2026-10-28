@@ -114,7 +114,7 @@ export function initSectionNavigation(signal) {
       target.inert = true;
       if(footer)footer.inert = true;
       workspace.setAttribute('aria-busy', 'true');
-      document.dispatchEvent(new Event('portfolio:sectionstart'));
+      document.dispatchEvent(new CustomEvent('portfolio:sectionstart',{detail:{entering:true,view:key}}));
       // Start immediately in the same task as the swap, avoiding an unmasked paint.
       const entry = reveal.play(target, true, footer);
       entry.then(() => {
@@ -184,7 +184,7 @@ export function initSectionNavigation(signal) {
     cancelAnimations(); transitioning = true;
     target.inert = true; if(footer)footer.inert = true;
     workspace.setAttribute('aria-busy', 'true');
-    document.dispatchEvent(new Event('portfolio:sectionstart'));
+    document.dispatchEvent(new CustomEvent('portfolio:sectionstart',{detail:{entering:true,view:active}}));
     await reveal.play(target, true, footer);
     if (signal.aborted || current !== revision) return;
     cancelAnimations(); transitioning = false;

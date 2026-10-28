@@ -9,7 +9,7 @@ export function loopLens(x,y,width,height) {
   return {x:x*factor,y:y*factor};
 }
 export const LOOP_RIM_FADE=.18;
-export const LOOP_ARRIVAL_MS=760;
+export const LOOP_ARRIVAL_MS=900;
 export const LOOP_GLASS_WIDTH=.07;
 const smooth=value=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
 export const loopRimOpacity=facing=>smooth(facing/LOOP_RIM_FADE);
@@ -28,9 +28,10 @@ export function loopPassage(angle,sway=0,quiet=false) {
   };
 }
 export function loopArrival(relative,progress,height) {
-  const p=Math.max(0,Math.min(1,progress)),settle=smooth(p);
-  const delay=(1-Math.max(-1,Math.min(1,relative)))*.07;
-  return {shift:.38*(1-settle),rise:Math.min(height*.08,44)*(1-settle),opacity:smooth((p-delay)/(1-delay))};
+  const p=Math.max(0,Math.min(1,progress)),remaining=(1-p)**3;
+  // One cylinder settles together; only visibility staggers from the lead card.
+  const delay=Math.min(2,Math.abs(relative))*.075+(relative<0?.025:0);
+  return {shift:.30*remaining,rise:Math.min(height*.055,28)*remaining,opacity:smooth((p-delay)/(.64-delay))};
 }
 export function loopSlot(slot,position,count,pool=5) {
   const logical=slot+Math.round((position-slot)/pool)*pool;

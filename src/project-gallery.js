@@ -13,7 +13,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   const reduced=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)'),compact=matchMedia('(max-width: 800px)');
   const on=(target,type,fn,options={})=>target.addEventListener(type,fn,{...options,signal});
   let position=0,target=0,frame=0,previous=null,width=800,height=440,current=-1,sway=0,swayVelocity=0;
-  let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true;
+  let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true,sectionEntering=false;
   let paintedCards=[];
   let motionNotified=false;
   function notifyMotion(moving){
@@ -23,14 +23,14 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }
   const poseFor=(...args)=>(compact.matches?reelPose:loopPose)(...args);
   const available=()=>!signal.aborted&&!document.hidden&&pageActive&&focused&&visible&&!dialogOpen&&!panel.hidden
-    &&document.documentElement.dataset.entry!=='loading'&&workspace.getAttribute('aria-busy')!=='true';
-  const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available())paint();}});
+    &&document.documentElement.dataset.entry!=='loading'&&(workspace.getAttribute('aria-busy')!=='true'||sectionEntering);
+  const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available()){paint();if(intro!==null)wake();}}});
   surface?.prime(projects.map(project=>mediaPath(project.image)||''));
   const pause=()=>{
     if(frame)cancelAnimationFrame(frame);frame=0;previous=null;target=position;sway=swayVelocity=0;
     const pointer=drag?.id;drag=null;
     if(pointer!==undefined&&viewport.hasPointerCapture?.(pointer))viewport.releasePointerCapture(pointer);
-    delete viewport.dataset.dragging;intro=null;
+    delete viewport.dataset.dragging;
     notifyMotion(false);
   };
   function updateCaption(){
@@ -44,7 +44,8 @@ export function initProjectGallery({signal,projects,onOpen}) {
     const cards=[];
     slots.forEach(state=>{
       const slot=loopSlot(state.slot,position,projects.length);
-      const arrival=loopArrival(slot.relative,intro===null?1:intro/LOOP_ARRIVAL_MS,height);
+      const progress=reduced.matches||forced.matches?1:needsEntrance?0:intro??1;
+      const arrival=loopArrival(slot.relative,progress,height);
       const pose=poseFor(slot.relative+arrival.shift,width,height,reduced.matches?0:sway,reduced.matches||forced.matches);
       if(!pose.vertical)pose.y+=arrival.rise;
       pose.opacity*=arrival.opacity;
@@ -77,7 +78,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   function tick(time){
     frame=0;if(!available())return;
     const dt=previous===null?16:Math.min(40,Math.max(0,time-previous));previous=time;
-    if(intro!==null){intro+=dt;if(intro>=LOOP_ARRIVAL_MS)intro=null;}
+    if(intro!==null){intro+=dt/(LOOP_ARRIVAL_MS*(compact.matches ? .8 : 1));if(intro>=1)intro=null;}
     const before=position;position+=(target-position)*(1-Math.exp(-dt/95));
     if(Math.abs(target-position)<.0003)position=target;
     const spring=advanceLoopSway(sway,swayVelocity,(position-before)*1000/Math.max(dt,1),dt/1000);
@@ -94,21 +95,33 @@ export function initProjectGallery({signal,projects,onOpen}) {
   }
   function wake(){
     if(!available())return;
-    if(reduced.matches){position=target;sway=swayVelocity=0;intro=null;paint();announce();return;}
+    if(reduced.matches||forced.matches){position=target;sway=swayVelocity=0;intro=null;needsEntrance=false;paint();announce();notifyMotion(false);return;}
+    // Wait for the real visible pool instead of spending the entrance while
+    // textures are loading. Load/error callbacks wake this same finite owner.
+    if(intro===0&&slots.some(state=>{
+      const relative=loopSlot(state.slot,position,projects.length).relative;
+      const visibleDuringArrival=[.2,.5,1].some(progress=>{
+        const arrival=loopArrival(relative,progress,height),pose=poseFor(relative+arrival.shift,width,height);
+        return arrival.opacity>.01&&pose.opacity>.01&&pose.reveal>.01;
+      });
+      if(!visibleDuringArrival)return false;
+      const status=surface?.status(mediaPath(projects[state.project]?.image)||'');
+      return status==='loading'||(!surface||status==='failed'||status==='unavailable')&&state.image.complete===false;
+    }))return;
     if(!frame){notifyMotion(true);frame=requestAnimationFrame(tick);}
   }
   function move(step){if(!available()||projects.length<2)return;target=Math.round(target)+step;wake();}
-  function measure(){
+  function measure(repaint=true){
     viewport.dataset.axis=compact.matches?'vertical':'horizontal';
     const rect=viewport.getBoundingClientRect();if(rect.width>0)width=rect.width;if(rect.height>0)height=rect.height;
-    paint();
+    if(repaint)paint();
   }
   function sync(){
     const active=available();
     if(!active){pause();wasActive=false;return;}
     if(!wasActive){
       target=position;
-      if(needsEntrance&&!reduced.matches)intro=0;
+      if(needsEntrance&&!reduced.matches&&!forced.matches)intro=0;
       needsEntrance=false;
     }
     measure();
@@ -176,22 +189,30 @@ export function initProjectGallery({signal,projects,onOpen}) {
     if(clickBlocked){clickBlocked=false;return;}
     if(!available())return;viewport.focus({preventScroll:true});onOpen(state.project);
   }));
-  on(document,'portfolio:sectionstart',()=>{pause();wasActive=false;needsEntrance=true;});
-  on(document,'portfolio:sectionsettled',sync);on(document,'portfolio:entryready',sync);
+  on(document,'portfolio:sectionstart',event=>{
+    pause();wasActive=false;
+    sectionEntering=event.detail?.entering===true&&event.detail.view==='projects';
+    needsEntrance=sectionEntering;
+    if(sectionEntering){root.dataset.sectionEntering='true';sync();}else delete root.dataset.sectionEntering;
+  });
+  on(document,'portfolio:sectionsettled',()=>{sectionEntering=false;delete root.dataset.sectionEntering;sync();});
+  on(document,'portfolio:entryready',sync);
+  slots.forEach(state=>{for(const type of ['load','error'])on(state.image,type,()=>{if(available()){paint();if(intro!==null)wake();}});});
   // The preview stays interactive behind the open glass. Its movement signal
   // gates the portrait; the rail field flows independently of navigation.
   on(document,'visibilitychange',sync);on(window,'blur',()=>{focused=false;sync();});
   on(window,'focus',()=>{focused=true;sync();});on(window,'pagehide',()=>{pageActive=false;sync();});on(window,'pageshow',()=>{pageActive=true;sync();});
   on(window,'resize',()=>{pause();measure();sync();});
-  on(reduced,'change',()=>{pause();paint();sync();});on(forced,'change',()=>paint());
+  on(reduced,'change',()=>{pause();paint();sync();});on(forced,'change',()=>{pause();paint();sync();});
   const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{visible=entries[0]?.isIntersecting!==false;sync();}):null;
   observer?.observe(viewport);
-  const resize=typeof ResizeObserver==='function'?new ResizeObserver(()=>{if(available())measure();}):null;resize?.observe(viewport);
+  const resize=typeof ResizeObserver==='function'?new ResizeObserver(()=>{if(available()){measure(false);wake();}}):null;resize?.observe(viewport);
   root.dataset.enhanced='true';viewport.hidden=false;caption.hidden=true;controls.hidden=false;fallback.hidden=true;
   measure();sync();
   signal.addEventListener('abort',()=>{
     pause();observer?.disconnect();resize?.disconnect();
     root.dataset.enhanced='false';viewport.hidden=true;caption.hidden=true;controls.hidden=true;fallback.hidden=false;
+    delete root.dataset.sectionEntering;
   },{once:true});
   return {setDialogOpen(open){dialogOpen=open;sync();}};
 }
