@@ -1,21 +1,21 @@
-import { createWaterField, clearWater, disturbWater, stepWater, paintWater } from './water-field.js';
+import { createSpectrumField, clearSpectrum, pulseSpectrum, stepSpectrum, paintSpectrum } from './spectrum-field.js';
 
-export function initWaterPlay(signal) {
-  const root = document.querySelector('[data-water-play]');
+export function initSpectrumPlay(signal, { musicControlled = false } = {}) {
+  const root = document.querySelector('[data-spectrum-play]');
   if (!root || signal.aborted) return () => {};
-  const board = root.querySelector('[data-water-board]'), canvas = root.querySelector('canvas');
+  const board = root.querySelector('[data-spectrum-board]'), canvas = root.querySelector('canvas');
   if (!board || !canvas) return () => {};
-  const status = root.querySelector('[data-water-status]'), dialog = document.querySelector('#project-detail');
+  const status = root.querySelector('[data-spectrum-status]'), dialog = document.querySelector('#project-detail');
   const desktop = matchMedia('(min-width: 801px) and (min-height: 540px)');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)'), forced = matchMedia('(forced-colors: active)');
   const on = (target, type, listener, options = {}) => target?.addEventListener(type, listener, { ...options, signal });
-  let context = null, rasterContext = null, raster = null;
-  try { context = canvas.getContext('2d', { alpha: false }); raster = document.createElement('canvas'); rasterContext = raster.getContext('2d', { alpha: false }); } catch { /* Static wave controls remain available. */ }
-  const fallback = !context || !rasterContext;
+  let context = null;
+  try { context = canvas.getContext('2d'); } catch { /* Static spectrum controls remain available. */ }
+  const fallback = !context;
   root.dataset.fallback = String(fallback);
-  let field = null, image = null, frame = 0, previous = null, palette = null, rect = null, dpr = 1;
-  let pointer = null, lastPoint = null, pending = [], turn = 0, suppressClick = false;
-  let inView = true, pageActive = true, focused = true, disposed = false;
+  let field = null, frame = 0, previous = null, palette = null, rect = null, dpr = 1;
+  let pointer = null, lastPoint = null, pending = [], suppressClick = false, paused = false;
+  let inView = true, pageActive = true, focused = true, disposed = false, musicPlaying = !musicControlled;
   let aim = { x: .5, y: .5 };
   const direct = () => reduced.matches || forced.matches || fallback;
   const allowed = () => !disposed && !signal.aborted && !root.hidden && desktop.matches && inView && pageActive && focused
@@ -29,18 +29,12 @@ export function initWaterPlay(signal) {
   function resetInput() { release(); pending = []; lastPoint = rect = null; suppressClick = false; }
   function readPalette() {
     const css = getComputedStyle(root);
-    const rgb = value => {
-      const hex = value.trim().match(/^#([\da-f]{6})$/i);
-      if (hex) return [0, 2, 4].map(index => parseInt(hex[1].slice(index, index + 2), 16));
-      const parts = value.match(/[\d.]+/g)?.slice(0, 3).map(Number);
-      return parts?.length === 3 ? parts : [40, 44, 38];
-    };
-    palette = { base: rgb(css.getPropertyValue('--surface')), ink: rgb(css.getPropertyValue('--fg')), shade: rgb(css.getPropertyValue('--bg')) };
+    palette = { ink: css.color, accent: css.getPropertyValue('--accent').trim() || css.color };
   }
   function paint() {
     if (!field || fallback || forced.matches) return;
-    paintWater(field, palette, image.data); rasterContext.putImageData(image, 0, 0);
-    context.drawImage(raster, 0, 0, canvas.width, canvas.height);
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintSpectrum(field, palette, context);
   }
   function measure() {
     if (disposed || root.hidden || fallback) return;
@@ -48,11 +42,9 @@ export function initWaterPlay(signal) {
     if (box.width < 1 || box.height < 1) return;
     if (field && Math.abs(field.width - box.width) < .5 && Math.abs(field.height - box.height) < .5 && dpr === ratio) return;
     resetInput(); stop(); dpr = ratio;
-    field = createWaterField(box.width, box.height);
-    raster.width = field.columns; raster.height = field.rows;
-    image = rasterContext.createImageData(field.columns, field.rows);
+    field = createSpectrumField(box.width, box.height);
     canvas.width = Math.round(box.width * dpr); canvas.height = Math.round(box.height * dpr);
-    context.imageSmoothingEnabled = true; paint();
+    paint();
   }
   function stamp(command) {
     if (!field) return;
@@ -60,29 +52,28 @@ export function initWaterPlay(signal) {
     const count = Math.min(12, Math.max(1, Math.ceil(distance / 7)));
     for (let index = 1; index <= count; index++) {
       const t = index / count;
-      disturbWater(field, from.x + (command.x - from.x) * t, from.y + (command.y - from.y) * t, command.strong ? 2.8 : .48, command.strong ? 3 : 1.8);
+      pulseSpectrum(field, from.x + (command.x - from.x) * t, from.y + (command.y - from.y) * t, command.strong ? 2.8 : .65);
     }
   }
   function tick(time) {
     frame = 0;
-    if (!allowed() || direct()) { stop(); return; }
+    if (!allowed() || direct() || paused || !musicPlaying || !field) { stop(); return; }
+    if (previous !== null && time - previous < 1000 / 30 - .2) { frame = requestAnimationFrame(tick); return; }
     const commands = pending; pending = []; commands.forEach(stamp);
-    const steps = field ? stepWater(field, previous === null ? 1 / 60 : (time - previous) / 1000) : 0;
+    const steps = field ? stepSpectrum(field, previous === null ? 1 / 60 : (time - previous) / 1000) : 0;
     previous = time;
     if (steps || commands.length) paint();
-    if (field?.active || pending.length) { root.dataset.active = 'true'; frame = requestAnimationFrame(tick); }
-    else stop();
+    root.dataset.active = 'true'; frame = requestAnimationFrame(tick);
   }
-  function wake() { if (allowed() && !direct() && !frame && (pending.length || field?.active)) frame = requestAnimationFrame(tick); }
+  function wake() { if (allowed() && !direct() && !paused && musicPlaying && field && !frame) frame = requestAnimationFrame(tick); }
   function disturb(x, y, strong = true, from = null) {
-    if (!allowed()) return;
-    aim = { x, y };
-    board.style.setProperty('--wave-x', `${x * 100}%`); board.style.setProperty('--wave-y', `${y * 100}%`);
+    if (!allowed() || !musicPlaying) return;
+    aim = { x, y }; paused = false;
     board.dataset.disturbed = 'true';
     if (direct()) {
       if (field && !forced.matches && !fallback) {
-        clearWater(field); stamp({ x, y, strong: true });
-        for (let index = 0; index < 13; index++) stepWater(field, 1 / 60);
+        clearSpectrum(field); stamp({ x, y, strong: true });
+        for (let index = 0; index < 13; index++) stepSpectrum(field, 1 / 60);
         paint();
       }
       return;
@@ -91,8 +82,9 @@ export function initWaterPlay(signal) {
   }
   function calm() {
     if (!allowed()) return;
-    resetInput(); stop(); if (field) clearWater(field); delete board.dataset.disturbed; paint();
-    if (status) status.textContent = 'The water is still.';
+    paused = true; resetInput(); stop(); if (field) clearSpectrum(field); delete board.dataset.disturbed; paint();
+    if (status) status.textContent = 'Spectrum paused.';
+    if (musicControlled) document.dispatchEvent(new CustomEvent('portfolio:musicpause'));
   }
   function reconcile() {
     if (disposed || signal.aborted) return;
@@ -100,7 +92,7 @@ export function initWaterPlay(signal) {
     if (hidden && root.contains(document.activeElement)) document.querySelector('#theme-toggle')?.focus({ preventScroll: true });
     root.hidden = hidden;
     if (!hidden) measure();
-    if (!allowed() || direct()) { resetInput(); stop(); }
+    if (!allowed() || direct() || paused || !musicPlaying) { resetInput(); stop(); }
     else wake();
   }
   const point = event => ({ x: Math.max(.025, Math.min(.975, (event.clientX - rect.left) / rect.width)), y: Math.max(.04, Math.min(.96, (event.clientY - rect.top) / rect.height)) });
@@ -130,7 +122,7 @@ export function initWaterPlay(signal) {
     const suppressed = suppressClick; suppressClick = false;
     if (!allowed() || (suppressed && event.detail !== 0)) return;
     if (event.detail && valid(event)) { rect = board.getBoundingClientRect(); aim = point(event); }
-    disturb(aim.x, aim.y); if (status) status.textContent = 'A stone dropped. Move to stir the water.';
+    disturb(aim.x, aim.y); if (status) status.textContent = 'Spectrum playing. Move to shape the bands; Escape pauses.';
   });
   on(board, 'keydown', event => {
     if (!allowed() || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -141,14 +133,8 @@ export function initWaterPlay(signal) {
     } else if (event.key === 'Escape' || event.key === 'Home') { event.preventDefault(); calm(); }
     // Enter/Space use the button's native click, exactly once.
   });
-  on(root.querySelector('[data-water-drop]'), 'click', () => {
-    if (!allowed()) return;
-    const spots = [[.5, .5], [.3, .4], [.7, .6], [.4, .7], [.65, .3]], p = spots[turn++ % spots.length];
-    disturb(...p); if (allowed() && status) status.textContent = 'A stone dropped.';
-  });
-  on(root.querySelector('[data-water-clear]'), 'click', calm);
   on(desktop, 'change', reconcile);
-  const preference = () => { resetInput(); stop(); if (field) clearWater(field); delete board.dataset.disturbed; paint(); reconcile(); };
+  const preference = () => { resetInput(); stop(); if (field) clearSpectrum(field); delete board.dataset.disturbed; paint(); reconcile(); };
   on(reduced, 'change', preference); on(forced, 'change', preference);
   on(document, 'portfolio:entryready', reconcile); on(document, 'visibilitychange', reconcile);
   on(window, 'blur', () => { focused = false; reconcile(); }); on(window, 'focus', () => { focused = true; reconcile(); });
@@ -164,6 +150,12 @@ export function initWaterPlay(signal) {
     disposed = true; resetInput(); stop(); resize?.disconnect(); intersection?.disconnect(); modal?.disconnect(); theme?.disconnect(); root.hidden = true;
   }
   signal.addEventListener('abort', cleanup, { once: true });
+  cleanup.setPlaying = value => {
+    if (disposed || signal.aborted) return;
+    musicPlaying = value === true;
+    if (musicPlaying) paused = false;
+    reconcile();
+  };
   readPalette(); reconcile();
   return cleanup;
 }

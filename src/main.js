@@ -9,7 +9,8 @@ import './entry-loader.css';
 import './project-surface.css';
 import './studio-theme.css';
 import './now-showcase.css';
-import './water-play.css';
+import './spectrum-play.css';
+import './soundcloud-player.css';
 import './mobile-viewport.css';
 import { profile, projects } from './data.js';
 import { initFigure } from './figure.js';
@@ -23,7 +24,8 @@ import { initProjectSurfaces } from './project-surface.js';
 import { initProjectGallery } from './project-gallery.js';
 import { createProjectDetailMotion } from './project-detail-motion.js';
 import { initRailAtmosphere } from './rail-atmosphere.js';
-import { initWaterPlay } from './water-play.js';
+import { initSpectrumPlay } from './spectrum-play.js';
+import { initSoundCloudPlayer } from './soundcloud-player.js';
 
 const abort=new AbortController(),{signal}=abort;
 const on=(el,type,fn,options={})=>el.addEventListener(type,fn,{...options,signal});
@@ -70,7 +72,8 @@ initThemePicker(signal);
 const hidePointerGuides=initPointerGuides(signal);
 
 const dialog=document.querySelector('#project-detail');let origin=null,previousOverflow='',previousWorkspaceOverflow='';
-initWaterPlay(signal);
+const spectrum = initSpectrumPlay(signal, { musicControlled: true });
+initSoundCloudPlayer({ signal, onPlaybackChange: value => spectrum.setPlaying?.(value) });
 const detailMotion=createProjectDetailMotion({dialog,reduced,signal});
 function openProject(index){
   const p=projects[index];if(!p)return;

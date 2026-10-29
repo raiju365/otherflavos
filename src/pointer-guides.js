@@ -63,7 +63,7 @@ export function initPointerGuides(signal) {
     frame = requestAnimationFrame(tick);
   }
   on(window, 'pointermove', event => {
-    if (event.pointerType === 'touch' || event.target?.closest?.('[data-water-play]') || !allowed() || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) { hide(); return; }
+    if (event.pointerType === 'touch' || event.target?.closest?.('[data-spectrum-play]') || !allowed() || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) { hide(); return; }
     target = { x: event.clientX, y: event.clientY };
     guides.dataset.interactive = String(Boolean(event.target?.closest?.('a[href],button,[role="tab"],[role="button"],.loop-viewport')));
     guides.dataset.contact = String(Boolean(event.target?.closest?.('.social-link')));

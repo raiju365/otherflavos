@@ -458,3 +458,70 @@ The navigation owner now caches innerWidth/innerHeight and preserves the exact r
 Background evidence: https://web.dev/blog/viewport-units explains how mobile viewport size changes with dynamic address/tab toolbars. This supports the resize risk, not a claim that the same event was observed on the user's device. Existing accessibility preferences still intentionally simplify transitions when reduced motion is enabled.
 
 Validation: scripts/check-mobile-section-transition.mjs has 23 checks using the actual navigation, reveal and header modules with controllable native-animation promises. It covers 360/390/768px mobile entry, late-visible paragraphs, exact effect identity through repeated height changes, complete settle/interaction restoration, pending Projects exit barriers, rapid reversal/latest-request ownership, real width/orientation change, 1280px desktop behavior, reduced motion, missing WAAPI, hidden pages and disposal. A separate ignored before-code experiment confirms the height-resize assertion fails with the old navigation module and the late-visible text assertion fails with the old reveal module independently. Gallery sequence (68), mobile header (14), atmosphere (16), touch (13), npm run check and npm run build (47 modules) pass. These are code/scheduling/geometry fixtures; native browser appearance and physical-device smoothness remain unverified under the established security boundary.
+
+# DOT / PLAY replaces the rejected water playground (29 October 2026)
+
+The user rejected the water widget and selected a different interaction. The new field has 119 original spring points painted directly on transparent Canvas2D. Pointer movement repels local points; clicking gives a stronger impulse. Displaced points pick up the current accent, then return exactly to their resting positions. Scatter and Reset retain explicit keyboard access. Existing rail geometry, portrait, gradient and theme-control reserve stay intact.
+
+Reference: [Codrops, Interactive Repulsion Effect with Three.js](https://tympanus.net/codrops/2018/12/06/interactive-repulsion-effect-with-three-js/). The article describes distance-based reactions in a grid. Only that interaction principle is adapted. Our 2D spring model, palette, timing and renderer are original; no code, assets, Three.js or GSAP are copied. The article was read; its native motion was not measured.
+
+Validation uses the actual spring model and controller with vector-command/event/clock fixtures, covering finite settling, rapid input, capture, keyboard, palette changes, mobile/short-window hiding, DPR and reduced/forced/no-canvas fallbacks. These are not browser screenshots or measured device FPS. The existing local-browser restriction remains; native appearance requires permitted browser/user review.
+
+
+# Sunflower dot pattern (29 October 2026)
+
+The user requested a new pattern through web-reference-design. Replace the rectangular lattice with a deterministic golden-angle spiral, scaled to the same field width/height. Area-based density (64..720) and slightly stronger central points make a broad elliptical sunflower print. Keep transparent Canvas2D, the existing impulse/spring owner, text-free native button, all keyboard controls and the original rail/portrait/theme geometry.
+
+Reference / observation / adaptation / limit: [Codrops WebGL Scroll Spiral](https://tympanus.net/codrops/2017/04/26/webgl-scroll-spiral/) describes twisting grid patterns into decorative backgrounds. Adopt the curved-pattern composition principle; our golden-angle placement is original and stays static until existing input acts. No shader, regl, source/assets, scrolling effect or autonomous loop is copied. The article/demo document were read, but their native motion was not observed/measured. The earlier [Interactive Particles article](https://tympanus.net/codrops/2019/01/17/interactive-particles-with-three-js/) was also consulted; the current interaction still uses our existing spring controller.
+
+Validation: 52 model/controller/source checks cover five aspect ratios, spiral bounds, unique rows, deterministic placement, native input/capture, exact rest/zero idle frames, preference and lifecycle fallbacks. The 45 static fallback coordinates are checked against the same production geometry. artifacts/dot-spiral-pattern.png is an offline geometry rendering on a plain Sage swatch, not a screenshot of the website or native browser evidence. The existing browser security boundary remains.
+
+
+# Open wave field replaces the rejected oval (29 October 2026)
+
+The user screenshot rejects the oval sunflower silhouette. Replace its radial placement with full rectangular coverage, including all four corners. Two low-amplitude smooth coordinate bends create crossing wave rows. Equal dot sizes remove the central focal mass. This retains the previously researched curved-pattern principle but removes the rejected radial composition. Keep the same wide rail, hidden copy, spring input, theme and finite lifecycle owner. Update static fallback positions from the production helper too. Geometry fixtures now require dot coverage in every corner and beyond the former ellipse. Native browser appearance remains unverified under the established boundary.
+
+
+# Music-style spectrum replaces the dots (29 October 2026)
+
+The user asks for a spectrum like music. The new Canvas2D equalizer has 20..56 vertical bars, fast attack/softer release, falling accent peak markers and a low-opacity reflection. It uses an original synthetic rhythm without audio playback, microphone access or FFT analysis. Pointer movement shapes local bands and click/native keyboard activation adds a beat. Home/Escape pauses; activation resumes. The user-requested continuous visual runs through the existing single owner at <=30 drawings/second, with cached palette/geometry, <=2 DPR, bounded fixed-step catch-up and all existing entry/visibility/dialog/offscreen/page-cache/abort gates. Reduced motion and static fallbacks remain available.
+
+Reference: [Codrops Creative Audio Visualizers](https://tympanus.net/codrops/2018/03/06/creative-audio-visualizers/) describes line-based sound visualization and mapping frequency levels to shape dimensions. Adapt only the visual principle of independent bands responding with different heights. Our synthetic signal and bar renderer are original; no p5.js, audio assets, code, FFT, circle or dependency is copied. The article was read; reference motion/timing was not observed/measured.
+
+Validation: 43 real-model/drawing-command/controller fixtures cover rhythm changes, band bounds and finite values at four sizes, frame-rate equivalence, single owner/30Hz draw budget, pointer identity and click suppression, keyboard pause/resume, palette continuity and every lifecycle/static fallback. Offline spectrum-study.gif samples actual production geometry on a plain Amethyst swatch; it is a model animation, not a native screenshot or device FPS evidence. The existing native-browser restriction remains.
+
+
+# Blockcore SoundCloud transport (29 October 2026)
+
+User supplies https://soundcloud.com/blockcoreonline for the two-control music experience. Use the official profile iframe and Widget API (https://developers.soundcloud.com/docs/api/html5-widget) as the streaming transport, with custom Play/Pause and Next controls. The real getSounds response builds the loaded artist queue; no fixed track names/count are invented. Runtime metadata becomes textContent and validated soundcloud.com/blockcoreonline links only. Attribution follows https://developers.soundcloud.com/docs/api/buttons-logos.html using the official linked white logo, preserved as a local unmodified asset.
+
+The dock stays in the existing bottom reserve beside the theme control and floats above the mobile bottom gutter. Spectrum paint is gated by confirmed real PLAY state; explicit pause/error stops its owner. Audio persists across section switches, without affecting gradient continuity. All existing rendering preferences and cleanup stay intact. Home/Escape also pauses actual music. The visualization stays synthetic, as agreed; no FFT fidelity claim. The script/iframe load only on first user request and do not enter loader readiness. Errors, gesture denial and timeouts remain retryable.
+
+Source verification: official Widget API and attribution docs were read. The supplied SoundCloud profile and oEmbed/embed document were not readable through the web tool, so live catalog size, full catalog coverage and actual streaming remain unverified. 25 widget/controller fixtures and 47 spectrum fixtures cover protocol/state/geometry; these are not a native browser or audible playback test. Respect the existing browser boundary rather than using an alternate local browser route.
+
+
+# Fix the SoundCloud Coba lagi state (29 October 2026)
+
+The supplied screenshot establishes a real runtime failure. Source review found an iframe-before-SDK race: the actual official Widget API cannot replay READY sent before its script installed the message listener. A new sandboxed protocol test against https://w.soundcloud.com/player/api.js reproduces zero READY callbacks with the old order and one with SDK-first. The controller now loads the SDK before creating the iframe.
+
+Live public oEmbed request to https://soundcloud.com/oembed?format=json&url=https%3A%2F%2Fsoundcloud.com%2Fblockcoreonline succeeds (HTTP 200) and returns author_url=https://soundcloud.com/blockcoreonline plus an official iframe resource of https://api.soundcloud.com/users/1167960067. Use that canonical resource and the provider's autoplay; encrypted-media permission. Metadata identity is verified now, superseding the earlier unreadable-source note; no full track count or live audible playback claim follows. The iframe receives a standard 300x166 internal viewport while the existing host remains visually clipped.
+
+The queue accepts legacy HTTP permalinks after HTTPS normalization and verified artist user-ID matches. It does not equate API streamable:false with inability to play through the official embed; SoundCloud still enforces content access. Explicit blocked items stay excluded. Provider ERROR can skip to the next artist track for at most one queue pass; an exhausted queue stops and permits explicit retry. Internal data-error distinguishes provider, API load, readiness timeout and empty-queue failures.
+
+Validation: 31 real-controller/protocol fixtures, 47 spectrum fixtures, 3 live oEmbed source checks and 2 actual-SDK ordering fixtures pass. The primary IAB localhost verification was attempted but the browser webview could not attach; no alternate observation route was used. Native layout, actual audible playback and full catalog coverage remain unverified.
+
+
+# Remove the incomplete external control-script request (29 October 2026)
+
+The user's Network screenshot shows w.soundcloud.com/player/api.js with provisional request headers, no shown response headers, and the player error state. It does not identify whether the request was blocked, stalled or cancelled. The current correction removes that request from the runtime path rather than assigning a blocker without evidence.
+
+The original local bridge uses the official iframe message transport documented at https://developers.soundcloud.com/docs/api/html5-widget. It validates exact origin and source window, handles readiness/subscriptions/async getters, and sends the play/pause/skip/seek commands used by this application. No provider SDK code is copied into source, no browser protections are changed, and no audio/network access rules are bypassed. The official iframe remains the audio transport. The source profile and canonical user resource stay unchanged.
+
+Evidence: 12 bridge/controller fixtures, 30 player fixtures and 47 spectrum fixtures pass. The bridge integration deliberately rejects script creation while exercising real application Play/Pause/Next through message events. The outgoing message sequence is compared against the currently served official SDK and matches. Three live public oEmbed assertions still confirm the artist/canonical resource. The production JS no longer includes player/api.js. Native audio in the user's browser remains unverified; the Computer Use policy stop from the preceding turn was not retried via another route.
+
+
+# Iframe failure evidence and nondestructive readiness timeout (29 October 2026)
+
+User Network screenshots now identify the iframe document URL itself as failed, with provisional request headers and no shown response headers/status. The same public canonical player URL was probed through normal HTTP from this execution environment: HTTP 200 in approximately 413ms, 2396-byte HTML, no X-Frame-Options or Content-Security-Policy response header. This establishes availability on that request path only; Chrome on the user's path may differ. Request the concrete net::ERR code before assigning an extension, connection, DNS or cancellation cause. No browser automation route was retried.
+
+The controller did contain a confirmed cancellation mechanism: its 15-second READY timeout removed the iframe. Change that timeout to retain the original navigation and bridge, mark the UI unconnected, and clear playback intent. A late READY can then recover the queue to paused, without starting audio. Explicit retry still replaces the source and abort still releases resources. The regression fixture confirms retention and no late autoplay. 31 player and 12 bridge fixtures pass. This is not a claim that the original Chrome failure has been fixed.

@@ -165,3 +165,31 @@ The moving glass bar uses a non-bouncy analytical spring, based on the continuit
 ### Clean monochrome studio portrait
 
 The user chose a clean monochrome oval. The exact public/profile/selfphoto.png is rendered at full opacity inside a 4:5 oval, with a close proportional face crop and a restrained studio ground. CSS applies grayscale and modest contrast; the source asset remains untouched. There is no paper frame, backing sheet, orange tab, tilt, dot effect, fading face or chromatic overlay. src/figure.js retains one cached image, gentle whole-photo movement and the existing entry/hidden/offscreen/page-cache/reduced-motion/abort gates. The rail background, identity text and orange navigation/check accents remain. Run node artifacts/portrait-image-check.mjs (16 checks). Native framing/appearance and responsive spacing remain unverified under the local-browser boundary.
+
+
+## Blockcore SoundCloud music
+
+The profile https://soundcloud.com/blockcoreonline is configured in src/soundcloud-player.js. The dock exposes Play/Pause and Next, with linked artist/source attribution. SoundCloud's official iframe loads only after Play, controlled by a local bundled message bridge; no backend or application credentials are needed for this embed. The queue comes from getSounds at runtime, retains widget indices, and skips metadata explicitly flagged as blocked; the official widget determines streaming availability. Track completion advances and wraps the loaded artist queue. It is not a verified export of the artist's complete catalog.
+
+The real provider PLAY/PAUSE state controls the existing spectrum's animation. Bar heights remain synthetic because the Widget API does not expose FFT samples. No sound is started automatically on page load. If a browser blocks the first asynchronous play request, the control returns to Play for another explicit click. Provider/network failures leave a retry control and a link to the artist. Switching portfolio tabs preserves music; pagehide pauses it.
+
+Validation commands: node scripts/check-soundcloud-player.mjs; node scripts/check-spectrum-play.mjs; npm run check; npm run build. Widget tests use clearly labeled fixture tracks and a mock protocol transport. They do not prove live playback, full catalog availability or native browser layout. Live review should test first Play, Pause, repeated Next, last-to-first wrap, mobile controls, network denial/retry and menu overlap in a permitted browser.
+
+References: [Widget API](https://developers.soundcloud.com/docs/api/html5-widget), [attribution](https://developers.soundcloud.com/docs/api/buttons-logos.html). The unmodified white logo in public/icons/ is the asset linked by that official attribution page.
+
+
+### SoundCloud loading correction
+
+The verified canonical profile resource is https://api.soundcloud.com/users/1167960067, returned by SoundCloud's public oEmbed endpoint for the supplied Blockcore URL. Load the SDK before inserting the iframe to avoid losing READY before the message listener exists. The SDK ordering regression is reproduced against the actual official api.js in a sandboxed protocol fixture. The app keeps the original two controls, lazy user-requested playback and spectrum synchronization.
+
+Additional validation: node scripts/check-soundcloud-ready-order.mjs. This command needs network access to the official SoundCloud oEmbed endpoint and SDK and verifies the canonical resource plus the before/after ordering behavior. check-soundcloud-player.mjs now has 31 fixtures, including delayed SDK loading, teardown during pending API load, legacy permalinks and bounded track-error recovery. Live metadata and SDK protocol are verified; native audible playback/full catalog size still need a permitted browser session.
+
+
+### Current transport: local iframe bridge
+
+The application no longer requests w.soundcloud.com/player/api.js. The original src/soundcloud-widget-bridge.js module controls the official iframe through its message protocol, while the iframe still handles SoundCloud playback and access. Incoming messages require both the exact provider origin and the current iframe window. There is no third-party control script/global, proxy or audio rehosting. The older SDK-loading notes above explain the preceding implementation.
+
+Run node scripts/check-soundcloud-bridge.mjs for 12 message/controller integration fixtures, including a run where script creation is deliberately blocked but Play/Pause/Next still work through the local bridge. check-soundcloud-player.mjs now has 30 fixtures. check-soundcloud-ready-order.mjs also compares outgoing bridge messages against the actual official SDK and verifies the live oEmbed resource. These are protocol/source tests, not audible browser playback. The official iframe and media domains must still be accessible to the visitor.
+
+
+SoundCloud timeout recovery: after 15 seconds without provider readiness, the player stops showing loading and clears playback intent but keeps the iframe's original navigation alive. A late READY updates the queue and returns to paused, so music does not start unexpectedly. Explicit retry or teardown still removes the old frame. An unconnected state requires checking the actual browser net::ERR code; provisional headers alone do not identify a network or content blocker.
