@@ -1,66 +1,52 @@
-// Original synthetic equalizer. This model never opens an audio source.
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-function level(u, time) {
-  const beat = Math.exp(-((time * 1.8) % 1) * 7);
-  const melody = Math.abs(Math.sin(u * 9 - time * 2.1)) * Math.abs(Math.sin(u * 21 + time * 1.3));
-  return clamp(.10 + .44 * melody + beat * (.10 + .24 * Math.abs(Math.cos(u * 8)))
-    + .08 * Math.sin(u * 43 - time * 4.2) ** 2, .05, .95);
+// Recorded amplitude data only. No oscillator, synthetic beat or audio capture.
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+export function waveformURL(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && ['wave.sndcdn.com', 'wis.sndcdn.com'].includes(url.hostname)
+      && !url.username && !url.password && /\.(json|png)$/.test(url.pathname) ? url.href : null;
+  } catch { return null; }
 }
-export function createSpectrumField(width, height) {
-  const count = clamp(Math.round((width - 44) / 9), 20, 56);
-  const field = { width, height, bars: Array.from({ length: count }, (_, i) => ({
-    u: (i + .5) / count, value: 0, peak: 0, impulse: 0
-  })), clock: 0, accumulator: 0 };
-  clearSpectrum(field); return field;
+export function normalizeWaveform(data) {
+  if (!Array.isArray(data?.samples) || data.samples.length < 2 || data.samples.length > 100000) return [];
+  if (data.samples.some(n => !Number.isFinite(n) || n < 0)) return [];
+  const maximum = Number.isFinite(data.height) && data.height > 0 ? data.height : data.samples.reduce((a, b) => Math.max(a, b), 0);
+  if (!maximum) return data.samples.map(() => 0);
+  return data.samples.map(n => clamp(n / maximum, 0, 1));
 }
-export function clearSpectrum(field) {
-  field.clock = field.accumulator = 0;
-  for (const bar of field.bars) { bar.value = bar.peak = level(bar.u, 0); bar.impulse = 0; }
+export function waveformGeometry(samples, progress, width, height, duration = 0) {
+  const count = clamp(Math.floor((width - 32) / 3.5), 32, 240), span = width - 32;
+  // The centre cursor is the actual provider position; show ~32 seconds around it.
+  const window = duration > 0 ? clamp(32000 / duration, .025, 1) : 1;
+  return Array.from({ length: count }, (_, i) => {
+    const u = i / (count - 1), position = progress + (u - .5) * window;
+    const index = Math.round(position * (samples.length - 1));
+    const amplitude = position < 0 || position > 1 ? 0 : samples[index] || 0;
+    const edge = Math.min(1, u * 8, (1 - u) * 8);
+    return { x: 16 + u * span, amplitude, half: Math.max(.65, amplitude * Math.min(100, height * .34)),
+      alpha: edge * (u < .5 ? .38 : .85), past: u < .5 };
+  });
 }
-export function pulseSpectrum(field, x, y, strength = 1) {
-  if (![x, y, strength].every(Number.isFinite) || strength <= 0) return false;
-  for (const bar of field.bars) {
-    const distance = (bar.u - clamp(x, 0, 1)) / .16;
-    bar.impulse = Math.min(.8, bar.impulse + Math.exp(-distance * distance) * clamp(strength, 0, 3) * .22 * (1.25 - clamp(y, 0, 1) * .5));
-  }
-  return true;
-}
-export function stepSpectrum(field, elapsed) {
-  field.accumulator = Math.min(.05, field.accumulator + clamp(Number.isFinite(elapsed) ? elapsed : 0, 0, .05));
-  let count = 0;
-  while (field.accumulator + 1e-9 >= 1 / 60 && count < 3) {
-    field.clock += 1 / 60;
-    for (const bar of field.bars) {
-      const target = Math.min(1, level(bar.u, field.clock) + bar.impulse);
-      bar.value += (target - bar.value) * (target > bar.value ? .46 : .16);
-      bar.peak = Math.max(bar.value, bar.peak - .006);
-      bar.impulse *= .91;
-      if (bar.impulse < .0001) bar.impulse = 0;
+export function paintWaveform({ width, height, samples, progress, duration, image }, palette, ctx) {
+  ctx.clearRect(0, 0, width, height);
+  const y = height * .48;
+  ctx.fillStyle = palette.ink; ctx.globalAlpha = .14; ctx.fillRect(16, y, width - 32, 1);
+  if (samples.length) {
+    for (const bar of waveformGeometry(samples, progress, width, height, duration)) {
+      ctx.fillStyle = bar.past ? palette.accent : palette.ink; ctx.globalAlpha = bar.alpha;
+      ctx.fillRect(bar.x, y - bar.half, 1.5, bar.half * 2);
+      ctx.globalAlpha *= .08;
+      ctx.fillRect(bar.x, y + Math.min(100, height * .34) + 16, 1.5, bar.half * .3);
     }
-    field.accumulator = Math.max(0, field.accumulator - 1 / 60); count++;
+  } else if (image) {
+    const window = duration > 0 ? clamp(32000 / duration, .025, 1) : 1;
+    const full = (width - 32) / window, left = width / 2 - progress * full;
+    ctx.save(); ctx.beginPath(); ctx.rect(16, 0, width - 32, height); ctx.clip();
+    ctx.globalAlpha = .7; ctx.drawImage(image, left, y - height * .24, full, height * .48); ctx.restore();
   }
-  return count;
-}
-export function spectrumGeometry(field) {
-  const span = Math.max(1, field.width - 44), slot = span / field.bars.length;
-  const baseline = field.height * .78, maximum = Math.max(12, field.height * .67 - 16);
-  return field.bars.map(bar => ({ x: 22 + bar.u * span - slot * .29,
-    y: baseline - Math.max(3, bar.value * maximum), width: Math.max(2, slot * .58),
-    height: Math.max(3, bar.value * maximum), peakY: baseline - bar.peak * maximum - 5,
-    baseline, hot: bar.impulse > .08 }));
-}
-export function paintSpectrum(field, palette, context) {
-  context.clearRect(0, 0, field.width, field.height);
-  context.lineWidth = 1.4; context.strokeStyle = '#080a08';
-  for (const bar of spectrumGeometry(field)) {
-    context.globalAlpha = 1;
-    context.fillStyle = bar.hot ? palette.accent : palette.ink;
-    context.strokeRect(bar.x, bar.y, bar.width, bar.height);
-    context.fillRect(bar.x, bar.y, bar.width, bar.height);
-    context.fillStyle = palette.accent;
-    context.fillRect(bar.x, bar.peakY, bar.width, 2);
-    context.globalAlpha = .12; context.fillStyle = palette.ink;
-    context.fillRect(bar.x, bar.baseline + 5, bar.width, Math.min(field.height * .12, bar.height * .2));
-  }
-  context.globalAlpha = 1;
+  // A quiet, anchored playhead; its position is never driven by a free clock.
+  ctx.globalAlpha = samples.length || image ? .9 : .3; ctx.fillStyle = palette.accent;
+  ctx.fillRect(width / 2, y - Math.min(100, height * .34) - 10, 1, Math.min(200, height * .68) + 20);
+  ctx.fillRect(width / 2 - 1.5, y - Math.min(100, height * .34) - 15, 4, 3);
+  ctx.globalAlpha = 1;
 }

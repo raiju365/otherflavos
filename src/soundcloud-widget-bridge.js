@@ -1,7 +1,7 @@
 // Original, local parent-side controller for SoundCloud's iframe message API.
 // The official player still owns audio, rights checks and media requests.
 const ORIGIN = 'https://w.soundcloud.com';
-const Events = Object.freeze({ READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error' });
+const Events = Object.freeze({ READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error', PLAY_PROGRESS: 'playProgress', SEEK: 'seek' });
 const eventNames = new Set(Object.values(Events));
 const getterNames = new Set(['getSounds', 'getCurrentSoundIndex']);
 
@@ -68,6 +68,7 @@ export function createSoundCloudWidget(frame) {
     pause() { if (ready) send('pause'); },
     skip(index) { if (ready && Number.isInteger(index) && index >= 0) send('skip', index); },
     seekTo(time) { if (ready && Number.isFinite(time) && time >= 0) send('seekTo', time); },
+    setVolume(volume) { if (ready && Number.isFinite(volume)) send('setVolume', Math.max(0, Math.min(100, volume))); },
     getSounds(callback) { get('getSounds', callback); },
     getCurrentSoundIndex(callback) { get('getCurrentSoundIndex', callback); },
     destroy() {

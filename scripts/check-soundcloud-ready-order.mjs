@@ -30,9 +30,9 @@ function checkOrder(readyBeforeSDK) {
 assert.equal(checkOrder(true), 0, 'the original iframe-first order loses READY');
 assert.equal(checkOrder(false), 1, 'loading the SDK first receives READY exactly once');
 function exercise(widget, ready) {
-  for (const event of ['ready', 'play', 'pause', 'finish', 'error']) widget.bind(event, () => {});
+  for (const event of ['ready', 'play', 'pause', 'finish', 'error', 'playProgress', 'seek']) widget.bind(event, () => {});
   ready(); widget.getSounds(() => {}); widget.getCurrentSoundIndex(() => {});
-  widget.play(); widget.pause(); widget.skip(2); widget.seekTo(0); widget.unbind('play');
+  widget.play(); widget.pause(); widget.skip(2); widget.seekTo(0); widget.setVolume(0); widget.setVolume(100); widget.unbind('play');
 }
 const officialMessages = [], listeners = {}, timers = [];
 const officialFrame = { nodeType: 1, nodeName: 'IFRAME', getAttribute: () => 'https://w.soundcloud.com/player/',

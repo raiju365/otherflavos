@@ -24,9 +24,9 @@ message(frame, 'ready'); message(frame, 'ready');
 check('READY is delivered once and event subscriptions use an exact target origin', () => {
   assert.equal(readyEvents, 1); assert.deepEqual(sent, [{ data: { method: 'addEventListener', value: 'play' }, origin: ORIGIN }]);
 });
-sent = []; widget.play(); widget.pause(); widget.skip(2); widget.seekTo(0);
+sent = []; widget.play(); widget.pause(); widget.skip(2); widget.seekTo(0); widget.setVolume(0); widget.setVolume(100);
 check('play/pause/next-index/seek commands match the official message format', () => {
-  assert.deepEqual(sent.map(x => x.data), [{ method: 'play' }, { method: 'pause' }, { method: 'skip', value: 2 }, { method: 'seekTo', value: 0 }]);
+  assert.deepEqual(sent.map(x => x.data), [{ method: 'play' }, { method: 'pause' }, { method: 'skip', value: 2 }, { method: 'seekTo', value: 0 }, { method: 'setVolume', value: 0 }, { method: 'setVolume', value: 100 }]);
 });
 sent = []; let sounds = null, second = null;
 widget.getSounds(value => { sounds = value; }); widget.getSounds(value => { second = value; });

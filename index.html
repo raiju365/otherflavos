@@ -109,25 +109,27 @@
               <p class="profile-role" id="profile-role"></p>
             </div>
           </header>
-          <section class="spectrum-play" data-spectrum-play aria-label="Interactive music-style spectrum" hidden>
-            <button type="button" class="spectrum-board" data-spectrum-board aria-label="Music-style spectrum. Play music using the player controls. Move to shape the bands; Escape pauses music." aria-describedby="spectrum-play-help">
+          <section class="spectrum-play" data-spectrum-play aria-label="SoundCloud track waveform" hidden>
+            <div class="spectrum-board" data-spectrum-board role="img" aria-label="Waveform of the current track, following playback position." aria-describedby="spectrum-play-help">
               <canvas width="300" height="160" aria-hidden="true"></canvas>
-              <span class="spectrum-fallback" aria-hidden="true"><i style="--band-height:12%"></i><i style="--band-height:56%"></i><i style="--band-height:63%"></i><i style="--band-height:35%"></i><i style="--band-height:16%"></i><i style="--band-height:13%"></i><i style="--band-height:29%"></i><i style="--band-height:28%"></i><i style="--band-height:29%"></i><i style="--band-height:67%"></i><i style="--band-height:69%"></i><i style="--band-height:30%"></i><i style="--band-height:39%"></i><i style="--band-height:51%"></i><i style="--band-height:31%"></i><i style="--band-height:12%"></i><i style="--band-height:22%"></i><i style="--band-height:45%"></i><i style="--band-height:45%"></i><i style="--band-height:16%"></i><i style="--band-height:61%"></i><i style="--band-height:73%"></i><i style="--band-height:42%"></i><i style="--band-height:22%"></i><i style="--band-height:34%"></i><i style="--band-height:18%"></i><i style="--band-height:17%"></i><i style="--band-height:25%"></i></span>
-            </button>
-            <p id="spectrum-play-help" class="sr-only">Decorative spectrum moves while SoundCloud plays. Its rhythm is simulated. Use the music controls to play, pause or skip. While playing, move, click or use arrow keys to shape the bands. Home or Escape pauses music.</p>
+              <span class="spectrum-fallback" aria-hidden="true"></span>
+            </div>
+            <p id="spectrum-play-help" class="sr-only">The track's recorded waveform scrolls with SoundCloud playback. This is an amplitude waveform, not live frequency analysis. Use the music controls to play, pause, change tracks or mute.</p>
             <p class="sr-only" data-spectrum-status role="status" aria-live="polite"></p>
           </section>
           <section class="music-player" data-music-player data-state="idle" aria-label="Blockcore music player">
             <div class="music-actions">
-              <button type="button" class="music-action" data-music-toggle aria-label="Play music" aria-pressed="false" aria-busy="false">
+              <button type="button" class="music-action" data-music-previous aria-label="Previous song" title="Previous" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14L9 12zM5 5h3v14H5z"/></svg></button>
+              <button type="button" class="music-action" data-music-toggle aria-label="Play music" title="Play / Pause" aria-pressed="false" aria-busy="false">
                 <svg class="music-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
                 <svg class="music-pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
               </button>
-              <button type="button" class="music-action" data-music-next aria-label="Next song" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l10-7zM16 5h3v14h-3z"/></svg></button>
+              <button type="button" class="music-action" data-music-next aria-label="Next song" title="Next" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14l10-7zM16 5h3v14h-3z"/></svg></button>
+              <button type="button" class="music-action music-volume" data-music-mute aria-label="Mute music" aria-pressed="false" title="Mute / Unmute"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z"/><path class="music-volume-on" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="music-volume-off" d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
             </div>
-            <div class="music-meta">
+            <div class="music-meta sr-only">
               <span class="music-track" data-music-track></span>
-              <a class="music-credit" data-music-credit href="https://soundcloud.com/blockcoreonline" target="_blank" rel="noopener noreferrer"><span>Blockcore</span><span class="music-source"><img src="/icons/soundcloud-white.png" alt="SoundCloud" width="64" height="10" loading="lazy"></span></a>
+              <a class="music-credit" data-music-credit href="https://soundcloud.com/blockcoreonline" tabindex="-1" target="_blank" rel="noopener noreferrer"><span>Blockcore</span><span class="music-source"><img src="/icons/soundcloud-white.png" alt="SoundCloud" width="64" height="10" loading="lazy"></span></a>
             </div>
             <div class="music-embed-host" data-music-host aria-hidden="true"></div>
             <p class="sr-only" data-music-status role="status" aria-live="polite"></p>

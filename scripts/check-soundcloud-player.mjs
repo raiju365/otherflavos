@@ -38,9 +38,9 @@ class Element extends EventTarget {
   append(child) { this.children.push(child); child.parent = this; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
 }
-const root = new Element(), toggle = new Element(), next = new Element(), host = new Element();
+const root = new Element(), toggle = new Element(), next = new Element(), host = new Element(), previous = new Element(), mute = new Element();
 const title = new Element(), credit = new Element(), status = new Element(), head = new Element();
-root.querySelector = selector => ({ '[data-music-toggle]': toggle, '[data-music-next]': next,
+root.querySelector = selector => ({ '[data-music-toggle]': toggle, '[data-music-next]': next, '[data-music-previous]': previous, '[data-music-mute]': mute,
   '[data-music-host]': host, '[data-music-track]': title, '[data-music-credit]': credit, '[data-music-status]': status })[selector];
 globalThis.document = new EventTarget(); document.head = head;
 document.querySelector = selector => selector === '[data-music-player]' ? root
@@ -58,20 +58,20 @@ function Widget(frame) {
   const handlers = new Map();
   const player = { frame, handlers, index: 0, playCalls: 0, pauseCalls: 0, skips: [], sounds: fixtureSounds,
     bind(name, fn) { handlers.set(name, fn); }, unbind(name) { handlers.delete(name); },
-    play() { this.playCalls++; }, pause() { this.pauseCalls++; handlers.get('pause')?.(); },
-    skip(index) { this.index = index; this.skips.push(index); handlers.get('pause')?.(); }, seekTo() {},
+    play() { this.playCalls++; }, pause() { this.pauseCalls++; handlers.get('pause')?.(); }, setVolume(value) { this.volume = value; },
+    skip(index) { this.index = index; this.skips.push(index); handlers.get('pause')?.(); }, seekTo(value) { this.seek = value; },
     getSounds(fn) { if (this.deferSounds) this.soundsCallback = fn; else fn(this.sounds); },
     getCurrentSoundIndex(fn) { if (this.deferIndex) this.indexCallback = fn; else fn(this.index); },
-    fire(name) { handlers.get(name)?.(); }
+    fire(name, value) { handlers.get(name)?.(value); }
   };
   players.push(player); return player;
 }
-Widget.Events = { READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error' };
+Widget.Events = { READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error', PLAY_PROGRESS: 'playProgress', SEEK: 'seek' };
 const loadAPI = async () => Widget;
-const changes = [];
+const changes = [], progress = [], published = [];
 const abort = new AbortController(); setMaxListeners(0, abort.signal);
-initSoundCloudPlayer({ signal: abort.signal, onPlaybackChange: active => changes.push(active), loadAPI });
-check('initial page has two idle controls, no iframe/script and a stopped spectrum', () => {
+initSoundCloudPlayer({ signal: abort.signal, onPlaybackChange: active => changes.push(active), onProgress: value => progress.push(value), onTrackChange: track => published.push(track), loadAPI });
+check('initial page has idle controls, no iframe/script and a stopped waveform', () => {
   assert.equal(host.children.length, 0); assert.equal(head.children.length, 0);
   assert.equal(root.dataset.state, 'idle'); assert.equal(next.disabled, true); assert.equal(changes.at(-1), false);
 });
@@ -97,6 +97,23 @@ check('confirmed PLAY updates track attribution, button and spectrum together', 
   assert.equal(changes.at(-1), true); assert.equal(title.textContent, 'Fixture A');
   assert.equal(credit.href, fixtureSounds[0].permalink_url);
 });
+emit(mute, 'click');
+check('Mute silences the widget without pausing playback', () => {
+  assert.equal(player.volume, 0); assert.equal(root.dataset.state, 'playing');
+  assert.equal(mute.attributes['aria-label'], 'Unmute music'); assert.equal(root.dataset.muted, 'true');
+});
+emit(mute, 'click'); player.fire('playProgress', { relativePosition: .25 });
+check('Unmute restores audio and only genuine progress supplies the waveform position', () => {
+  assert.equal(player.volume, 100); assert.equal(mute.attributes['aria-label'], 'Mute music');
+  assert.equal(progress.at(-1), .25); assert.equal(published.at(-1).url, fixtureSounds[0].permalink_url);
+  const count = progress.length; player.fire('playProgress', { relativePosition: Infinity }); assert.equal(progress.length, count);
+});
+emit(mute, 'click'); emit(previous, 'click'); player.fire('play');
+check('Previous wraps from the first allowed artist track to the last', () => {
+  assert.equal(player.index, 3); assert.equal(title.textContent, 'Fixture B'); assert.equal(progress.at(-1), 0); assert.equal(player.seek, 0);
+  assert.equal(player.volume, 0);
+});
+emit(next, 'click'); player.fire('play'); assert.equal(player.volume, 0); emit(mute, 'click');
 emit(next, 'click');
 check('Next skips disallowed tracks and remains ready through the transition PAUSE', () => {
   assert.equal(player.index, 3); assert.equal(root.dataset.state, 'loading'); assert.equal(changes.at(-1), false);
@@ -256,11 +273,12 @@ check('an aborted API request cannot create scripts or leave timers', () => {
 });
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/soundcloud-player.css', import.meta.url), 'utf8');
-check('player has exactly two controls plus linked attribution on desktop and mobile', () => {
+check('player has four icon controls with metadata kept out of the visual dock', () => {
   const surface = html.slice(html.indexOf('<section class="music-player"'), html.indexOf('<div class="theme-picker"'));
-  assert.equal((surface.match(/<button/g) || []).length, 2);
+  assert.equal((surface.match(/<button/g) || []).length, 4);
+  assert.match(surface, /data-music-previous/); assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/);
   assert.match(surface, /soundcloud.com\/blockcoreonline/); assert.match(surface, /alt="SoundCloud"/);
-  assert.match(css, /max-width: calc\(100vw - 104px\)/); assert.match(css, /forced-colors/);
+  assert.match(css, /max-width: calc\(100vw - 96px\)/); assert.match(css, /forced-colors/);
   assert.doesNotMatch(html, /<iframe[^>]+w\.soundcloud/);
 });
 console.log(JSON.stringify({ mode: 'Widget fixtures and source checks; no live SoundCloud playback claim', passed: checks.length, checks }, null, 2));

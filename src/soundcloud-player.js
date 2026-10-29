@@ -16,7 +16,8 @@ export function artistTracks(sounds) {
       // is not a reason to discard every otherwise valid embedded track.
       if (url.origin !== 'https://soundcloud.com' || !belongs
         || sound.access === 'blocked' || sound.policy === 'BLOCK') return [];
-      return [{ widgetIndex, url: url.href, title: typeof sound.title === 'string' ? sound.title : SOUNDCLOUD_NAME }];
+      return [{ widgetIndex, url: url.href, title: typeof sound.title === 'string' ? sound.title : SOUNDCLOUD_NAME,
+        waveform: sound.waveform_url, duration: Number(sound.duration) || 0 }];
     } catch { return []; }
   });
 }
@@ -36,21 +37,32 @@ export function loadSoundCloudAPI(signal) {
   return Promise.resolve(createSoundCloudWidget);
 }
 
-export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, loadAPI = loadSoundCloudAPI } = {}) {
+export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTrackChange = () => {}, onProgress = () => {}, loadAPI = loadSoundCloudAPI } = {}) {
   const root = document.querySelector('[data-music-player]');
   if (!root || !signal || signal.aborted) return () => {};
   const toggle = root.querySelector('[data-music-toggle]'), next = root.querySelector('[data-music-next]');
+  const previous = root.querySelector('[data-music-previous]'), mute = root.querySelector('[data-music-mute]');
   const host = root.querySelector('[data-music-host]'), title = root.querySelector('[data-music-track]');
   const credit = root.querySelector('[data-music-credit]'), status = root.querySelector('[data-music-status]');
   if (!toggle || !next || !host) return () => {};
   let widget = null, frame = null, events = null, queue = [], current = 0;
   let ready = false, wanted = false, playing = false, advancing = false, finishEligible = false, disposed = false, revision = 0, retargets = 0, consecutiveErrors = 0;
   let readyTimer = 0, playTimer = 0;
-  let nativeRecovery = false, warmed = false;
+  let nativeRecovery = false, warmed = false, muted = false, trackURL = '';
   const alive = () => !disposed && !signal.aborted;
   const on = (target, event, handler) => target?.addEventListener(event, handler, { signal });
   const announce = text => { if (alive() && status) status.textContent = text; };
   function visual(value) { playing = value; onPlaybackChange(value); }
+  function publishTrack() {
+    const track = queue[current];
+    if (!track || track.url === trackURL) return;
+    trackURL = track.url; onTrackChange(track); onProgress(0);
+  }
+  function renderMute() {
+    root.dataset.muted = String(muted);
+    mute?.setAttribute('aria-label', muted ? 'Unmute music' : 'Mute music');
+    mute?.setAttribute('aria-pressed', String(muted));
+  }
   function warmConnection() {
     if (!alive() || warmed) return;
     warmed = true;
@@ -70,11 +82,12 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     toggle.setAttribute('aria-pressed', String(wanted));
     toggle.setAttribute('aria-busy', String(state === 'loading'));
     next.disabled = !ready || queue.length < 1;
+    if (previous) previous.disabled = next.disabled;
   }
   function releaseWidget() {
     showNative(false);
     clearTimeout(readyTimer); clearTimeout(playTimer);
-    if (widget && events) for (const name of [events.READY, events.PLAY, events.PAUSE, events.FINISH, events.ERROR]) widget.unbind(name);
+    if (widget && events) for (const name of Object.values(events)) widget.unbind(name);
     try { widget?.pause(); } catch { /* Detached provider. */ }
     widget?.destroy?.();
     frame?.remove(); frame = widget = events = null; ready = false; queue = []; advancing = false;
@@ -124,7 +137,9 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
         try { widget.skip(queue[current].widgetIndex); if (wanted) requestPlay(); } catch { fail(); }
         return;
       }
+      if (advancing) widget.seekTo(0);
       current = position; advancing = false;
+      publishTrack();
       if (title) { title.textContent = queue[current].title; title.title = queue[current].title; }
       if (credit) credit.href = queue[current].url;
     });
@@ -138,9 +153,10 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     if (title) title.textContent = ready ? queue[current].title : 'Musik dijeda';
     announce('Musik dijeda.');
   }
-  function advance() {
+  function advance(direction = 1) {
     if (!alive() || !ready || !queue.length) return;
-    current = (current + 1) % queue.length; revision++; retargets = 0; advancing = wanted = finishEligible = true;
+    current = (current + direction + queue.length) % queue.length; revision++; retargets = 0; advancing = wanted = finishEligible = true;
+    publishTrack(); onProgress(0);
     visual(false); render('loading'); announce('Memuat lagu berikutnya.');
     try { widget.skip(queue[current].widgetIndex); if (queue.length === 1) widget.seekTo(0); requestPlay(); } catch { fail(); }
   }
@@ -171,6 +187,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
           queue = artistTracks(sounds);
           if (!queue.length) { fail('empty-queue'); return; }
           clearTimeout(readyTimer); ready = true; current = 0;
+          widget.setVolume?.(muted ? 0 : 100); publishTrack();
           delete root.dataset.error;
           delete root.dataset.waiting;
           if (title) title.textContent = queue[0].title;
@@ -198,6 +215,13 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
         if (!ready) return;
         if (!advancing) { wanted = false; clearTimeout(playTimer); render(ready ? 'paused' : 'loading'); }
       });
+      const progress = data => {
+        if (!currentSession() || !ready || advancing || !playing) return;
+        const value = data?.relativePosition;
+        if (Number.isFinite(value) && value >= 0 && value <= 1) onProgress(value);
+      };
+      if (events.PLAY_PROGRESS) widget.bind(events.PLAY_PROGRESS, progress);
+      if (events.SEEK) widget.bind(events.SEEK, progress);
       widget.bind(events.FINISH, () => { if (currentSession() && !advancing && (wanted || finishEligible)) advance(); });
       widget.bind(events.ERROR, () => {
         if (!currentSession()) return;
@@ -218,15 +242,22 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     } else if (root.dataset.state !== 'loading') start();
   });
   on(toggle, 'pointerenter', warmConnection); on(toggle, 'focusin', warmConnection);
-  on(next, 'click', advance);
+  on(next, 'click', () => advance(1));
+  on(previous, 'click', () => advance(-1));
+  on(mute, 'click', () => {
+    muted = !muted; renderMute();
+    try { widget?.setVolume?.(muted ? 0 : 100); } catch { fail(); }
+    announce(muted ? 'Suara dimatikan.' : 'Suara dinyalakan.');
+  });
   on(document, 'portfolio:musicpause', pause);
   on(window, 'pagehide', pause);
   function cleanup() {
     if (disposed) return; disposed = true; revision++; wanted = finishEligible = false; visual(false); releaseWidget();
     delete root.dataset.waiting;
     root.dataset.state = 'idle'; toggle.setAttribute('aria-pressed', 'false'); next.disabled = true;
+    if (previous) previous.disabled = true;
   }
   signal.addEventListener('abort', cleanup, { once: true });
-  visual(false); render('idle');
+  visual(false); renderMute(); render('idle');
   return cleanup;
 }

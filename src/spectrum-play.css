@@ -1,32 +1,17 @@
 .spectrum-play { display: none; }
 @media (min-width: 801px) and (min-height: 540px) {
   .spectrum-play:not([hidden]) {
-    position: relative; z-index: 1; isolation: isolate;
-    display: flex; flex-direction: column; flex: 1 1 auto;
-    width: calc(100% - 32px);
-    min-height: 144px;
-    margin-top: clamp(20px, 3vh, 32px);
-    color: var(--rail-ink); font-family: 'Overused Grotesk', sans-serif;
-    text-shadow: 0 1px 2px #080a08, 0 0 4px #080a08;
-    -webkit-text-stroke: .6px #080a08; paint-order: stroke fill;
+    position: relative; z-index: 1; isolation: isolate; display: flex; flex: 1 1 auto;
+    width: calc(100% - 32px); min-height: 144px; margin-top: clamp(20px, 3vh, 32px);
+    color: var(--rail-ink);
   }
-  .spectrum-board {
-    display: block; position: relative; flex: 1; min-height: 0; width: 100%;
-    appearance: none; margin: 0; padding: 0; border: 0; border-radius: 0;
-    background: transparent; color: var(--rail-ink); overflow: hidden;
-    cursor: crosshair; touch-action: none; text-shadow: none; -webkit-text-stroke: 0;
-  }
+  .spectrum-board { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; }
   .spectrum-board canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .spectrum-fallback { position: absolute; inset: 16px 22px; display: none; align-items: end; gap: 5px; padding-bottom: 18%; pointer-events: none; }
-  .spectrum-fallback i { flex: 1; height: var(--band-height); background: currentColor; border-radius: 1px; }
-  .spectrum-play[data-fallback=true] .spectrum-fallback { display: flex; }
-  .spectrum-board[data-disturbed] .spectrum-fallback { color: var(--accent); }
-  .spectrum-play button:focus-visible { outline: 2px solid var(--rail-ink); outline-offset: 3px; box-shadow: 0 0 0 4px #080a08; }
+  .spectrum-fallback { display: none; position: absolute; top: 48%; left: 16px; right: 16px; height: 1px; background: currentColor; opacity: .2; }
+  .spectrum-play[data-fallback=true] .spectrum-fallback { display: block; }
 }
 @media (forced-colors: active) {
-  .spectrum-play:not([hidden]) { color: CanvasText; -webkit-text-stroke: 0; text-shadow: none; }
-  .spectrum-board { background: Canvas; color: CanvasText; border-color: CanvasText; }
-  .spectrum-board canvas { display: none; }.spectrum-board .spectrum-fallback { display: flex; }
-  .spectrum-board[data-disturbed] .spectrum-fallback { color: Highlight; }
-  .spectrum-play button:focus-visible { outline-color: Highlight; box-shadow: none; }
+  .spectrum-play { color: CanvasText; }
+  .spectrum-board canvas { display: none; }
+  .spectrum-board .spectrum-fallback { display: block; }
 }

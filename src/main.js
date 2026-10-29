@@ -72,8 +72,9 @@ initThemePicker(signal);
 const hidePointerGuides=initPointerGuides(signal);
 
 const dialog=document.querySelector('#project-detail');let origin=null,previousOverflow='',previousWorkspaceOverflow='';
-const spectrum = initSpectrumPlay(signal, { musicControlled: true });
-initSoundCloudPlayer({ signal, onPlaybackChange: value => spectrum.setPlaying?.(value) });
+const spectrum = initSpectrumPlay(signal);
+initSoundCloudPlayer({ signal, onPlaybackChange: value => spectrum.setPlaying?.(value),
+  onTrackChange: track => spectrum.setTrack?.(track), onProgress: value => spectrum.setProgress?.(value) });
 const detailMotion=createProjectDetailMotion({dialog,reduced,signal});
 function openProject(index){
   const p=projects[index];if(!p)return;
