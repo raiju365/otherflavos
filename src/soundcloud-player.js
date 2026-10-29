@@ -46,10 +46,16 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
   let widget = null, frame = null, events = null, queue = [], current = 0;
   let ready = false, wanted = false, playing = false, advancing = false, finishEligible = false, disposed = false, revision = 0, retargets = 0, consecutiveErrors = 0;
   let readyTimer = 0, playTimer = 0;
+  let reconnects = 0, nativeRecovery = false;
   const alive = () => !disposed && !signal.aborted;
   const on = (target, event, handler) => target?.addEventListener(event, handler, { signal });
   const announce = text => { if (alive() && status) status.textContent = text; };
   function visual(value) { playing = value; onPlaybackChange(value); }
+  function showNative(value) {
+    nativeRecovery = value; root.dataset.nativePlayer = String(value);
+    host.setAttribute('aria-hidden', String(!value));
+    if (frame) { frame.setAttribute('aria-hidden', String(!value)); frame.tabIndex = value ? 0 : -1; }
+  }
   function render(state) {
     root.dataset.state = state;
     toggle.setAttribute('aria-label', wanted ? 'Pause music' : state === 'error' ? 'Retry music' : 'Play music');
@@ -58,6 +64,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     next.disabled = !ready || queue.length < 1;
   }
   function releaseWidget() {
+    showNative(false);
     clearTimeout(readyTimer); clearTimeout(playTimer);
     if (widget && events) for (const name of [events.READY, events.PLAY, events.PAUSE, events.FINISH, events.ERROR]) widget.unbind(name);
     try { widget?.pause(); } catch { /* Detached provider. */ }
@@ -75,11 +82,15 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
   }
   function readinessSlow() {
     if (!alive() || ready) return;
+    // One retry can recover the transient 408 observed in the real player.
+    // Respect a visitor who cancelled while the first request was loading.
+    if (wanted && reconnects === 0) { reconnects++; start(true); return; }
     // Keep the original navigation alive: removing the iframe here would
     // manufacture a cancelled Network request before its response arrived.
     wanted = finishEligible = false; visual(false); root.dataset.error = 'ready-timeout'; render('error');
+    showNative(true);
     if (title) title.textContent = 'SoundCloud belum terhubung';
-    announce('SoundCloud belum merespons. Pemuatan masih ditunggu; musik tidak akan mulai otomatis.');
+    announce('SoundCloud belum terhubung. Player aslinya ditampilkan agar pesan koneksi atau tombol Play dapat digunakan langsung.');
   }
   function requestPlay() {
     if (!alive() || !ready || !wanted) return;
@@ -88,6 +99,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     playTimer = setTimeout(() => {
       if (!alive() || playing || !wanted) return;
       wanted = advancing = finishEligible = false; try { widget.pause(); } catch { /* Provider error. */ }
+      showNative(true);
       visual(false); render('paused'); announce('Tekan Play untuk mulai memutar musik.');
     }, 8000);
     try { widget.play(); } catch { fail(); }
@@ -120,11 +132,14 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     visual(false); render('loading'); announce('Memuat lagu berikutnya.');
     try { widget.skip(queue[current].widgetIndex); if (queue.length === 1) widget.seekTo(0); requestPlay(); } catch { fail(); }
   }
-  async function start() {
+  async function start(reconnecting = false) {
     const token = ++revision; releaseWidget(); render('loading');
+    if (!reconnecting) reconnects = 0;
+    root.dataset.connectionAttempt = String(reconnects + 1);
     consecutiveErrors = 0;
     delete root.dataset.error;
-    announce('Memuat lagu Blockcore dari SoundCloud.');
+    if (title) title.textContent = reconnecting ? 'Menyambungkan kembali…' : 'Menghubungkan…';
+    announce(reconnecting ? 'Mencoba kembali koneksi SoundCloud.' : 'Memuat lagu Blockcore dari SoundCloud.');
     try {
       // The parent-side bridge is part of our own bundle, so no third-party
       // script has to load before the iframe can be controlled.
@@ -133,6 +148,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
       frame = document.createElement('iframe'); frame.title = 'SoundCloud audio source';
       frame.setAttribute('allow', 'autoplay; encrypted-media'); frame.setAttribute('aria-hidden', 'true'); frame.tabIndex = -1;
       frame.width = '300'; frame.height = '166'; frame.src = soundCloudEmbedURL(); host.append(frame);
+      on(frame, 'load', () => { if (alive() && token === revision) root.dataset.frameLoad = 'loaded'; });
       widget = Widget(frame); events = Widget.Events;
       const instance = widget, currentSession = () => alive() && widget === instance;
       readyTimer = setTimeout(readinessSlow, 15000);
@@ -154,7 +170,12 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
       });
       widget.bind(events.PLAY, () => {
         if (!currentSession()) return;
+        // A native Play click inside the exposed iframe is a fresh user action.
+        if (nativeRecovery && ready && document.activeElement === frame) wanted = true;
         if (!wanted || !ready) { widget.pause(); return; }
+        const restoreFocus = nativeRecovery && document.activeElement === frame;
+        showNative(false);
+        if (restoreFocus) toggle.focus?.({ preventScroll: true });
         clearTimeout(playTimer); consecutiveErrors = 0; finishEligible = true; visual(true); render('playing'); refreshCurrent();
       });
       widget.bind(events.PAUSE, () => {

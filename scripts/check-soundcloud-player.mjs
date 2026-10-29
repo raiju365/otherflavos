@@ -34,6 +34,7 @@ check('canonical oEmbed user resource disables unsolicited autoplay and uses no 
 class Element extends EventTarget {
   dataset = {}; attributes = {}; children = []; textContent = ''; disabled = false; title = ''; href = '';
   setAttribute(k, v) { this.attributes[k] = v; }
+  focus() { document.activeElement = this; }
   append(child) { this.children.push(child); child.parent = this; }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
 }
@@ -129,6 +130,7 @@ emit(toggle, 'click'); fireTimer(8000);
 check('autoplay denial returns to a usable Play state instead of a phantom playing state', () => {
   assert.equal(root.dataset.state, 'paused'); assert.equal(changes.at(-1), false);
   assert.equal(toggle.attributes['aria-pressed'], 'false'); assert.match(status.textContent, /Tekan Play/);
+  assert.equal(root.dataset.nativePlayer, 'true'); assert.equal(host.attributes['aria-hidden'], 'false');
 });
 emit(toggle, 'click'); player.fire('play'); emit(document, 'portfolio:musicpause');
 check('spectrum Escape request pauses actual audio', () => assert.equal(root.dataset.state, 'paused'));
@@ -161,16 +163,42 @@ check('an empty or unavailable artist queue never fabricates songs', () => {
   assert.equal(root.dataset.state, 'error'); assert.equal(next.disabled, true); assert.equal(host.children.length, 0);
 }); emptyAbort.abort();
 const timeoutAbort = new AbortController(); setMaxListeners(0, timeoutAbort.signal);
-initSoundCloudPlayer({ signal: timeoutAbort.signal, loadAPI }); emit(toggle, 'click'); await flush(); fireTimer(15000);
+initSoundCloudPlayer({ signal: timeoutAbort.signal, loadAPI }); emit(toggle, 'click'); await flush();
+const firstFrame = host.children[0], beforeReconnect = players.length;
+fireTimer(15000); await flush();
+check('initial readiness failure retries exactly once while play is still requested', () => {
+  assert.equal(players.length, beforeReconnect + 1); assert.equal(host.children.length, 1);
+  assert.notEqual(host.children[0], firstFrame); assert.equal(root.dataset.connectionAttempt, '2');
+  assert.equal(root.dataset.state, 'loading');
+});
+fireTimer(15000);
 check('readiness timeout stops waiting UI without cancelling the iframe request', () => {
   assert.equal(root.dataset.state, 'error'); assert.equal(root.dataset.error, 'ready-timeout');
   assert.equal(host.children.length, 1); assert.equal(toggle.attributes['aria-pressed'], 'false');
+  assert.equal(root.dataset.nativePlayer, 'true'); assert.equal(host.attributes['aria-hidden'], 'false');
+  assert.equal(host.children[0].attributes['aria-hidden'], 'false');
+  assert.equal([...timers.values()].filter(t => t.ms === 15000).length, 0);
 });
 player = players.at(-1); const playsBeforeLateReady = player.playCalls; player.fire('ready');
 check('late provider readiness recovers to paused without surprise autoplay', () => {
   assert.equal(root.dataset.state, 'paused'); assert.equal(root.dataset.error, undefined);
   assert.equal(player.playCalls, playsBeforeLateReady); assert.equal(next.disabled, false);
+});
+player.fire('play');
+check('a late PLAY without visitor interaction is still stopped after timeout', () => assert.equal(root.dataset.state, 'paused'));
+document.activeElement = player.frame; player.fire('play');
+check('native iframe Play can recover audio and hide the fallback after real interaction', () => {
+  assert.equal(root.dataset.state, 'playing'); assert.equal(root.dataset.nativePlayer, 'false');
+  assert.equal(host.attributes['aria-hidden'], 'true');
+  assert.equal(document.activeElement, toggle);
 }); timeoutAbort.abort();
+const cancelledAbort = new AbortController(); setMaxListeners(0, cancelledAbort.signal);
+initSoundCloudPlayer({ signal: cancelledAbort.signal, loadAPI }); emit(toggle, 'click'); await flush();
+const countBeforeCancel = players.length; emit(toggle, 'click'); fireTimer(15000); await flush();
+check('cancelling while loading prevents automatic reconnect and unsolicited audio', () => {
+  assert.equal(players.length, countBeforeCancel); assert.equal(root.dataset.state, 'error');
+  assert.equal(toggle.attributes['aria-pressed'], 'false');
+}); cancelledAbort.abort();
 let resolveAPI;
 const delayed = new Promise(resolve => { resolveAPI = resolve; });
 const delayedAbort = new AbortController(); setMaxListeners(0, delayedAbort.signal);

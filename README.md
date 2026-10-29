@@ -193,3 +193,8 @@ Run node scripts/check-soundcloud-bridge.mjs for 12 message/controller integrati
 
 
 SoundCloud timeout recovery: after 15 seconds without provider readiness, the player stops showing loading and clears playback intent but keeps the iframe's original navigation alive. A late READY updates the queue and returns to paused, so music does not start unexpectedly. Explicit retry or teardown still removes the old frame. An unconnected state requires checking the actual browser net::ERR code; provisional headers alone do not identify a network or content blocker.
+
+
+### User-browser connection recovery
+
+While Play is requested, a first 15-second readiness timeout reconnects once using the same official source. A second timeout clears playback intent, retains the pending iframe and displays the native SoundCloud player above the dock. Programmatic-play denial also exposes it. The native panel can show provider errors or offer a direct Play gesture in browsers that need it. The usual successful state keeps only Play/Pause and Next. Cancel prevents auto-reconnect; late readiness remains paused; a focused native iframe Play can resume and then returns focus to the custom toggle. This does not change network restrictions or promise access where SoundCloud itself is unreachable.
