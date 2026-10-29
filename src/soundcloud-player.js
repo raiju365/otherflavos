@@ -46,11 +46,19 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
   let widget = null, frame = null, events = null, queue = [], current = 0;
   let ready = false, wanted = false, playing = false, advancing = false, finishEligible = false, disposed = false, revision = 0, retargets = 0, consecutiveErrors = 0;
   let readyTimer = 0, playTimer = 0;
-  let reconnects = 0, nativeRecovery = false;
+  let nativeRecovery = false, warmed = false;
   const alive = () => !disposed && !signal.aborted;
   const on = (target, event, handler) => target?.addEventListener(event, handler, { signal });
   const announce = text => { if (alive() && status) status.textContent = text; };
   function visual(value) { playing = value; onPlaybackChange(value); }
+  function warmConnection() {
+    if (!alive() || warmed) return;
+    warmed = true;
+    if (document.querySelector('link[data-music-preconnect]')) return;
+    const link = document.createElement('link');
+    link.rel = 'preconnect'; link.href = 'https://w.soundcloud.com'; link.dataset.musicPreconnect = 'true';
+    document.head.append(link);
+  }
   function showNative(value) {
     nativeRecovery = value; root.dataset.nativePlayer = String(value);
     host.setAttribute('aria-hidden', String(!value));
@@ -74,33 +82,35 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
   function fail(reason = 'provider-error') {
     if (!alive()) return;
     root.dataset.error = reason;
+    delete root.dataset.waiting;
     revision++; wanted = finishEligible = false; visual(false); releaseWidget(); render('error');
-    if (title) title.textContent = reason === 'ready-timeout' ? 'SoundCloud belum terhubung'
-      : reason === 'empty-queue' ? 'Antrean belum tersedia' : reason === 'provider-error' ? 'Lagu belum tersedia' : 'Pemutar belum siap';
+    if (title) title.textContent = reason === 'empty-queue' ? 'Antrean belum tersedia'
+      : reason === 'provider-error' ? 'Lagu belum tersedia' : 'Pemutar belum siap';
     if (credit) credit.href = SOUNDCLOUD_ARTIST;
     announce('SoundCloud belum bisa diputar. Tekan Play untuk mencoba lagi, atau buka tautan Blockcore.');
   }
   function readinessSlow() {
     if (!alive() || ready) return;
-    // One retry can recover the transient 408 observed in the real player.
-    // Respect a visitor who cancelled while the first request was loading.
-    if (wanted && reconnects === 0) { reconnects++; start(true); return; }
-    // Keep the original navigation alive: removing the iframe here would
-    // manufacture a cancelled Network request before its response arrived.
-    wanted = finishEligible = false; visual(false); root.dataset.error = 'ready-timeout'; render('error');
-    showNative(true);
-    if (title) title.textContent = 'SoundCloud belum terhubung';
-    announce('SoundCloud belum terhubung. Player aslinya ditampilkan agar pesan koneksi atau tombol Play dapat digunakan langsung.');
+    // Slow provider loading is not an error. Preserve this exact request and
+    // the visitor's current intent instead of restarting or cancelling it.
+    root.dataset.waiting = 'provider';
+    if (!wanted) { render('paused'); return; }
+    visual(false); render('loading');
+    if (title) title.textContent = 'Memuat musik…';
+    announce('Musik masih dimuat dari SoundCloud. Tombol Pause dapat membatalkan pemutaran.');
   }
   function requestPlay() {
     if (!alive() || !ready || !wanted) return;
     clearTimeout(playTimer);
-    // If autoplay is blocked after asynchronous loading, return to an honest Play state.
+    // Buffering can be slow without failing. Keep Play intent and offer a
+    // direct provider gesture if the browser requires it after async loading.
     playTimer = setTimeout(() => {
       if (!alive() || playing || !wanted) return;
-      wanted = advancing = finishEligible = false; try { widget.pause(); } catch { /* Provider error. */ }
+      root.dataset.waiting = 'audio';
       showNative(true);
-      visual(false); render('paused'); announce('Tekan Play untuk mulai memutar musik.');
+      visual(false); render('loading');
+      if (title) title.textContent = 'Memuat audio…';
+      announce('Audio masih dimuat. Tunggu atau gunakan tombol Play di player SoundCloud.');
     }, 8000);
     try { widget.play(); } catch { fail(); }
   }
@@ -122,8 +132,10 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
   function pause() {
     if (!alive()) return;
     wanted = advancing = finishEligible = false; clearTimeout(playTimer); visual(false);
+    delete root.dataset.waiting;
     try { widget?.pause(); } catch { fail(); return; }
-    render(ready ? 'paused' : root.dataset.state === 'loading' ? 'loading' : 'idle');
+    render(ready || frame || root.dataset.state === 'loading' ? 'paused' : 'idle');
+    if (title) title.textContent = ready ? queue[current].title : 'Musik dijeda';
     announce('Musik dijeda.');
   }
   function advance() {
@@ -132,14 +144,14 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     visual(false); render('loading'); announce('Memuat lagu berikutnya.');
     try { widget.skip(queue[current].widgetIndex); if (queue.length === 1) widget.seekTo(0); requestPlay(); } catch { fail(); }
   }
-  async function start(reconnecting = false) {
+  async function start() {
     const token = ++revision; releaseWidget(); render('loading');
-    if (!reconnecting) reconnects = 0;
-    root.dataset.connectionAttempt = String(reconnects + 1);
+    root.dataset.connectionAttempt = '1';
     consecutiveErrors = 0;
     delete root.dataset.error;
-    if (title) title.textContent = reconnecting ? 'Menyambungkan kembali…' : 'Menghubungkan…';
-    announce(reconnecting ? 'Mencoba kembali koneksi SoundCloud.' : 'Memuat lagu Blockcore dari SoundCloud.');
+    delete root.dataset.waiting;
+    if (title) title.textContent = 'Memuat musik…';
+    announce('Memuat lagu Blockcore dari SoundCloud.');
     try {
       // The parent-side bridge is part of our own bundle, so no third-party
       // script has to load before the iframe can be controlled.
@@ -160,6 +172,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
           if (!queue.length) { fail('empty-queue'); return; }
           clearTimeout(readyTimer); ready = true; current = 0;
           delete root.dataset.error;
+          delete root.dataset.waiting;
           if (title) title.textContent = queue[0].title;
           if (credit) credit.href = queue[0].url;
           if (queue[0].widgetIndex !== 0) { advancing = wanted; widget.skip(queue[0].widgetIndex); }
@@ -175,6 +188,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
         if (!wanted || !ready) { widget.pause(); return; }
         const restoreFocus = nativeRecovery && document.activeElement === frame;
         showNative(false);
+        delete root.dataset.waiting;
         if (restoreFocus) toggle.focus?.({ preventScroll: true });
         clearTimeout(playTimer); consecutiveErrors = 0; finishEligible = true; visual(true); render('playing'); refreshCurrent();
       });
@@ -197,13 +211,19 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, load
     if (wanted) { pause(); return; }
     wanted = true;
     if (ready) { render('loading'); requestPlay(); }
-    else if (root.dataset.state !== 'loading') start();
+    else if (frame && widget) {
+      render('loading');
+      if (title) title.textContent = 'Memuat musik…';
+      announce('Melanjutkan pemuatan SoundCloud yang sedang berjalan.');
+    } else if (root.dataset.state !== 'loading') start();
   });
+  on(toggle, 'pointerenter', warmConnection); on(toggle, 'focusin', warmConnection);
   on(next, 'click', advance);
   on(document, 'portfolio:musicpause', pause);
   on(window, 'pagehide', pause);
   function cleanup() {
     if (disposed) return; disposed = true; revision++; wanted = finishEligible = false; visual(false); releaseWidget();
+    delete root.dataset.waiting;
     root.dataset.state = 'idle'; toggle.setAttribute('aria-pressed', 'false'); next.disabled = true;
   }
   signal.addEventListener('abort', cleanup, { once: true });
