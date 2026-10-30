@@ -2,7 +2,7 @@
 @media (min-width: 801px) and (min-height: 540px) {
   .spectrum-play:not([hidden]) {
     position: relative; z-index: 1; isolation: isolate; display: flex; flex: 1 1 auto;
-    width: calc(100% - 32px); min-height: 144px; margin-top: clamp(20px, 3vh, 32px);
+    width: calc(100% - 16px); min-height: 144px; margin-top: clamp(12px, 2vh, 20px);
     color: var(--rail-ink);
   }
   .spectrum-board { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; }

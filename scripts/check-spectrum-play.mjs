@@ -130,7 +130,8 @@ class Element extends EventTarget {
   getBoundingClientRect() { return this.rect; }
 }
 let draws = 0, geometry = [], path = [], unavailable = false;
-const paintedPoints=()=>geometry.reduce((sum,[commands])=>sum+commands.filter(c=>c[0]==='M').length,0);
+const corePaths=()=>geometry.filter(([,alpha])=>alpha>=.65);
+const paintedPoints=()=>corePaths().reduce((sum,[commands])=>sum+commands.filter(c=>c[0]==='M').length,0);
 const context = { setTransform() {}, clearRect() { draws++; geometry = []; },
   beginPath() { path=[]; }, moveTo(...args) { path.push(['M',...args]); }, lineTo(...args) { path.push(['L',...args]); },
   closePath() {}, stroke() {}, fill() { geometry.push([path,this.globalAlpha,this.fillStyle]); },
@@ -175,7 +176,7 @@ check('Pause also freezes an unfinished track transition without advancing its c
 controller.setPlaying(true); controller.setProgress(.75); step(34);
 const startDraws = draws;
 for (let n = 0; n < 180; n++) { if (n % 10 === 0) controller.setProgress(.75 + n / 180000); step(); }
-check('continuous confirmed playback uses one 60Hz owner and at most eight filled core paths', () => { assert.equal(frames.size, 1); assert.ok(draws-startDraws>=175&&draws-startDraws<=181);assert.ok(geometry.length<=8);assert.ok(paintedPoints()>=240);assert.equal(root.dataset.trackMorph,'1.000'); });
+check('continuous playback uses one 60Hz owner, small circular dots and at most eight core paths', () => { assert.equal(frames.size, 1); assert.ok(draws-startDraws>=175&&draws-startDraws<=181);assert.ok(corePaths().length<=8);assert.ok(geometry.length<=14);assert.ok(paintedPoints()>=240);assert.ok(geometry.every(([commands])=>commands.every(c=>c[0]==='M'||c[0]==='A')));assert.ok(corePaths().every(([commands])=>commands.filter(c=>c[0]==='A').every(c=>c[3]>=.55&&c[3]<=1.05)));assert.equal(root.dataset.trackMorph,'1.000'); });
 controller.setPlaying(false); const held = structuredClone(geometry); for (let i = 0; i < 60; i++) step();
 check('Pause immediately cancels frames and freezes the exact particle pose', () => { assert.equal(frames.size, 0); assert.deepEqual(geometry, held); });
 controller.setPlaying(true); controller.setProgress(.8); for (let i = 0; i < 70; i++) step();
