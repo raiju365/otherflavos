@@ -7,7 +7,7 @@
   }
   .spectrum-board { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; }
   .spectrum-board canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .spectrum-fallback { display: none; position: absolute; top: 48%; left: 16px; right: 16px; height: 1px; background: currentColor; opacity: .2; }
+  .spectrum-fallback { display: none; position: absolute; inset: 18% 7%; opacity: .3; background-image: radial-gradient(circle at 12% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 24% 36%, currentColor 1px, transparent 2px), radial-gradient(circle at 33% 72%, currentColor 1px, transparent 2px), radial-gradient(circle at 47% 43%, currentColor 1px, transparent 2px), radial-gradient(circle at 58% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 72% 29%, currentColor 1px, transparent 2px), radial-gradient(circle at 83% 57%, currentColor 1px, transparent 2px); }
   .spectrum-play[data-fallback=true] .spectrum-fallback { display: block; }
 }
 @media (forced-colors: active) {
