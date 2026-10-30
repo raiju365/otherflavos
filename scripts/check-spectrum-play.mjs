@@ -129,12 +129,13 @@ class Element extends EventTarget {
   rect = { width: 300, height: 180 };
   getBoundingClientRect() { return this.rect; }
 }
-let draws = 0, geometry = [], path = [], unavailable = false;
+let draws = 0, geometry = [], path = [], unavailable = false, clipped = false, clipRect = null;
 const corePaths=()=>geometry.filter(([,alpha])=>alpha>=.65);
 const paintedPoints=()=>corePaths().reduce((sum,[commands])=>sum+commands.filter(c=>c[0]==='M').length,0);
 const context = { setTransform() {}, clearRect() { draws++; geometry = []; },
+  save() { clipped=false; }, restore() { clipped=false; }, rect(...args) { clipRect=args; }, clip() { clipped=true; },
   beginPath() { path=[]; }, moveTo(...args) { path.push(['M',...args]); }, lineTo(...args) { path.push(['L',...args]); },
-  closePath() {}, stroke() {}, fill() { geometry.push([path,this.globalAlpha,this.fillStyle]); },
+  closePath() {}, stroke() { assert.ok(clipped,'particle strokes must stay inside the music bar'); }, fill() { assert.ok(clipped,'particle dots and echoes must stay inside the music bar');geometry.push([path,this.globalAlpha,this.fillStyle]); },
   arc(...args) { path.push(['A',...args]); } };
 const root = new Element(), board = new Element(), canvas = new Element(), dialog = new Element();
 canvas.getContext = () => unavailable ? null : context;
@@ -162,8 +163,9 @@ const answer = request => request.resolve({ok:true, json: async () => ({ samples
 const abort = new AbortController(); setMaxListeners(0, abort.signal); const controller = initSpectrumPlay(abort.signal);
 check('entry starts no animation and requests no waveform before a track exists', () => { assert.equal(frames.size, 0); assert.equal(requests.length, 0); });
 document.documentElement.dataset.entry = 'ready'; emit(document, 'portfolio:entryready'); step();
-check('the quiet dust paints once with DPR capped at two and no recurring clock', () => {
+check('the quiet dots paint inside an inset music-bar clip once, with capped DPR and no recurring clock', () => {
   assert.equal(draws, 1); assert.equal(canvas.width, 600); assert.equal(frames.size, 0);
+  assert.ok(clipRect[0]>0&&clipRect[1]>0&&clipRect[0]+clipRect[2]<board.rect.width&&clipRect[1]+clipRect[3]<board.rect.height);
 });
 controller.setPlaying(true); emit(board, 'pointermove'); emit(board, 'click'); step();
 check('Play and pointer movement cannot manufacture a beat', () => assert.equal(frames.size, 0));

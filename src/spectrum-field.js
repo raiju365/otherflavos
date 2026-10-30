@@ -1,5 +1,6 @@
 // Recorded amplitude drives the energy; seeded spatial noise only shapes particles.
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+const particleBounds = (width, height) => ({ x: Math.min(10, width * .035), y: Math.min(10, height * .05) });
 export function waveformURL(value) {
   try {
     const url = new URL(value);
@@ -140,7 +141,7 @@ export function particleGeometry(field, samples, progress, duration, range) {
     extentX = Math.max(extentX, Math.abs(x - .5)); extentY = Math.max(extentY, Math.abs(y - .5));
     return { x: x * field.width, y: y * field.height,
       radius: clamp(p.size * (1 + energy.level * .15 + p.depth * energy.rise * .16) * clamp(perspective, .8, 1.2), .65, 1.05),
-      alpha: clamp(.86 + p.depth * .08 + zTurn * .03 + energy.level * .03, .86, .99),
+      alpha: clamp(.9 + p.depth * .06 + zTurn * .02 + energy.level * .03, .9, .99),
       accent: p.accent || (arc > .7 && p.delay > .92), glyph: p.glyph,
       trail: p.accent ? energy.rise * (3 + p.depth * 8) + arc * 5 : 0,
       angle: p.angles[formation.from] + Math.atan2(Math.sin(p.angles[formation.to] - p.angles[formation.from]),
@@ -149,7 +150,9 @@ export function particleGeometry(field, samples, progress, duration, range) {
   });
   // Enlarge the complete formation uniformly, fitting its outline as a whole
   // instead of clipping individual particles into a hard rectangle at the edge.
-  const fit = Math.min(1, .475 / Math.max(.001, extentX), .46 / Math.max(.001, extentY));
+  const bounds = particleBounds(field.width, field.height);
+  const fit = Math.min(1, (.5 - (bounds.x + 3.2) / field.width) / Math.max(.001, extentX),
+    (.5 - (bounds.y + 3.2) / field.height) / Math.max(.001, extentY));
   if (fit < 1) for (const p of geometry) {
     p.x = field.width * .5 + (p.x - field.width * .5) * fit;
     p.y = field.height * .5 + (p.y - field.height * .5) * fit;
@@ -159,14 +162,15 @@ export function particleGeometry(field, samples, progress, duration, range) {
 }
 export function morphParticlePoses(from, to, progress) {
   const amount = clamp(progress, 0, 1);
+  const bounds = particleBounds(to.width, to.height);
   return { ...to, points: to.points.map((p, index) => {
     const old = from.points[index % from.points.length];
     const t = smooth((amount - (index % 13) / 13 * .1) / .9), arc = Math.sin(Math.PI * t);
     const x = old.x / from.width * to.width, y = old.y / from.height * to.height;
     const side = index % 2 ? 1 : -1;
     const radius = mix(old.radius, p.radius, t), margin = radius + 2;
-    return { ...p, x: clamp(mix(x, p.x, t) + Math.sin(index * 2.4) * arc * to.width * .022, margin, to.width - margin),
-      y: clamp(mix(y, p.y, t) + side * arc * to.height * .026, margin, to.height - margin),
+    return { ...p, x: clamp(mix(x, p.x, t) + Math.sin(index * 2.4) * arc * to.width * .022, bounds.x + margin, to.width - bounds.x - margin),
+      y: clamp(mix(y, p.y, t) + side * arc * to.height * .026, bounds.y + margin, to.height - bounds.y - margin),
       radius, alpha: mix(old.alpha, p.alpha, t), glyph: t < .5 ? old.glyph : p.glyph,
       angle: old.angle + Math.atan2(Math.sin(p.angle - old.angle), Math.cos(p.angle - old.angle)) * t,
       trail: mix(old.trail, p.trail, t), accent: (t < .45 ? old.accent : p.accent) || (arc > .7 && index % 17 === 0) };
@@ -177,12 +181,13 @@ export function settleParticlePose(previous, target, seconds) {
     || previous.points.length !== target.points.length) return target;
   if (target.level === 0) return { ...target, points: previous.points.map(p => ({ ...p, vx: 0, vy: 0 })) };
   const dt = clamp(seconds, 0, .05), omega = 22, decay = Math.exp(-omega * dt), blend = 1 - Math.exp(-18 * dt);
+  const bounds = particleBounds(target.width, target.height);
   return { ...target, points: target.points.map((p, i) => {
     const old = previous.points[i], dx = old.x - p.x, dy = old.y - p.y;
     const cx = (old.vx || 0) + omega * dx, cy = (old.vy || 0) + omega * dy;
     const radius = mix(old.radius, p.radius, blend), margin = radius + 2;
-    const x = clamp(p.x + (dx + cx * dt) * decay, margin, target.width - margin);
-    const y = clamp(p.y + (dy + cy * dt) * decay, margin, target.height - margin);
+    const x = clamp(p.x + (dx + cx * dt) * decay, bounds.x + margin, target.width - bounds.x - margin);
+    const y = clamp(p.y + (dy + cy * dt) * decay, bounds.y + margin, target.height - bounds.y - margin);
     const vx = ((old.vx || 0) - omega * cx * dt) * decay, vy = ((old.vy || 0) - omega * cy * dt) * decay;
     const moving = Math.hypot(x - old.x, y - old.y) > .015;
     // Short wakes follow actual displayed positions, never a separate oscillator.
@@ -195,6 +200,9 @@ export function settleParticlePose(previous, target, seconds) {
 }
 export function paintParticlePose(geometry, palette, ctx) {
   ctx.clearRect(0, 0, geometry.width, geometry.height);
+  const bounds = particleBounds(geometry.width, geometry.height);
+  ctx.save(); ctx.beginPath();
+  ctx.rect(bounds.x, bounds.y, geometry.width - bounds.x * 2, geometry.height - bounds.y * 2); ctx.clip();
   // The effect is made of tiny round dots too: three fading history samples,
   // with no ribbons, splinter glyphs or continuous streaks in the paint path.
   for (let accent = 0; accent < 2; accent++) for (let age = 2; age >= 0; age--) {
@@ -211,15 +219,16 @@ export function paintParticlePose(geometry, palette, ctx) {
   // Batch cores into eight tone/opacity paths instead of two paint calls per
   // point. Keep the dark under-stroke and put each bright core on top.
   for (let accent = 0; accent < 2; accent++) for (let shade = 0; shade < 4; shade++) {
-    ctx.globalAlpha = .68 + shade * .1; ctx.fillStyle = accent ? palette.accent : palette.ink; ctx.beginPath();
+    ctx.globalAlpha = .9 + shade * .03; ctx.fillStyle = accent ? palette.accent : palette.ink; ctx.beginPath();
     let any = false;
     for (const p of geometry.points) {
-      if (Number(p.accent) !== accent || clamp(Math.floor((p.alpha - .65) / .09), 0, 3) !== shade) continue;
+      if (Number(p.accent) !== accent || clamp(Math.floor((p.alpha - .9) / .025), 0, 3) !== shade) continue;
       any = true;
       ctx.moveTo(p.x + p.radius, p.y); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
     }
-    if (any) { ctx.strokeStyle = '#10130f'; ctx.lineWidth = .8; ctx.stroke(); ctx.fill(); }
+    if (any) { ctx.strokeStyle = '#10130f'; ctx.lineWidth = 1; ctx.stroke(); ctx.fill(); }
   }
+  ctx.restore();
   ctx.globalAlpha = 1;
   return geometry;
 }
