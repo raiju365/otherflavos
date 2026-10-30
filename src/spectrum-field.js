@@ -49,7 +49,7 @@ function randomGenerator(text) {
     return ((n ^ n >>> 14) >>> 0) / 4294967296;
   };
 }
-export const PARTICLE_FORMS = ['ribbons', 'pleats', 'shards', 'braid', 'cascade', 'fan',
+export const PARTICLE_FORMS = ['ribbons', 'pleats', 'braid', 'cascade', 'fan',
   'calligraphy', 'branches', 'chevrons', 'arches', 'strata', 'comets'];
 function createFormationTimeline(random) {
   const order = [];
@@ -77,21 +77,12 @@ export function createParticleField(width, height, seed = 'quiet') {
   const count = clamp(Math.round(width * height / 150), 240, 820);
   return { width, height, phase, timeline, particles: Array.from({ length: count }, (_, index) => {
     const u = random() * 2 - 1, v = random() * 2 - 1, depth = random(), lane = index % 2 ? 1 : -1;
-    const faces = [
-      [[-.91,-.49,-.15],[-.13,-.72,.15],[-.2,.15,.42]],
-      [[.04,-.18,.3],[.87,-.2,-.25],[.35,.62,.2]],
-      [[-.62,.26,.1],[-.1,.2,-.35],[-.15,.78,.2]]
-    ];
-    let a = (u + 1) * .5, b = (v + 1) * .5;
-    if (a + b > 1) { a = 1 - a; b = 1 - b; }
-    const face = faces[index % 3], shard = face[0].map((n, axis) => n + a * (face[1][axis] - n) + b * (face[2][axis] - n));
     const strand = index % 3 - 1, stream = index % 5 - 2, branch = index % 4;
     const theta = (u + 1) * 1.12 - 1.12, reach = .22 + (v + 1) * .37;
     const comet = index % 3, tail = (u + 1) * .5, widthAtTail = .025 + tail * .13;
     const targets = [
       [u * .83, lane * Math.sin(u * 2.6) * .38 + v * .07, lane * Math.cos(u * 2.6) * .32 + v * .06],
       [u * (.43 + (v + 1) * .2) + v * .1, v * .58 + Math.sin(u * 2.2 + phase) * .09, Math.sin(u * Math.PI * 3) * .24 + v * .12],
-      shard,
       [Math.sin(u * 4.4 + strand * 2.1) * .26 + strand * .08 + v * .035, u * .78,
         Math.cos(u * 4.4 + strand * 2.1) * .3],
       [stream * .29 + Math.sin(u * 3.4 + stream * .9) * .13 + v * .035, u * .73 + stream * .05,
@@ -101,8 +92,8 @@ export function createParticleField(width, height, seed = 'quiet') {
         Math.cos(u * 3.7) * .24],
       [u * .76, (branch - 1.5) * .19 * (u + 1) + Math.sin(u * 3 + branch) * .09 + v * .035,
         (branch - 1.5) * .12 + Math.sin(u * 3) * .1],
-      [u * .82, Math.asin(Math.sin(u * 4.5)) * .22 + stream * .14 + v * .035,
-        stream * .08 + Math.sin(u * 4) * .12],
+      [u * .82, Math.asin(Math.sin(u * 4.5)) * .3 + strand * .2 + v * .035,
+        strand * .11 + Math.sin(u * 4) * .12],
       [u * (.65 + strand * .06), (.55 - u * u * .95) + strand * .24 + v * .04,
         strand * .15 + u * .1],
       [u * .8, stream * .23 + Math.sin(u * 3.5 + stream * .65) * .16 + v * .045,
@@ -172,28 +163,63 @@ export function morphParticlePoses(from, to, progress) {
       trail: mix(old.trail, p.trail, t), accent: (t < .45 ? old.accent : p.accent) || (arc > .7 && index % 17 === 0) };
   }) };
 }
+export function settleParticlePose(previous, target, seconds) {
+  if (!previous || previous.width !== target.width || previous.height !== target.height
+    || previous.points.length !== target.points.length) return target;
+  if (target.level === 0) return { ...target, points: previous.points.map(p => ({ ...p, vx: 0, vy: 0 })) };
+  const dt = clamp(seconds, 0, .05), omega = 22, decay = Math.exp(-omega * dt), blend = 1 - Math.exp(-18 * dt);
+  return { ...target, points: target.points.map((p, i) => {
+    const old = previous.points[i], dx = old.x - p.x, dy = old.y - p.y;
+    const cx = (old.vx || 0) + omega * dx, cy = (old.vy || 0) + omega * dy;
+    const radius = mix(old.radius, p.radius, blend), margin = radius + 2;
+    const x = clamp(p.x + (dx + cx * dt) * decay, margin, target.width - margin);
+    const y = clamp(p.y + (dy + cy * dt) * decay, margin, target.height - margin);
+    const vx = ((old.vx || 0) - omega * cx * dt) * decay, vy = ((old.vy || 0) - omega * cy * dt) * decay;
+    const moving = Math.hypot(x - old.x, y - old.y) > .015;
+    // Short wakes follow actual displayed positions, never a separate oscillator.
+    const wake = dt === 0 ? old.wake || [] : (p.accent || i % 7 === 0)
+      ? (moving ? [{ x: old.x, y: old.y }, ...(old.wake || [])].slice(0, 18) : (old.wake || []).slice(0, -1)) : [];
+    return { ...p, x, y, vx, vy, radius, wake,
+      alpha: mix(old.alpha, p.alpha, blend), trail: mix(old.trail, p.trail, blend),
+      angle: old.angle + Math.atan2(Math.sin(p.angle - old.angle), Math.cos(p.angle - old.angle)) * blend };
+  }) };
+}
 export function paintParticlePose(geometry, palette, ctx) {
   ctx.clearRect(0, 0, geometry.width, geometry.height);
-  // Solid light/orange cores over a dark edge stay distinct from both the
-  // bright gradient and the darker grain. Paint the core last, never as a ring.
+  // A short tapered afterimage gives real travel a silk-like edge. No blur pass.
   for (const p of geometry.points) {
-    ctx.globalAlpha = p.alpha; ctx.fillStyle = p.accent ? palette.accent : palette.ink;
+    const wake = p.wake || [], speed = clamp(Math.hypot(p.vx || 0, p.vy || 0) / 24, 0, 1);
+    if (wake.length > 1 && speed > .04) {
+      ctx.strokeStyle = p.accent ? palette.accent : palette.ink; ctx.lineWidth = p.accent ? 1.4 : 1;
+      for (let segment = 2; segment >= 0; segment--) {
+        const start = Math.floor(segment * wake.length / 3), end = Math.floor((segment + 1) * wake.length / 3);
+        ctx.globalAlpha = p.alpha * speed * [.6, .27, .08][segment];
+        ctx.beginPath(); const head = start ? wake[start - 1] : p; ctx.moveTo(head.x, head.y);
+        for (let j = start; j < end; j++) ctx.lineTo(wake[j].x, wake[j].y);
+        ctx.stroke();
+      }
+    }
     if (p.trail > 1) {
-      ctx.strokeStyle = palette.accent; ctx.lineWidth = 1.15; ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      ctx.globalAlpha = p.alpha * .6; ctx.strokeStyle = palette.accent; ctx.lineWidth = 1.15; ctx.beginPath(); ctx.moveTo(p.x, p.y);
       ctx.lineTo(p.x - Math.cos(p.angle) * p.trail, p.y - Math.sin(p.angle) * p.trail); ctx.stroke();
     }
-    ctx.beginPath();
-    if (!p.glyph) ctx.arc(p.x, p.y, p.radius * .86, 0, Math.PI * 2);
-    else {
-      const cos = Math.cos(p.angle), sin = Math.sin(p.angle), narrow = p.glyph === 1 ? .22 : .65;
-      for (const [index, pair] of [[1, 0], [0, narrow], [-1, 0], [0, -narrow]].entries()) {
-        const x = p.x + (pair[0] * cos - pair[1] * sin) * p.radius;
-        const y = p.y + (pair[0] * sin + pair[1] * cos) * p.radius;
-        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  // Batch cores into eight tone/opacity paths instead of two paint calls per
+  // point. Keep the dark under-stroke and put each bright core on top.
+  for (let accent = 0; accent < 2; accent++) for (let shade = 0; shade < 4; shade++) {
+    ctx.globalAlpha = .68 + shade * .1; ctx.fillStyle = accent ? palette.accent : palette.ink; ctx.beginPath();
+    let any = false;
+    for (const p of geometry.points) {
+      if (Number(p.accent) !== accent || clamp(Math.floor((p.alpha - .65) / .09), 0, 3) !== shade) continue;
+      any = true;
+      if (!p.glyph) { ctx.moveTo(p.x + p.radius * .86, p.y); ctx.arc(p.x, p.y, p.radius * .86, 0, Math.PI * 2); }
+      else {
+        const cos = Math.cos(p.angle) * p.radius, sin = Math.sin(p.angle) * p.radius, narrow = p.glyph === 1 ? .22 : .65;
+        ctx.moveTo(p.x + cos, p.y + sin); ctx.lineTo(p.x - sin * narrow, p.y + cos * narrow);
+        ctx.lineTo(p.x - cos, p.y - sin); ctx.lineTo(p.x + sin * narrow, p.y - cos * narrow); ctx.closePath();
       }
-      ctx.closePath();
     }
-    ctx.strokeStyle = '#10130f'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.fill();
+    if (any) { ctx.strokeStyle = '#10130f'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.fill(); }
   }
   ctx.globalAlpha = 1;
   return geometry;

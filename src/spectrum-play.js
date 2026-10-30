@@ -1,4 +1,4 @@
-import { waveformURL, normalizeWaveform, waveformRange, createParticleField, particleGeometry, morphParticlePoses, paintParticlePose } from './spectrum-field.js';
+import { waveformURL, normalizeWaveform, waveformRange, createParticleField, particleGeometry, morphParticlePoses, settleParticlePose, paintParticlePose } from './spectrum-field.js';
 
 export function initSpectrumPlay(signal) {
   const root = document.querySelector('[data-spectrum-play]');
@@ -41,16 +41,17 @@ export function initSpectrumPlay(signal) {
   function paint(time = performance.now()) {
     frame = 0;
     if (!allowed() || forced.matches || !swarm) { stop(); return; }
-    if (lastPaint && time - lastPaint < 1000 / 30 - .2 && running(time)) { schedule(); return; }
+    if (lastPaint && time - lastPaint < 1000 / 60 - .2 && running(time)) { schedule(); return; }
     lastPaint = time;
     // Only bridge short gaps between provider positions. No independent beat clock,
     // and no hidden-time catch-up when playback messages stop.
     if (playing && providerTime !== null) displayedProgress = Math.min(1,
       field.progress + Math.max(0, Math.min(350, time - providerTime)) / Math.max(1, field.duration));
     let pose;
-    if (!playing && lastPose) {
+    if (!playing && lastPose && !reduced.matches) {
       pose = { ...lastPose, width: swarm.width, height: swarm.height, points: lastPose.points.map(p => ({ ...p,
-        x: p.x / lastPose.width * swarm.width, y: p.y / lastPose.height * swarm.height })) };
+        x: p.x / lastPose.width * swarm.width, y: p.y / lastPose.height * swarm.height,
+        wake: p.wake?.map(q => ({ x: q.x / lastPose.width * swarm.width, y: q.y / lastPose.height * swarm.height })) })) };
     } else {
       pose = particleGeometry(swarm, field.samples, displayedProgress, field.duration, field.range);
       if (reduced.matches) trackMorph = null;
@@ -61,6 +62,9 @@ export function initSpectrumPlay(signal) {
         root.dataset.trackMorph = amount.toFixed(3);
         if (amount === 1) trackMorph = null;
       }
+      if (!reduced.matches && (running(time) || pose.level === 0))
+        pose = settleParticlePose(lastPose, pose, morphTick === null ? 0 : (time - morphTick) / 1000);
+      else if (!reduced.matches && lastPose) pose = { ...pose, points: lastPose.points };
     }
     morphTick = running(time) ? time : null; lastPose = pose;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0); paintParticlePose(pose, palette, ctx);

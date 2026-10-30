@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
-import { waveformURL, normalizeWaveform, waveformRange, particleEnergy, createParticleField, particleGeometry, formationAt, morphParticlePoses, PARTICLE_FORMS } from '../src/spectrum-field.js';
+import { waveformURL, normalizeWaveform, waveformRange, particleEnergy, createParticleField, particleGeometry, formationAt, morphParticlePoses, settleParticlePose, PARTICLE_FORMS } from '../src/spectrum-field.js';
 import { initSpectrumPlay } from '../src/spectrum-play.js';
 const checks = [], check = (name, fn) => { fn(); checks.push(name); };
 check('waveform metadata accepts only exact HTTPS provider hosts and known formats', () => {
@@ -21,7 +21,7 @@ for (const [width, height] of [[220, 86], [300, 144], [470, 390], [780, 900]]) {
     const field = createParticleField(width, height, 'fixture');
     assert.ok(field.particles.length >= 240 && field.particles.length <= 820);
     for (let form=0;form<PARTICLE_FORMS.length;form++) {
-      field.timeline={stages:[{form,start:0,hold:2.5,morph:6},{form:(form+1)%12,start:8.5,hold:2.5,morph:6}],total:17};
+      field.timeline={stages:[{form,start:0,hold:2.5,morph:6},{form:(form+1)%PARTICLE_FORMS.length,start:8.5,hold:2.5,morph:6}],total:17};
       const data=Array(100).fill(1),range=waveformRange(data),duration=120000,speed=range.motion.at(-1)*duration/1000;
       for(const time of [1,3,5.5,8.49]) {
         const geometry = particleGeometry(field, data, time/speed, duration,range);
@@ -50,24 +50,25 @@ check('the same track position reproduces the same pose across seek and timing c
   const field = createParticleField(300, 180, 'same');
   assert.deepEqual(particleGeometry(field, samples, .7, 180000), particleGeometry(field, samples, .7, 180000));
 });
-check('twelve formations have different destinations rather than renamed copies', () => {
-  assert.equal(PARTICLE_FORMS.length, 12);
+check('eleven distinct formations remain and the rejected split-shard destination is absent', () => {
+  assert.equal(PARTICLE_FORMS.length, 11); assert.ok(!PARTICLE_FORMS.includes('shards'));
   const field = createParticleField(300, 180, 'forms');
-  for(let a=0;a<12;a++) for(let b=a+1;b<12;b++) {
+  for(let a=0;a<PARTICLE_FORMS.length;a++) for(let b=a+1;b<PARTICLE_FORMS.length;b++) {
     const distance=field.particles.reduce((sum,p)=>sum+Math.hypot(...p.targets[a].map((n,k)=>n-p.targets[b][k])),0)/field.particles.length;
     assert.ok(distance>.25, `${PARTICLE_FORMS[a]} and ${PARTICLE_FORMS[b]} are too similar`);
   }
 });
 check('each shuffled set covers all forms with no adjacent repeats, including timeline wrap', () => {
   const {timeline}=createParticleField(300,180,'sequence');
-  for(let i=0;i<timeline.stages.length;i+=12) assert.equal(new Set(timeline.stages.slice(i,i+12).map(s=>s.form)).size,12);
+  const size=PARTICLE_FORMS.length;
+  for(let i=0;i<timeline.stages.length;i+=size) assert.equal(new Set(timeline.stages.slice(i,i+size).map(s=>s.form)).size,size);
   timeline.stages.forEach((stage,i)=>{
     assert.notEqual(stage.form,timeline.stages[(i+1)%timeline.stages.length].form);
     assert.ok(stage.morph>=4.8&&stage.morph<=6.4);
     assert.equal(formationAt(stage.start+stage.hold*.5,timeline).from,stage.form);
     assert.ok(formationAt(stage.start+stage.hold+stage.morph*.5,timeline).progress>.49);
   });
-  assert.notDeepEqual(timeline.stages.slice(0,12).map(s=>s.form), timeline.stages.slice(12,24).map(s=>s.form));
+  assert.notDeepEqual(timeline.stages.slice(0,size).map(s=>s.form), timeline.stages.slice(size,size*2).map(s=>s.form));
 });
 check('the morph leaves and arrives with a gradual position and rotation change', () => {
   const field=createParticleField(300,180,'softness'),data=Array(100).fill(1),range=waveformRange(data),duration=120000;
@@ -106,12 +107,30 @@ check('retargeting a transition starts from the visible intermediate pose', () =
   const visible=morphParticlePoses(a,b,.43), retarget=morphParticlePoses(visible,c,0);
   assert.ok(retarget.points.every((p,i)=>Math.hypot(p.x-visible.points[i].x,p.y-visible.points[i].y)<.0001));
 });
+const springStart={width:300,height:180,level:1,points:[{x:70,y:60,radius:2,alpha:.8,angle:0,trail:0,accent:true,glyph:0}]};
+const springTarget={...springStart,points:[{...springStart.points[0],x:220,y:110,angle:1}]};
+check('position damping converges without overshoot and is consistent at 30 and 60Hz',()=>{
+  const run=hz=>{let pose=structuredClone(springStart);for(let i=0;i<hz;i++){pose=settleParticlePose(pose,springTarget,1/hz);assert.ok(pose.points[0].x>=70&&pose.points[0].x<=220);}return pose.points[0];};
+  const a=run(30),b=run(60);assert.ok(Math.abs(a.x-b.x)<1e-8);assert.ok(Math.abs(b.x-220)<.001);
+});
+check('wakes use displayed positions, have a fixed cap and stop on silence or a zero time step',()=>{
+  let pose=structuredClone(springStart);
+  for(let i=0;i<24;i++)pose=settleParticlePose(pose,springTarget,1/60);
+  assert.equal(pose.points[0].wake.length,18);assert.ok(pose.points[0].wake.every(q=>q.x>=70&&q.x<=220));
+  const held=settleParticlePose(pose,springTarget,0);assert.deepEqual(held.points[0].wake,pose.points[0].wake);assert.ok(Math.abs(held.points[0].x-pose.points[0].x)<1e-10);
+  const silent=settleParticlePose(pose,{...springTarget,level:0},.05);assert.equal(silent.points[0].x,pose.points[0].x);assert.equal(silent.points[0].vx,0);
+});
+check('a long scheduling gap is bounded and a resized field drops obsolete wake coordinates',()=>{
+  assert.deepEqual(settleParticlePose(springStart,springTarget,10),settleParticlePose(springStart,springTarget,.05));
+  const resized={...springTarget,width:400};assert.equal(settleParticlePose(springStart,resized,.02),resized);
+});
 class Element extends EventTarget {
   dataset = {}; hidden = false; children = []; open = false;
   rect = { width: 300, height: 180 };
   getBoundingClientRect() { return this.rect; }
 }
 let draws = 0, geometry = [], path = [], unavailable = false;
+const paintedPoints=()=>geometry.reduce((sum,[commands])=>sum+commands.filter(c=>c[0]==='M').length,0);
 const context = { setTransform() {}, clearRect() { draws++; geometry = []; },
   beginPath() { path=[]; }, moveTo(...args) { path.push(['M',...args]); }, lineTo(...args) { path.push(['L',...args]); },
   closePath() {}, stroke() {}, fill() { geometry.push([path,this.globalAlpha,this.fillStyle]); },
@@ -148,7 +167,7 @@ check('the quiet dust paints once with DPR capped at two and no recurring clock'
 controller.setPlaying(true); emit(board, 'pointermove'); emit(board, 'click'); step();
 check('Play and pointer movement cannot manufacture a beat', () => assert.equal(frames.size, 0));
 controller.setTrack({waveform:'https://wave.sndcdn.com/first.json', duration:180000}); answer(requests.at(-1)); await flush(); step();
-check('data loading alone cannot start a simulated beat before playback progress', () => { assert.equal(root.dataset.waveform, 'ready'); assert.ok(geometry.length > 100); assert.equal(frames.size, 0); });
+check('data loading alone cannot start a simulated beat before playback progress', () => { assert.equal(root.dataset.waveform, 'ready'); assert.ok(paintedPoints() > 100); assert.equal(frames.size, 0); });
 const before = structuredClone(geometry); for (let i = 0; i < 200; i++) controller.setProgress(.75); step(34); step(34);
 check('provider updates wake one particle owner with actual recorded energy', () => { assert.ok(JSON.stringify(geometry) !== JSON.stringify(before)); assert.equal(frames.size, 1); assert.equal(root.dataset.progress, '0.75000'); });
 controller.setPlaying(false); const midMorph=structuredClone(geometry); step(500);
@@ -156,7 +175,7 @@ check('Pause also freezes an unfinished track transition without advancing its c
 controller.setPlaying(true); controller.setProgress(.75); step(34);
 const startDraws = draws;
 for (let n = 0; n < 180; n++) { if (n % 10 === 0) controller.setProgress(.75 + n / 180000); step(); }
-check('continuous confirmed playback keeps one owner with at most 30 canvas draws per second', () => { assert.equal(frames.size, 1); assert.ok(draws - startDraws <= 91); assert.equal(root.dataset.trackMorph,'1.000'); });
+check('continuous confirmed playback uses one 60Hz owner and at most eight filled core paths', () => { assert.equal(frames.size, 1); assert.ok(draws-startDraws>=175&&draws-startDraws<=181);assert.ok(geometry.length<=8);assert.ok(paintedPoints()>=240);assert.equal(root.dataset.trackMorph,'1.000'); });
 controller.setPlaying(false); const held = structuredClone(geometry); for (let i = 0; i < 60; i++) step();
 check('Pause immediately cancels frames and freezes the exact particle pose', () => { assert.equal(frames.size, 0); assert.deepEqual(geometry, held); });
 controller.setPlaying(true); controller.setProgress(.8); for (let i = 0; i < 70; i++) step();
@@ -180,7 +199,7 @@ answer(old); await flush();
 check('a late waveform from the previous song cannot replace the latest track', () => { assert.equal(old.options.signal.aborted, true); assert.equal(root.dataset.waveform, 'loading'); });
 answer(current); await flush(); step();
 controller.setTrack({waveform:'https://attacker.test/track.json'}); step();
-check('missing or unsafe waveform data stays as quiet dust without fake rhythm', () => { assert.equal(root.dataset.waveform, 'unavailable'); assert.ok(geometry.length >= 240); assert.equal(frames.size, 0); });
+check('missing or unsafe waveform data stays as quiet dust without fake rhythm', () => { assert.equal(root.dataset.waveform, 'unavailable'); assert.ok(paintedPoints() >= 240); assert.equal(frames.size, 0); });
 controller.setTrack({waveform:'https://wave.sndcdn.com/aborted.json'}); const pending = requests.at(-1); abort.abort(); answer(pending); await flush();
 check('abort cancels pending data, frames and every observer; late results cannot revive it', () => { assert.equal(frames.size, 0); assert.equal(pending.options.signal.aborted, true); assert.ok(observers.every(o => o.dead)); assert.equal(root.hidden, true); });
 unavailable = true; const fallbackAbort = new AbortController(); setMaxListeners(0, fallbackAbort.signal); initSpectrumPlay(fallbackAbort.signal); step();
