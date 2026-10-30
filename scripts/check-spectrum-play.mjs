@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
-import { waveformURL, normalizeWaveform, waveformRange, particleEnergy, createParticleField, particleGeometry, formationAt, morphParticlePoses } from '../src/spectrum-field.js';
+import { waveformURL, normalizeWaveform, waveformRange, particleEnergy, createParticleField, particleGeometry, formationAt, morphParticlePoses, PARTICLE_FORMS } from '../src/spectrum-field.js';
 import { initSpectrumPlay } from '../src/spectrum-play.js';
 const checks = [], check = (name, fn) => { fn(); checks.push(name); };
 check('waveform metadata accepts only exact HTTPS provider hosts and known formats', () => {
@@ -20,10 +20,14 @@ for (const [width, height] of [[220, 86], [300, 144], [470, 390], [780, 900]]) {
   check(`${width}px particle cloud stays inside its canvas with a bounded point count`, () => {
     const field = createParticleField(width, height, 'fixture');
     assert.ok(field.particles.length >= 240 && field.particles.length <= 820);
-    for (const p of [0, .25, .5, 1]) {
-      const geometry = particleGeometry(field, samples, p, 180000);
-      assert.ok(geometry.points.every(b => b.x - b.radius >= 0 && b.x + b.radius <= width
-        && b.y - b.radius >= 0 && b.y + b.radius <= height && b.alpha >= 0 && b.alpha <= 1));
+    for (let form=0;form<PARTICLE_FORMS.length;form++) {
+      field.timeline={stages:[{form,start:0,hold:2.5,morph:6},{form:(form+1)%12,start:8.5,hold:2.5,morph:6}],total:17};
+      const data=Array(100).fill(1),range=waveformRange(data),duration=120000,speed=range.motion.at(-1)*duration/1000;
+      for(const time of [1,3,5.5,8.49]) {
+        const geometry = particleGeometry(field, data, time/speed, duration,range);
+        assert.ok(geometry.points.every(b => b.x - b.radius >= 0 && b.x + b.radius <= width
+          && b.y - b.radius >= 0 && b.y + b.radius <= height && b.alpha >= 0 && b.alpha <= 1));
+      }
     }
   });
 }
@@ -46,10 +50,32 @@ check('the same track position reproduces the same pose across seek and timing c
   const field = createParticleField(300, 180, 'same');
   assert.deepEqual(particleGeometry(field, samples, .7, 180000), particleGeometry(field, samples, .7, 180000));
 });
-check('formation choreography has three different states with a smooth transition window', () => {
-  assert.equal(formationAt(2).from, 0); assert.equal(formationAt(13).from, 1); assert.equal(formationAt(25).from, 2);
-  assert.equal(formationAt(7).progress, 0); assert.ok(formationAt(9.5).progress > 0 && formationAt(9.5).progress < 1);
-  assert.equal(formationAt(34.5).from, 0);
+check('twelve formations have different destinations rather than renamed copies', () => {
+  assert.equal(PARTICLE_FORMS.length, 12);
+  const field = createParticleField(300, 180, 'forms');
+  for(let a=0;a<12;a++) for(let b=a+1;b<12;b++) {
+    const distance=field.particles.reduce((sum,p)=>sum+Math.hypot(...p.targets[a].map((n,k)=>n-p.targets[b][k])),0)/field.particles.length;
+    assert.ok(distance>.25, `${PARTICLE_FORMS[a]} and ${PARTICLE_FORMS[b]} are too similar`);
+  }
+});
+check('each shuffled set covers all forms with no adjacent repeats, including timeline wrap', () => {
+  const {timeline}=createParticleField(300,180,'sequence');
+  for(let i=0;i<timeline.stages.length;i+=12) assert.equal(new Set(timeline.stages.slice(i,i+12).map(s=>s.form)).size,12);
+  timeline.stages.forEach((stage,i)=>{
+    assert.notEqual(stage.form,timeline.stages[(i+1)%timeline.stages.length].form);
+    assert.ok(stage.morph>=4.8&&stage.morph<=6.4);
+    assert.equal(formationAt(stage.start+stage.hold*.5,timeline).from,stage.form);
+    assert.ok(formationAt(stage.start+stage.hold+stage.morph*.5,timeline).progress>.49);
+  });
+  assert.notDeepEqual(timeline.stages.slice(0,12).map(s=>s.form), timeline.stages.slice(12,24).map(s=>s.form));
+});
+check('the morph leaves and arrives with a gradual position and rotation change', () => {
+  const field=createParticleField(300,180,'softness'),data=Array(100).fill(1),range=waveformRange(data),duration=120000;
+  const stage=field.timeline.stages[0], speed=range.motion.at(-1)*duration/1000;
+  const at=t=>particleGeometry(field,data,t/speed,duration,range);
+  const a=at(stage.hold), b=at(stage.hold+.05), c=at(stage.hold+.1);
+  assert.ok(b.points.every((p,i)=>Math.hypot(p.x-a.points[i].x,p.y-a.points[i].y)<1));
+  assert.ok(c.points.every((p,i)=>Math.abs(Math.atan2(Math.sin(p.angle-b.points[i].angle),Math.cos(p.angle-b.points[i].angle)))<.02));
 });
 check('a silent passage holds the artistic timeline instead of cycling through shapes', () => {
   const data = [1, 0, 0, 0, 1], field = createParticleField(300,180,'silence'), range = waveformRange(data);
@@ -57,11 +83,13 @@ check('a silent passage holds the artistic timeline instead of cycling through s
 });
 check('shape boundaries do not teleport particles at the transition endpoint', () => {
   const field = createParticleField(300,180,'continuity'), data = Array(100).fill(1), range = waveformRange(data);
-  const duration = 120000, speed = range.motion.at(-1) * duration / 1000;
-  const a = particleGeometry(field,data,(11.5-.0001)/speed,duration,range);
-  const b = particleGeometry(field,data,(11.5+.0001)/speed,duration,range);
-  assert.ok(a.points.every((p,i)=>Math.hypot(p.x-b.points[i].x,p.y-b.points[i].y)<.1));
-  assert.ok(a.points.every((p,i)=>Math.abs(Math.atan2(Math.sin(p.angle-b.points[i].angle),Math.cos(p.angle-b.points[i].angle)))<.01));
+  const duration = 2000000, speed = range.motion.at(-1) * duration / 1000;
+  for(const stage of [...field.timeline.stages.slice(1), {start:field.timeline.total}]) {
+    const a = particleGeometry(field,data,(stage.start-.0001)/speed,duration,range);
+    const b = particleGeometry(field,data,(stage.start+.0001)/speed,duration,range);
+    assert.ok(a.points.every((p,i)=>Math.hypot(p.x-b.points[i].x,p.y-b.points[i].y)<.1));
+    assert.ok(a.points.every((p,i)=>Math.abs(Math.atan2(Math.sin(p.angle-b.points[i].angle),Math.cos(p.angle-b.points[i].angle)))<.01));
+  }
 });
 check('track transitions preserve their source pose, settle at the target and remain bounded in between', () => {
   const a = particleGeometry(createParticleField(300,180,'old'), samples,.5,180000);
@@ -127,8 +155,8 @@ controller.setPlaying(false); const midMorph=structuredClone(geometry); step(500
 check('Pause also freezes an unfinished track transition without advancing its clock', () => {assert.equal(frames.size,0);assert.deepEqual(geometry,midMorph);});
 controller.setPlaying(true); controller.setProgress(.75); step(34);
 const startDraws = draws;
-for (let n = 0; n < 120; n++) { if (n % 10 === 0) controller.setProgress(.75 + n / 180000); step(); }
-check('continuous confirmed playback keeps one owner with at most 30 canvas draws per second', () => { assert.equal(frames.size, 1); assert.ok(draws - startDraws <= 61); assert.equal(root.dataset.trackMorph,'1.000'); });
+for (let n = 0; n < 180; n++) { if (n % 10 === 0) controller.setProgress(.75 + n / 180000); step(); }
+check('continuous confirmed playback keeps one owner with at most 30 canvas draws per second', () => { assert.equal(frames.size, 1); assert.ok(draws - startDraws <= 91); assert.equal(root.dataset.trackMorph,'1.000'); });
 controller.setPlaying(false); const held = structuredClone(geometry); for (let i = 0; i < 60; i++) step();
 check('Pause immediately cancels frames and freezes the exact particle pose', () => { assert.equal(frames.size, 0); assert.deepEqual(geometry, held); });
 controller.setPlaying(true); controller.setProgress(.8); for (let i = 0; i < 70; i++) step();

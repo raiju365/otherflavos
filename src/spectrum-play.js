@@ -56,7 +56,7 @@ export function initSpectrumPlay(signal) {
       if (reduced.matches) trackMorph = null;
       if (trackMorph) {
         if (running(time)) trackMorph.elapsed += morphTick === null ? 0 : Math.min(50, time - morphTick);
-        const amount = Math.min(1, trackMorph.elapsed / 1150);
+        const amount = Math.min(1, trackMorph.elapsed / 2400);
         pose = morphParticlePoses(trackMorph.from, pose, amount);
         root.dataset.trackMorph = amount.toFixed(3);
         if (amount === 1) trackMorph = null;
