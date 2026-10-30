@@ -1,4 +1,4 @@
-import { waveformURL, normalizeWaveform, waveformRange, createParticleField, paintParticles } from './spectrum-field.js';
+import { waveformURL, normalizeWaveform, waveformRange, createParticleField, particleGeometry, morphParticlePoses, paintParticlePose } from './spectrum-field.js';
 
 export function initSpectrumPlay(signal) {
   const root = document.querySelector('[data-spectrum-play]');
@@ -14,9 +14,10 @@ export function initSpectrumPlay(signal) {
   const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 } };
   let frame = 0, disposed = false, visible = true, page = true, focused = true, playing = false, trackRevision = 0, load = null;
   let swarm = null, seed = 'quiet', palette = null, ratio = 1, lastPaint = 0, providerTime = null, displayedProgress = 0;
+  let lastPose = null, trackMorph = null, morphTick = null;
   const allowed = () => !disposed && !signal.aborted && ctx && !root.hidden && visible && page && focused
     && !document.hidden && !dialog?.open && document.documentElement.dataset.entry !== 'loading';
-  function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = 0; root.dataset.active = 'false'; }
+  function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = 0; morphTick = null; root.dataset.active = 'false'; }
   function readPalette() {
     const css = getComputedStyle(root);
     palette = { ink: css.color, accent: css.getPropertyValue('--accent').trim() || css.color };
@@ -46,10 +47,26 @@ export function initSpectrumPlay(signal) {
     // and no hidden-time catch-up when playback messages stop.
     if (playing && providerTime !== null) displayedProgress = Math.min(1,
       field.progress + Math.max(0, Math.min(350, time - providerTime)) / Math.max(1, field.duration));
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const energy = paintParticles(swarm, field.samples, displayedProgress, field.duration, field.range, palette, ctx);
-    root.dataset.energy = energy.level.toFixed(3);
-    if (energy.level > 0 && running(time)) schedule();
+    let pose;
+    if (!playing && lastPose) {
+      pose = { ...lastPose, width: swarm.width, height: swarm.height, points: lastPose.points.map(p => ({ ...p,
+        x: p.x / lastPose.width * swarm.width, y: p.y / lastPose.height * swarm.height })) };
+    } else {
+      pose = particleGeometry(swarm, field.samples, displayedProgress, field.duration, field.range);
+      if (reduced.matches) trackMorph = null;
+      if (trackMorph) {
+        if (running(time)) trackMorph.elapsed += morphTick === null ? 0 : Math.min(50, time - morphTick);
+        const amount = Math.min(1, trackMorph.elapsed / 1150);
+        pose = morphParticlePoses(trackMorph.from, pose, amount);
+        root.dataset.trackMorph = amount.toFixed(3);
+        if (amount === 1) trackMorph = null;
+      }
+    }
+    morphTick = running(time) ? time : null; lastPose = pose;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); paintParticlePose(pose, palette, ctx);
+    root.dataset.energy = pose.level.toFixed(3); root.dataset.formation = pose.formation;
+    root.dataset.formationMorph = pose.morph.toFixed(3);
+    if ((pose.level > 0 || trackMorph) && running(time)) schedule();
     else root.dataset.active = 'false';
   }
   function schedule() {
@@ -63,6 +80,7 @@ export function initSpectrumPlay(signal) {
   }
   function cleanup() {
     if (disposed) return; disposed = true; trackRevision++; load?.abort(); stop();
+    lastPose = trackMorph = null;
     resize?.disconnect(); intersection?.disconnect(); modal?.disconnect(); theme?.disconnect(); root.hidden = true;
   }
   cleanup.setPlaying = value => {
@@ -81,6 +99,7 @@ export function initSpectrumPlay(signal) {
   cleanup.setTrack = async track => {
     if (disposed || signal.aborted) return;
     const revision = ++trackRevision; load?.abort(); load = new AbortController();
+    trackMorph = lastPose ? { from: lastPose, elapsed: 0 } : null;
     stop(); seed = track.url || track.waveform || 'quiet'; providerTime = null; displayedProgress = 0;
     field.samples = []; field.image = null; field.progress = 0; field.duration = track.duration || 0;
     field.range = { floor: 0, span: 1 }; measure(true);
