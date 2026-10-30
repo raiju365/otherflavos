@@ -50,7 +50,7 @@ export function createParticleField(width, height, seed = 'quiet') {
     // An irregular folded cloud, with no circular perimeter, grid or centre axis.
     const y = .5 + Math.sin(x * 7.2 + phase) * .17 + (random() - .5) * (.22 + depth * .38);
     return { x, y, depth, phase: random() * Math.PI * 2, speed: .22 + random() * .42,
-      size: .55 + depth * depth * 1.5, accent: random() < .14, split: random() - .5 };
+      size: 1.2 + depth * depth * 1.35, accent: random() < .14, split: random() - .5 };
   }) };
 }
 export function particleGeometry(field, samples, progress, duration, range) {
@@ -65,8 +65,8 @@ export function particleGeometry(field, samples, progress, duration, range) {
     const y = .5 + (p.y - .5) * (.65 + energy.level * .4 + burst * .25) + fold * drift * 1.8;
     const edge = Math.min(1, x * 9, (1 - x) * 9, y * 9, (1 - y) * 9);
     return { x: clamp(x, .035, .965) * field.width, y: clamp(y, .055, .945) * field.height,
-      radius: p.size * (.8 + energy.level * .4 + burst * .35),
-      alpha: clamp(edge, 0, 1) * (.2 + p.depth * .55) * (.45 + energy.level * .55),
+      radius: p.size * (1 + energy.level * .22 + burst * .22),
+      alpha: (.45 + clamp(edge, 0, 1) * .55) * (.74 + p.depth * .22) * (.88 + energy.level * .12),
       accent: p.accent, trail: p.accent ? energy.rise * (3 + p.depth * 9) : 0,
       angle: phase + field.phase, depth: p.depth };
   });
@@ -75,15 +75,16 @@ export function particleGeometry(field, samples, progress, duration, range) {
 export function paintParticles(field, samples, progress, duration, range, palette, ctx) {
   ctx.clearRect(0, 0, field.width, field.height);
   const geometry = particleGeometry(field, samples, progress, duration, range);
-  // Low-contrast distant dust, with a dark edge on foreground flecks for rail contrast.
+  // Solid light/orange cores over a dark edge stay distinct from both the
+  // bright gradient and the darker grain. Paint the core last, never as a ring.
   for (const p of geometry.points) {
     ctx.globalAlpha = p.alpha; ctx.fillStyle = p.accent ? palette.accent : palette.ink;
     if (p.trail > 1) {
-      ctx.strokeStyle = palette.accent; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      ctx.strokeStyle = palette.accent; ctx.lineWidth = 1.15; ctx.beginPath(); ctx.moveTo(p.x, p.y);
       ctx.lineTo(p.x - Math.cos(p.angle) * p.trail, p.y - Math.sin(p.angle) * p.trail); ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
-    if (p.depth > .7) { ctx.strokeStyle = '#080a08'; ctx.lineWidth = .55; ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#10130f'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.fill();
   }
   ctx.globalAlpha = 1;
   return geometry;
