@@ -1,56 +1,56 @@
-const epsilon = 1e-7;
+const epsilon = 1e-9;
+const clearance = .083;
 export const stageCount = 5;
 export const maxPoints = 25;
 const clamp = value => Math.max(0, Math.min(1, value));
-const cross = (x, y, u, v) => x * v - y * u;
+const subtract = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
-export function movePoint(points, index, x, y, spacing = .085) {
-  if (!points[index] || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-  const next = { x: clamp(x), y: clamp(y) };
-  if (Math.hypot(points[index].x - next.x, points[index].y - next.y) < epsilon) return false;
-  if (points.some((point, other) => other !== index && Math.hypot(point.x - next.x, point.y - next.y) < spacing)) return false;
-  points[index] = next;
+export function movePoint(points, index, target) {
+  const previous = points[index];
+  if (!previous || ![target.x, target.y, target.z].every(Number.isFinite) || distance(previous, target) < epsilon) return false;
+  points[index] = target;
   return true;
 }
 
-function intersection(a, b, c, d, sharedEndpoint) {
-  const rx = b.x - a.x, ry = b.y - a.y;
-  const sx = d.x - c.x, sy = d.y - c.y;
-  const qx = c.x - a.x, qy = c.y - a.y;
-  const denominator = cross(rx, ry, sx, sy);
-  let t;
-  if (Math.abs(denominator) > epsilon) {
-    if (sharedEndpoint) return null;
-    t = cross(qx, qy, sx, sy) / denominator;
-    const u = cross(qx, qy, rx, ry) / denominator;
-    if (t < -epsilon || t > 1 + epsilon || u < -epsilon || u > 1 + epsilon) return null;
-  } else {
-    // A wire touching an unrelated endpoint or lying on another wire still crosses.
-    if (Math.abs(cross(qx, qy, rx, ry)) > epsilon) return null;
-    const length = rx * rx + ry * ry;
-    if (length < epsilon) return null;
-    const first = (qx * rx + qy * ry) / length;
-    const last = first + (sx * rx + sy * ry) / length;
-    const start = Math.max(0, Math.min(first, last));
-    const end = Math.min(1, Math.max(first, last));
-    if (end < start - epsilon || (sharedEndpoint && end - start < epsilon)) return null;
-    t = (start + end) * .5;
+function closestContact(a, u, uu, c, v, vv) {
+  const offset = subtract(a, c);
+  const uv = dot(u, v), ur = dot(u, offset), vr = dot(v, offset);
+  const denominator = uu * vv - uv * uv;
+  let s = denominator > epsilon ? clamp((uv * vr - ur * vv) / denominator) : 0;
+  let t = vv > epsilon ? (uv * s + vr) / vv : 0;
+  if (t < 0 || t > 1 || vv <= epsilon) {
+    t = clamp(t);
+    s = uu > epsilon ? clamp((uv * t - ur) / uu) : 0;
   }
-  return { x: a.x + rx * t, y: a.y + ry * t };
+  const dx = offset.x + s * u.x - t * v.x;
+  const dy = offset.y + s * u.y - t * v.y;
+  const dz = offset.z + s * u.z - t * v.z;
+  if (dx * dx + dy * dy + dz * dz >= clearance * clearance) return null;
+  return {
+    x: (a.x + c.x + s * u.x + t * v.x) / 2,
+    y: (a.y + c.y + s * u.y + t * v.y) / 2,
+    z: (a.z + c.z + s * u.z + t * v.z) / 2,
+  };
 }
 
-export function findCrossings(points, edges) {
-  const crossings = [];
-  for (let i = 0; i < edges.length; i++) {
-    const [a, b] = edges[i];
-    for (let j = i + 1; j < edges.length; j++) {
-      const [c, d] = edges[j];
-      const sharedEndpoint = a === c || a === d || b === c || b === d;
-      const point = intersection(points[a], points[b], points[c], points[d], sharedEndpoint);
-      if (point) crossings.push({ ...point, edges: [i, j] });
+export function findContacts(points, edges) {
+  const contacts = [];
+  const wires = edges.map(([a, b]) => {
+    const vector = subtract(points[b], points[a]);
+    return { a, b, vector, squared: dot(vector, vector) };
+  });
+  for (let i = 0; i < wires.length; i++) {
+    const { a, b, vector: u, squared: uu } = wires[i];
+    for (let j = i + 1; j < wires.length; j++) {
+      const { a: c, b: d, vector: v, squared: vv } = wires[j];
+      if (a === c || a === d || b === c || b === d) continue;
+      const point = closestContact(points[a], u, uu, points[c], v, vv);
+      if (point) contacts.push({ ...point, edges: [i, j] });
     }
   }
-  return crossings;
+  return contacts;
 }
 
 export function boardLayout(width, height) {
@@ -60,19 +60,20 @@ export function boardLayout(width, height) {
   return { width, height, size, left: (width - size) / 2, top: (height - size) / 2 };
 }
 
-const stages = [[3, 2, 1, 1], [3, 3, 3, 8], [4, 3, 6, 20], [4, 4, 10, 55], [5, 5, 20, 150]];
+
+const stages = [[3, 2, 1, 1], [3, 3, 3, 3], [4, 3, 6, 8], [4, 4, 10, 18], [5, 5, 20, 45]];
 
 export function createKnot(level, random = Math.random) {
   const [columns, rows, moves, minimum] = stages[level];
-  const spacing = .44 / Math.max(rows, columns);
   const count = rows * columns;
-  let best;
-  let bestCount = -1;
-  for (let attempt = 0; attempt < 48; attempt++) {
+  let best, bestCount = -1;
+  for (let attempt = 0; attempt < 64; attempt++) {
+    const depths = Array.from({ length: count }, (_, i) => .08 + .84 * (i + random()) / count);
+    const jitter = attempt === 63 ? 0 : .07;
     const points = Array.from({ length: count }, (_, i) => {
       const x = (i % columns) / (columns - 1), y = Math.floor(i / columns) / (rows - 1);
-      return { x: .12 + .76 * x + (random() - .5) * .20 / columns + (y - .5) * .10 * (random() - .5),
-        y: .12 + .76 * y + (random() - .5) * .20 / rows };
+      return { x: .10 + .80 * x + (random() - .5) * jitter,
+        y: .10 + .80 * y + (random() - .5) * jitter, z: depths.splice(Math.floor(random() * depths.length), 1)[0] };
     });
     if (random() < .5) points.forEach(point => { point.x = 1 - point.x; });
     if (random() < .5) points.forEach(point => { [point.x, point.y] = [point.y, point.x]; });
@@ -86,63 +87,76 @@ export function createKnot(level, random = Math.random) {
       }
     }
     const solution = points.slice(), order = [];
-    const candidates = Array.from({ length: count }, (_, index) => index);
+    if (findContacts(solution, edges).length) continue;
+    const low = Math.min(...points.map(point => point.z)), high = Math.max(...points.map(point => point.z));
+    const candidates = points.flatMap((point, index) => point.z === low || point.z === high ? [] : [index]);
     while (order.length < moves && candidates.length) {
       const [index] = candidates.splice(Math.floor(random() * candidates.length), 1);
-      for (let sample = 0; sample < 24; sample++) {
-        const x = .06 + .88 * random(), y = .06 + .88 * random();
-        if (Math.hypot(x - solution[index].x, y - solution[index].y) < .21) continue;
-        if (movePoint(points, index, x, y, spacing)) {
-          order.push(index);
-          break;
-        }
+      for (let sample = 0; sample < 18; sample++) {
+        const target = { x: .09 + .82 * random(), y: .09 + .82 * random(), z: .09 + .82 * random() };
+        if (distance(target, solution[index]) < .24 || points.some(point => distance(point, target) < .075)) continue;
+        movePoint(points, index, target);
+        order.push(index);
+        break;
       }
     }
-    const crossingCount = findCrossings(points, edges).length;
-    if (crossingCount > bestCount) {
-      bestCount = crossingCount;
-      best = { points, edges, solution, order: order.reverse(), spacing };
+    const contactCount = findContacts(points, edges).length;
+    if (contactCount > bestCount) {
+      bestCount = contactCount;
+      best = { points, edges, solution, order: order.reverse() };
     }
-    if (crossingCount >= minimum) return best;
+    if (contactCount >= minimum) return best;
+  }
+  // If a shuffle happens to remain clean, create one contact on a non-adjacent wire.
+  if (!bestCount) {
+    const depths = best.solution.map(point => point.z);
+    const low = Math.min(...depths), high = Math.max(...depths);
+    const [a, b] = best.edges.flatMap(([a, b]) => [[a, b], [b, a]])
+      .find(([index]) => depths[index] !== low && depths[index] !== high);
+    const [c, d] = best.edges.find(edge => !edge.includes(a) && !edge.includes(b));
+    const first = best.points[c], second = best.points[d];
+    best.points[a] = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2, z: (first.z + second.z) / 2 };
+    best.order = [...best.order.filter(index => index !== a), a];
   }
   return best;
 }
 
-// The puzzle lies in one plane. A perspective camera can orbit the scene
-// independently, so viewing angle and the depth of the strings cannot win a stage.
-export function cameraProjection(layout, yaw, pitch) {
+export function frameView(points) {
+  const axes = ['x', 'y', 'z'];
+  const center = Object.fromEntries(axes.map(axis => {
+    const values = points.map(point => point[axis]);
+    return [axis, (Math.min(...values) + Math.max(...values)) / 2];
+  }));
+  const radius = Math.max(...points.map(point => distance(point, center)));
+  return { center, zoom: Math.min(1, .57 / Math.max(radius, .001)) };
+}
+
+export function cameraProjection(layout, yaw, pitch, view = { center: { x: .5, y: .5, z: .5 }, zoom: 1 }) {
   const c = Math.cos(yaw), s = Math.sin(yaw), p = Math.cos(pitch), q = Math.sin(pitch);
-  const distance = 2.65;
-  const cx = layout.width / 2, cy = layout.height / 2;
-  let size = layout.size;
-  // The closest corner can grow under perspective, especially at diagonal
-  // angles. Reserve a hit-target margin before mapping both draw and input.
-  for (const x of [-.5, .5]) {
-    for (const y of [-.5, .5]) {
-      const depth = -s * x;
-      const z = q * y + p * depth;
-      const scale = distance / (distance - z);
-      size = Math.min(size, (cx - 23) / Math.max(.001, Math.abs(c * x * scale)),
-        (cy - 23) / Math.max(.001, Math.abs((p * y - q * depth) * scale)));
-    }
-  }
-  size = Math.max(1, size);
+  const right = { x: c, y: 0, z: s };
+  const down = { x: q * s, y: p, z: -q * c };
+  const near = { x: -p * s, y: q, z: p * c };
+  const size = layout.size * view.zoom;
   return {
-    project(point, height = 0) {
-      const x = point.x - .5, y = point.y - .5;
-      const depth = -s * x + c * height;
-      const z = q * y + p * depth;
-      const scale = distance / (distance - z);
-      return { x: cx + (c * x + s * height) * size * scale,
-        y: cy + (p * y - q * depth) * size * scale, z, scale };
+    project(point) {
+      const local = subtract(point, view.center);
+      const depth = dot(local, near) * view.zoom;
+      return { x: layout.width / 2 + dot(local, right) * size,
+        y: layout.height / 2 + dot(local, down) * size, z: depth,
+        scale: Math.max(.76, Math.min(1.22, 1 + depth * .29)) };
     },
-    unproject(point) {
-      const x = (point.x - cx) / size, y = (point.y - cy) / size;
-      const a = c - x * p * s / distance, b = x * q / distance;
-      const d = q * s - y * p * s / distance, e = p + y * q / distance;
-      const determinant = a * e - b * d;
-      if (Math.abs(determinant) < .065) return null;
-      return { x: .5 + (x * e - b * y) / determinant, y: .5 + (a * y - x * d) / determinant };
+    move(point, dx, dy, axis = 'free') {
+      const x = dx / size, y = dy / size;
+      if (axis === 'free') return {
+        x: point.x + x * right.x + y * down.x,
+        y: point.y + x * right.y + y * down.y,
+        z: point.z + x * right.z + y * down.z,
+      };
+      const rx = right[axis], ry = down[axis];
+      const projected = rx * rx + ry * ry;
+      // When a chosen axis points into the camera, use vertical motion for depth.
+      const amount = projected < .10 ? -y * Math.sign(near[axis]) : (x * rx + y * ry) / projected;
+      return { ...point, [axis]: point[axis] + amount };
     },
   };
 }

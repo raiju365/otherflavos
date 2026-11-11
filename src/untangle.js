@@ -1,4 +1,4 @@
-import { boardLayout, cameraProjection, createKnot, findCrossings, maxPoints, movePoint, stageCount } from './untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, distance, findContacts, frameView, maxPoints, movePoint, stageCount } from './untangle-model.js';
 
 const pulseDuration = 880;
 const arrows = {
@@ -17,6 +17,7 @@ export function initUntangle(root, signal, random = Math.random) {
   const live = root.querySelector('[data-play-live]');
   const reset = root.querySelector('[data-play-reset]');
   const front = root.querySelector('[data-play-front]');
+  const axis = root.querySelector('[data-play-axis]');
   const next = root.querySelector('[data-play-next]');
   const toolbar = root.querySelector('.play-toolbar');
   const ctx = canvas.getContext('2d');
@@ -30,10 +31,10 @@ export function initUntangle(root, signal, random = Math.random) {
   const forced = matchMedia('(forced-colors: active)');
   const dialog = document.querySelector('#project-detail');
   const on = (target, type, handler) => target.addEventListener(type, handler, { signal });
-  let level = 0, knot;
+  let level = 0, knot, view;
   let yaw = .23, pitch = -.24, orbit = null, orbitMoved = false;
   const vibrations = new Map();
-  let points = [], crossings = [];
+  let points = [], contacts = [];
   let solved = false, selected = -1, drag = null;
   let layout = null, frame = 0, pulse = null;
   let ratio = 1, ink = '', accent = '';
@@ -55,8 +56,8 @@ export function initUntangle(root, signal, random = Math.random) {
     live.textContent = message;
   }
 
-  function crossingLabel() {
-    return `${crossings.length} ${crossings.length === 1 ? 'crossing' : 'crossings'} left`;
+  function contactLabel() {
+    return `${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'} left`;
   }
 
   function syncSelection() {
@@ -66,20 +67,20 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function syncCrossings() {
-    crossings = findCrossings(points, knot.edges);
-    const label = crossingLabel();
+    contacts = findContacts(points, knot.edges);
+    const label = contactLabel();
     if (status.textContent !== label) status.textContent = label;
   }
 
-  function place(index, x, y) {
+  function place(index, target) {
     const previous = points[index];
-    if (!movePoint(points, index, x, y, knot.spacing)) return false;
+    if (!movePoint(points, index, target)) return false;
     if (!reduced.matches && !forced.matches) {
       const point = points[index];
-      const dx = previous.x - point.x, dy = previous.y - point.y;
-      const amplitude = Math.min(.12, Math.hypot(dx, dy) * 2.3);
-      const length = Math.hypot(dx, dy);
-      vibrations.set(index, { x: dx / length * amplitude, y: dy / length * amplitude, start: null });
+      const dx = previous.x - point.x, dy = previous.y - point.y, dz = previous.z - point.z;
+      const amplitude = Math.min(.12, Math.hypot(dx, dy, dz) * 2.3);
+      const length = Math.hypot(dx, dy, dz);
+      vibrations.set(index, { x: dx / length * amplitude, y: dy / length * amplitude, z: dz / length * amplitude, start: null });
     }
     syncCrossings();
     schedule();
@@ -87,8 +88,10 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function finishMove(index) {
-    if (crossings.length) {
-      announce(crossingLabel());
+    if (points.some(point => distance(point, view.center) * view.zoom > .60)) view = frameView(points);
+    schedule();
+    if (contacts.length) {
+      announce(contactLabel());
       return;
     }
     solved = true;
@@ -116,15 +119,16 @@ export function initUntangle(root, signal, random = Math.random) {
     level = index;
     knot = createKnot(level, random);
     points = knot.points;
+    view = frameView(points);
     field.dataset.dense = String(points.length > 16);
     vibrations.clear();
-    crossings = findCrossings(points, knot.edges);
+    contacts = findContacts(points, knot.edges);
     pulse = null;
     solved = false;
     selected = -1;
     field.dataset.solved = 'false';
     label.textContent = `Stage ${level + 1} / ${stageCount}`;
-    status.textContent = crossingLabel();
+    status.textContent = contactLabel();
     reset.hidden = false;
     next.hidden = true;
     buttons.forEach((button, i) => {
@@ -133,13 +137,13 @@ export function initUntangle(root, signal, random = Math.random) {
     });
     syncSelection();
     if (focus) {
-      announce(`Stage ${level + 1}. ${crossingLabel()}.`);
+      announce(`Stage ${level + 1}. ${contactLabel()}.`);
       buttons[0].focus({ preventScroll: true });
     }
     schedule();
   }
 
-  const camera = () => cameraProjection(layout, yaw, pitch);
+  const camera = () => cameraProjection(layout, yaw, pitch, view);
 
   function stroke(a, b, color, opacity, width) {
     ctx.strokeStyle = color;
@@ -169,7 +173,7 @@ export function initUntangle(root, signal, random = Math.random) {
     }
 
     const origin = pulse.origin;
-    const distances = points.map(point => Math.hypot(point.x - origin.x, point.y - origin.y));
+    const distances = points.map(point => distance(point, origin));
     knot.edges.forEach(([a, b]) => {
       if (distances[b] < distances[a]) [a, b] = [b, a];
       const local = (phase - distances[a] * .34) / .48;
@@ -192,7 +196,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
     const projection = camera();
     const vertices = points.map(point => projection.project(point));
-    const marked = new Set(crossings.flatMap(crossing => crossing.edges));
+    const marked = new Set(contacts.flatMap(crossing => crossing.edges));
     const active = drag?.index ?? selected;
     const sway = new Map();
     for (const [index, vibration] of vibrations) {
@@ -202,12 +206,8 @@ export function initUntangle(root, signal, random = Math.random) {
       const decay = Math.exp(-time * 6);
       const wave = Math.cos(time * 32) * decay;
       sway.set(index, { x: vibration.x * wave, y: vibration.y * wave,
-        z: Math.hypot(vibration.x, vibration.y) * Math.sin(time * 30) * decay * .8 });
+        z: vibration.z * wave + Math.hypot(vibration.x, vibration.y) * Math.sin(time * 30) * decay * .65 });
     }
-
-    const outline = [[.035, .035], [.965, .035], [.965, .965], [.035, .965]].map(([x, y]) =>
-      projection.project({ x, y }, -.08));
-    outline.forEach((point, i) => stroke(point, outline[(i + 1) % outline.length], ink, .12, 1));
 
     const wires = knot.edges.map(([a, b], index) => ({ a, b, index, z: vertices[a].z + vertices[b].z }));
     wires.sort((a, b) => a.z - b.z);
@@ -215,7 +215,7 @@ export function initUntangle(root, signal, random = Math.random) {
       const crossing = marked.has(index);
       const activeWire = a === active || b === active;
       const opacity = activeWire ? .95 : crossing ? (points.length > 16 ? (active < 0 ? .48 : .22) : .82)
-        : solved || forced.matches ? .76 : .42 + z * .12;
+        : solved || forced.matches ? .76 : .35 + unit((z + 1) / 2) * .24;
       const color = crossing ? accent : ink;
       const width = crossing ? 1.45 : 1.1;
       if (!sway.has(a) && !sway.has(b)) {
@@ -233,13 +233,14 @@ export function initUntangle(root, signal, random = Math.random) {
         const t = i / 12, u = 1 - t, bend = Math.sin(Math.PI * t);
         const x = first.x * u + second.x * t + bend * ((left?.x ?? 0) * u + (right?.x ?? 0) * t);
         const y = first.y * u + second.y * t + bend * ((left?.y ?? 0) * u + (right?.y ?? 0) * t);
-        const point = projection.project({ x, y }, bend * ((left?.z ?? 0) * u + (right?.z ?? 0) * t));
+        const z = first.z * u + second.z * t + bend * ((left?.z ?? 0) * u + (right?.z ?? 0) * t);
+        const point = projection.project({ x, y, z });
         ctx.lineTo(point.x, point.y);
       }
       ctx.stroke();
     }
-    const markerStep = active < 0 ? Math.max(1, Math.ceil(crossings.length / 38)) : 1;
-    crossings.forEach((crossing, index) => {
+    const markerStep = active < 0 ? Math.max(1, Math.ceil(contacts.length / 38)) : 1;
+    contacts.forEach((crossing, index) => {
       if (active >= 0 && !crossing.edges.some(edge => knot.edges[edge].includes(active))) return;
       if (index % markerStep === 0) ring(projection.project(crossing), 3.8, .84);
     });
@@ -284,20 +285,22 @@ export function initUntangle(root, signal, random = Math.random) {
 
   function pointerPosition(event) {
     const rect = field.getBoundingClientRect();
-    return camera().unproject({
+    return {
       x: event.clientX - rect.left - field.clientLeft,
       y: event.clientY - rect.top - field.clientTop,
-    });
+    };
   }
 
   function resetView() {
+    if (!available() || drag) return;
     yaw = pitch = 0;
+    view = frameView(points);
     schedule();
   }
 
   on(front, 'click', resetView);
   on(front, 'keydown', event => {
-    if (!available() || !Object.hasOwn(arrows, event.key)) return;
+    if (!available() || drag || !Object.hasOwn(arrows, event.key)) return;
     event.preventDefault();
     const [x, y] = arrows[event.key];
     yaw += x * .18;
@@ -351,8 +354,8 @@ export function initUntangle(root, signal, random = Math.random) {
     selected = selected === index ? -1 : index;
     syncSelection();
     if (selected >= 0) {
-      const { x, y } = points[index];
-      announce(`Point ${index + 1} selected. ${Math.round(x * 100)} percent from left, ${Math.round(y * 100)} percent from top.`);
+      const { x, y, z } = points[index];
+      announce(`Point ${index + 1} selected. ${Math.round(x * 100)} on X, ${Math.round(y * 100)} on Y, ${Math.round(z * 100)} on Z.`);
     } else announce('Point deselected.');
     schedule();
   }
@@ -360,12 +363,11 @@ export function initUntangle(root, signal, random = Math.random) {
   buttons.forEach((button, index) => {
     on(button, 'pointerdown', event => {
       if (!playable() || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
-      const pointer = pointerPosition(event);
-      if (!pointer) return;
+      const projection = camera();
       const origin = points[index];
       drag = {
         button, index, id: event.pointerId, origin, moved: false,
-        x: event.clientX, y: event.clientY, offsetX: origin.x - pointer.x, offsetY: origin.y - pointer.y,
+        x: event.clientX, y: event.clientY, projection, axis: axis.value,
       };
       button.dataset.grabbed = 'true';
       try { button.setPointerCapture?.(event.pointerId); } catch { /* Window input still tracks the drag. */ }
@@ -383,10 +385,8 @@ export function initUntangle(root, signal, random = Math.random) {
       event.preventDefault();
       const [dx, dy] = arrows[event.key];
       const step = event.shiftKey ? .016 : .055;
-      const projection = camera();
-      const { x, y } = projection.project(points[index]);
-      const target = projection.unproject({ x: x + dx * step * layout.size, y: y + dy * step * layout.size });
-      if (target && place(index, target.x, target.y)) finishMove(index);
+      const target = camera().move(points[index], dx * step * layout.size, dy * step * layout.size, axis.value);
+      if (place(index, target)) finishMove(index);
     });
   });
 
@@ -398,8 +398,8 @@ export function initUntangle(root, signal, random = Math.random) {
       selected = -1;
       syncSelection();
     }
-    const pointer = pointerPosition(event);
-    if (pointer) place(drag.index, pointer.x + drag.offsetX, pointer.y + drag.offsetY);
+    const target = drag.projection.move(drag.origin, event.clientX - drag.x, event.clientY - drag.y, drag.axis);
+    place(drag.index, target);
   }
 
   on(window, 'pointermove', trackDrag);
@@ -422,10 +422,9 @@ export function initUntangle(root, signal, random = Math.random) {
   });
   on(field, 'click', event => {
     if (!playable() || orbitMoved || selected < 0 || event.target.closest?.('[data-play-node]')) return;
-    const target = pointerPosition(event);
-    if (!target) return;
-    const { x, y } = target;
-    if (!place(selected, x, y)) return;
+    const pointer = pointerPosition(event);
+    const projection = camera(), origin = points[selected], position = projection.project(origin);
+    if (!place(selected, projection.move(origin, pointer.x - position.x, pointer.y - position.y, axis.value))) return;
     const index = selected;
     selected = -1;
     syncSelection();

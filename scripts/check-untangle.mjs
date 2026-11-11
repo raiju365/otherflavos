@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
-import { boardLayout, cameraProjection, createKnot, findCrossings, movePoint, stageCount } from '../src/untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, findContacts, frameView, movePoint, stageCount } from '../src/untangle-model.js';
 import { initUntangle } from '../src/untangle.js';
 
 const passed = [];
@@ -17,20 +17,22 @@ function rng(seed) {
 }
 
 check('five stages generate distinct solvable layouts with increasing complexity', () => {
-  const minima = [1, 8, 20, 55, 150];
+  const minima = [1, 3, 8, 18, 45];
   for (let level = 0; level < stageCount; level++) {
     const arrangements = new Set(), connections = new Set();
     for (let seed = 1; seed <= 100; seed++) {
       const knot = createKnot(level, rng(seed));
       arrangements.add(JSON.stringify(knot.points));
+      const depths = knot.points.map(point => point.z);
+      assert.ok(Math.max(...depths) - Math.min(...depths) > .45);
       connections.add(JSON.stringify(knot.edges));
-      assert.ok(findCrossings(knot.points, knot.edges).length >= minima[level]);
-      assert.equal(findCrossings(knot.solution, knot.edges).length, 0);
+      assert.ok(findContacts(knot.points, knot.edges).length >= minima[level]);
+      assert.equal(findContacts(knot.solution, knot.edges).length, 0);
       for (const index of knot.order) {
-        const { x, y } = knot.solution[index];
-        assert.equal(movePoint(knot.points, index, x, y, knot.spacing), true);
+        const target = knot.solution[index];
+        assert.equal(movePoint(knot.points, index, target), true);
       }
-      assert.equal(findCrossings(knot.points, knot.edges).length, 0);
+      assert.equal(findContacts(knot.points, knot.edges).length, 0);
       if (level === 4) assert.deepEqual([knot.points.length, knot.edges.length], [25, 56]);
     }
     assert.equal(arrangements.size, 100);
@@ -38,29 +40,41 @@ check('five stages generate distinct solvable layouts with increasing complexity
   }
 });
 
-check('overlapping wires count as crossings but shared endpoints alone do not', () => {
-  const points = [[0, 0], [1, 1], [0, 1], [1, 0], [.5, .5]].map(([x, y]) => ({ x, y }));
-  assert.deepEqual(findCrossings(points, [[0, 1], [2, 3]]), [{ x: .5, y: .5, edges: [0, 1] }]);
-  assert.equal(findCrossings(points, [[0, 1], [0, 2]]).length, 0);
-  assert.equal(findCrossings(points, [[0, 1], [0, 4]]).length, 1);
+check('contacts are measured in 3D, so crossing in the projection alone is allowed', () => {
+  const points = [[0, 0, 0], [1, 1, 0], [0, 1, 0], [1, 0, 0]].map(([x, y, z]) => ({ x, y, z }));
+  const edges = [[0, 1], [2, 3]];
+  assert.deepEqual(findContacts(points, edges), [{ x: .5, y: .5, z: 0, edges: [0, 1] }]);
+  points[2].z = points[3].z = .16;
+  assert.equal(findContacts(points, edges).length, 0);
+  assert.equal(findContacts(points, [[0, 1], [0, 2]]).length, 0);
 });
 
-check('360° perspective stays in the field and round-trips usable drag positions', () => {
+check('full side view spreads by Z and screen drag remains reversible at every angle', () => {
   const layout = boardLayout(344, 332);
-  const point = { x: .23, y: .67 };
-  let recovered = 0;
+  const point = { x: .23, y: .67, z: .18 };
   for (let angle = 0; angle <= 360; angle += 5) {
     const camera = cameraProjection(layout, angle * Math.PI / 180, angle * Math.PI / 270);
-    const projected = camera.project(point);
-    assert.ok(projected.x > 0 && projected.x < layout.width && projected.y > 0 && projected.y < layout.height);
-    const inverse = camera.unproject(projected);
-    if (inverse) {
-      assert.ok(Math.hypot(inverse.x - point.x, inverse.y - point.y) < 1e-10);
-      recovered++;
-    }
+    const from = camera.project(point);
+    const next = camera.project(camera.move(point, 62, -31));
+    assert.ok(Math.abs(next.x - from.x - 62) < 1e-10);
+    assert.ok(Math.abs(next.y - from.y + 31) < 1e-10);
   }
-  assert.ok(recovered > 60);
-  assert.equal(cameraProjection(layout, Math.PI / 2, 0).unproject({ x: 172, y: 166 }), null);
+  const side = cameraProjection(layout, Math.PI / 2, 0);
+  assert.ok(Math.abs(side.project(point).x - side.project({ ...point, z: .84 }).x) > 100);
+});
+
+check('all three world axes can move independently outside the original bounds', () => {
+  const layout = boardLayout(344, 332);
+  const camera = cameraProjection(layout, 0, 0);
+  const points = [{ x: .5, y: .5, z: .5 }, { x: .8, y: .8, z: .8 }];
+  for (const [axis, dx, dy] of [['x', 500, 0], ['y', 0, 500], ['z', 0, -500]]) {
+    const from = points[0];
+    const target = camera.move(from, dx, dy, axis);
+    assert.ok(target[axis] > 1);
+    for (const other of ['x', 'y', 'z'].filter(key => key !== axis)) assert.equal(target[other], from[other]);
+    assert.equal(movePoint(points, 0, target), true);
+  }
+  assert.equal(movePoint(points, 0, { ...points[1] }), true);
 });
 class Element extends EventTarget {
   dataset = {};
@@ -94,7 +108,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
+    '[data-play-live]', '[data-play-front]', '[data-play-axis]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
   const nodes = elements['[data-play-nodes]'], status = elements['[data-play-status]'];
@@ -135,13 +149,25 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   }
   globalThis.ResizeObserver = globalThis.MutationObserver = Observer;
   const source = rng(12345), expected = rng(12345);
+  const axis = elements['[data-play-axis]'];
+  axis.value = 'free';
   initUntangle(root, abort.signal, source);
   const front = elements['[data-play-front]'];
   emit(front, 'click');
-  const nextExpected = level => createKnot(level, expected);
+  const layout = boardLayout(rect.width, rect.height);
+  let view;
+  function nextExpected(level) {
+    const knot = createKnot(level, expected);
+    view = frameView(knot.points);
+    return knot;
+  }
+  function fit(points) {
+    view = frameView(points);
+    emit(front, 'click');
+  }
   function pointAt(x, y) {
-    const layout = boardLayout(rect.width, rect.height);
-    return { clientX: rect.left + layout.left + x * layout.size, clientY: rect.top + layout.top + y * layout.size };
+    const point = cameraProjection(layout, 0, 0, view).project({ x, y, z: 0 });
+    return { clientX: rect.left + point.x, clientY: rect.top + point.y };
   }
   function grab(index, point, pointerId = 7) {
     emit(nodes.children[index], 'pointerdown', { ...pointAt(...point), pointerId, button: 0, isPrimary: true, pointerType: 'touch' });
@@ -155,7 +181,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     send('pointerup', to);
   }
   return {
-    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, frames, observers, strokes, rect, nextExpected,
+    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, frames, observers, strokes, rect, nextExpected, fit, axis,
     fallback: elements['[data-play-fallback]'], toolbar: elements['.play-toolbar'],
     pointAt, grab, send, drag,
     step(now = 0) {
@@ -176,7 +202,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   f.step();
   check('stage one shows the generated crossing count and no idle frames', () => {
     assert.equal(f.label.textContent, 'Stage 1 / 5');
-    assert.equal(parseInt(f.status.textContent, 10), findCrossings(knot.points, knot.edges).length);
+    assert.equal(parseInt(f.status.textContent, 10), findContacts(knot.points, knot.edges).length);
     assert.equal(f.frames.size, 0);
   });
 
@@ -219,7 +245,16 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   for (let level = 0; level < stageCount; level++) {
     for (const index of knot.order) {
       if (!f.next.hidden) break;
-      f.drag(index, at(knot.points[index]), at(knot.solution[index]));
+      const origin = knot.points[index], target = knot.solution[index];
+      f.axis.value = 'free';
+      f.drag(index, at(origin), at(target));
+      knot.points[index] = { ...target, z: origin.z };
+      if (!f.next.hidden) break;
+      f.fit(knot.points);
+      f.axis.value = 'z';
+      f.drag(index, at(target), [target.x, target.y - (target.z - origin.z)]);
+      knot.points[index] = target;
+      f.fit(knot.points);
     }
     assert.equal(f.field.dataset.solved, 'true');
     assert.equal(f.next.textContent, level === 4 ? 'Play again' : 'Next knot');
@@ -245,10 +280,32 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   emit(f.nodes.children[index], 'click', { detail: 0 });
   emit(f.field, 'click', { target: f.field, ...f.pointAt(to.x, to.y) });
   f.step(40);
-  check('tap to place can solve a stage in reduced motion with no animation frames left', () => {
-    assert.equal(f.field.dataset.solved, 'true');
+  check('tap to place updates spatial contacts without any reduced motion frames', () => {
+    const projected = { ...to, z: point.z };
+    knot.points[index] = projected;
+    const count = findContacts(knot.points, knot.edges).length;
+    assert.equal(f.status.textContent, count ? `${count} ${count === 1 ? 'contact' : 'contacts'} left` : 'Knot untangled');
     assert.equal(f.frames.size, 0);
-    assert.equal(f.next.hidden, false);
+  });
+  f.abort.abort();
+}
+
+{
+  const f = fixture({ reduced: true });
+  const knot = f.nextExpected(0);
+  const origin = knot.points[0];
+  f.step();
+  f.axis.value = 'x';
+  f.drag(0, [origin.x, origin.y], [origin.x + 3, origin.y]);
+  f.step(40);
+  knot.points[0] = { ...origin, x: origin.x + 3 };
+  const fit = cameraProjection(boardLayout(f.rect.width, f.rect.height), 0, 0, frameView(knot.points));
+  check('dragging far past the field moves the node and reframes the full network after release', () => {
+    for (const [index, point] of knot.points.entries()) {
+      const projected = fit.project(point);
+      assert.ok(Math.abs(parseFloat(f.nodes.children[index].style.left) - projected.x) < .001);
+      assert.ok(projected.x >= 20 && projected.x <= f.rect.width - 20);
+    }
   });
   f.abort.abort();
 }
