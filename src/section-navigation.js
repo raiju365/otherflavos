@@ -69,9 +69,14 @@ export function initSectionNavigation(signal) {
     });
   }
 
+  function normalizeTab(key) {
+    const target = key === 'play' || key === 'now' ? 'home' : key;
+    return tabs.some(tab => tab.dataset.tab === target) ? target : 'home';
+  }
+
   async function selectTab(key, { historyMode = 'push', animate = true } = {}) {
     if (signal.aborted) return;
-    if (!tabs.some(tab => tab.dataset.tab === key)) key = 'home';
+    key = normalizeTab(key);
     const previousIndex = tabs.findIndex(tab => tab.dataset.tab === active);
     const nextIndex = tabs.findIndex(tab => tab.dataset.tab === key);
     const direction = nextIndex >= previousIndex ? 1 : -1;
@@ -92,7 +97,8 @@ export function initSectionNavigation(signal) {
     if (moving) {
       revealLabel(tabs[nextIndex], direction);
     }
-    if (historyMode === 'push' && location.hash !== `#${key}`) history.pushState({ tab: key }, '', `#${key}`);
+    const fragment = '#' + (key === 'home' ? 'play' : key);
+    if (historyMode === 'push' && location.hash !== fragment) history.pushState({ tab: key }, '', fragment);
     if (moving && previous) {
       transitioning = true;
       previous.inert = true;
@@ -153,7 +159,7 @@ export function initSectionNavigation(signal) {
   });
   on(window, 'popstate', () => selectTab(location.hash.slice(1), { historyMode: 'none' }));
   on(window, 'hashchange', () => {
-    if (location.hash.slice(1) !== active) selectTab(location.hash.slice(1), { historyMode: 'none' });
+    if (normalizeTab(location.hash.slice(1)) !== active) selectTab(location.hash.slice(1), { historyMode: 'none' });
   });
   on(window, 'resize', () => {
     const widthChanged = Math.abs(window.innerWidth - viewportWidth) > .5;

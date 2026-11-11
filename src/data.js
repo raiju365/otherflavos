@@ -38,7 +38,7 @@ export const profile = {
 
 // preview is optional. Replace the local scroll studies with your real full-page
 // capture (motion: 'scroll') or a poster + video path. Keep video null if unavailable.
-// image remains the separate screenshot used by Now and the project detail.
+// image remains the separate screenshot used by the project detail.
 export const projects = [
   {
     id: 'website', name: '[nama website]', type: 'website / frontend', status: 'placeholder',

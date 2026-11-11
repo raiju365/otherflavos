@@ -178,4 +178,26 @@ for (const options of [{ reduced: true }, { noWaapi: true }]) {
   const next = f.navigation.selectTab('more'); f.finishPanel(home); await flush(); await next; f.abort.abort(); await flush();
   check('abort releases every pending native effect without an obsolete transition callback', () => assert.equal(f.active().length, 0));
 }
+{
+  const f = fixture({ source: 'play', reduced: true }), [play, projects] = f.panels;
+  check('the Play deep link opens the existing first panel', () => {
+    assert.equal(play.hidden, false);
+    assert.equal(projects.hidden, true);
+    assert.equal(f.workspace.dataset.view, 'home');
+  });
+  await f.navigation.selectTab('projects');
+  await f.navigation.selectTab('home');
+  check('selecting the first tab writes the canonical Play fragment', () => {
+    assert.equal(location.hash, '#play');
+    assert.equal(play.hidden, false);
+  });
+  await f.navigation.selectTab('projects');
+  location.hash = '#now';
+  emit(window, 'hashchange');
+  check('legacy Now links still open Play without rewriting the address', () => {
+    assert.equal(play.hidden, false);
+    assert.equal(location.hash, '#now');
+  });
+  f.abort.abort();
+}
 console.log(JSON.stringify({ mode: 'Actual navigation/header/reveal event fixtures; not browser-rendered motion', passed: passed.length, checks: passed }, null, 2));
