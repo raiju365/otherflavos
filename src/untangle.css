@@ -150,8 +150,18 @@
 }
 
 @media (max-width: 800px) {
-  .play-field { height: clamp(330px, 122cqi, 65svh); }
-  .play-layout { padding-bottom: max(86px, calc(env(safe-area-inset-bottom) + 74px)); }
+  .play-field { height: clamp(330px, 122cqi, 65svh); isolation: isolate; }
+  .play-layout {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: max(86px, calc(env(safe-area-inset-bottom) + 74px));
+  }
+  .play-toolbar {
+    position: sticky;
+    inset-block-end: calc(max(16px, env(safe-area-inset-bottom)) + 68px);
+    z-index: 1;
+    align-self: center;
+  }
 }
 
 @container untangle (max-width: 460px) {
