@@ -1,5 +1,4 @@
-/* All mobile tabs share header/nav structure. Only About and the enhanced
-   gallery use a fixed viewport; Now retains natural document scrolling. */
+/* All mobile tabs share header/nav structure and size their content to the viewport. */
 @media (max-width: 800px) {
   html { scrollbar-gutter: auto; scrollbar-width: none; }
   html::-webkit-scrollbar { display: none; }
@@ -34,16 +33,25 @@
   #tabs::before { right: 100%; }
   #tabs::after { left: 100%; }
   #tabs > button { height: 44px; font-size: 14px; }
-  html:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+  html:has(.workspace[data-view=home], .workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
     scrollbar-gutter: auto;
   }
-  body:has(.workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
+  body:has(.workspace[data-view=home], .workspace[data-view=more], .workspace[data-view=projects] .loop-gallery[data-enhanced=true]) {
     min-height: 100svh;
 
     .portfolio { height: 100svh; margin-block: 0; padding-bottom: 0; }
     .portfolio-layout { height: 100%; min-height: 0; }
     .workspace { flex: 1; min-height: 0; }
     .panels { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  }
+
+  html:has(.workspace[data-view=home]) { overflow: hidden; overscroll-behavior-y: none; }
+  body:has(.workspace[data-view=home]) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+
+    .portfolio { height: 100%; }
   }
 
   .workspace[data-view=more] {
@@ -144,5 +152,15 @@
     .profile-sticky > .identity { grid-area: 2 / 1; text-align: center; }
     .identity h1 { font-size: clamp(32px, 5.1svh, 44px); }
     .identity-meta { justify-content: center; margin-inline: auto; }
+  }
+}
+
+@media (max-width: 800px) and (max-height: 480px) {
+  body:has(.workspace[data-view=home]) {
+    .profile-sticky { grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding-block: 0 6px; }
+    .profile-sticky > .figure-wrap, .profile-sticky #figure { width: 36px; height: 45px; }
+    .profile-sticky > .identity { text-align: left; }
+    .identity h1 { font-size: 24px; }
+    .identity-meta { justify-content: flex-start; margin: 2px 0 0; }
   }
 }
