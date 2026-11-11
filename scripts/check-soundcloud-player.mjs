@@ -62,223 +62,168 @@ function Widget(frame) {
     skip(index) { this.index = index; this.skips.push(index); handlers.get('pause')?.(); }, seekTo(value) { this.seek = value; },
     getSounds(fn) { if (this.deferSounds) this.soundsCallback = fn; else fn(this.sounds); },
     getCurrentSoundIndex(fn) { if (this.deferIndex) this.indexCallback = fn; else fn(this.index); },
+    getDuration(fn) { this.durationCalls = (this.durationCalls || 0) + 1; if (this.deferDuration) this.durationCallback = fn; else fn(this.duration || 180000); },
     fire(name, value) { handlers.get(name)?.(value); }
   };
   players.push(player); return player;
 }
 Widget.Events = { READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error', PLAY_PROGRESS: 'playProgress', SEEK: 'seek' };
 const loadAPI = async () => Widget;
-const changes = [], progress = [], published = [];
-const abort = new AbortController(); setMaxListeners(0, abort.signal);
-initSoundCloudPlayer({ signal: abort.signal, onPlaybackChange: active => changes.push(active), onProgress: value => progress.push(value), onTrackChange: track => published.push(track), loadAPI });
-check('initial page has idle controls, no iframe/script and a stopped waveform', () => {
-  assert.equal(host.children.length, 0); assert.equal(head.children.length, 0);
-  assert.equal(root.dataset.state, 'idle'); assert.equal(next.disabled, true); assert.equal(changes.at(-1), false);
+
+const changes = [], progress = [], timings = [], published = [];
+const manual = signal => initSoundCloudPlayer({ autoplay: false, signal, onPlaybackChange: active => changes.push(active), onProgress: (value, timing) => { progress.push(value); timings.push(timing); }, onTrackChange: track => published.push(track), loadAPI });
+const abort = new AbortController(); setMaxListeners(0, abort.signal); manual(abort.signal);
+check('manual initialization supports two controls without an iframe before Play', () => {
+  assert.equal(host.children.length, 0); assert.equal(root.dataset.state, 'idle'); assert.equal(changes.at(-1), false);
 });
 emit(toggle, 'pointerenter'); emit(toggle, 'focusin');
-check('hover or keyboard focus warms one provider connection without loading music', () => {
-  assert.equal(head.children.length, 1); assert.equal(head.children[0].tagName, 'link');
-  assert.equal(head.children[0].rel, 'preconnect'); assert.equal(head.children[0].href, 'https://w.soundcloud.com');
-  assert.equal(host.children.length, 0); assert.equal(players.length, 0);
-});
+check('hover and focus warm only one provider connection', () => { assert.equal(head.children.length, 1); assert.equal(host.children.length, 0); });
 emit(toggle, 'click'); await flush(); let player = players.at(-1);
-check('first Play loads one official iframe without pretending audio is already playing', () => {
-  assert.equal(host.children.length, 1); assert.equal(root.dataset.state, 'loading');
-  assert.equal(changes.at(-1), false); assert.equal(player.playCalls, 0);
-  assert.equal(host.children[0].attributes.allow, 'autoplay; encrypted-media');
-});
-emit(toggle, 'click'); player.fire('pause'); player.fire('ready');
-check('cancel during loading never starts sound when provider readiness arrives', () => {
-  assert.equal(player.playCalls, 0); assert.equal(root.dataset.state, 'paused'); assert.equal(next.disabled, false);
-});
-emit(toggle, 'click'); player.fire('play');
-check('confirmed PLAY updates track attribution, button and spectrum together', () => {
-  assert.equal(root.dataset.state, 'playing'); assert.equal(toggle.attributes['aria-pressed'], 'true');
-  assert.equal(changes.at(-1), true); assert.equal(title.textContent, 'Fixture A');
-  assert.equal(credit.href, fixtureSounds[0].permalink_url);
-});
-emit(mute, 'click');
-check('Mute silences the widget without pausing playback', () => {
-  assert.equal(player.volume, 0); assert.equal(root.dataset.state, 'playing');
-  assert.equal(mute.attributes['aria-label'], 'Unmute music'); assert.equal(root.dataset.muted, 'true');
-});
-emit(mute, 'click'); player.fire('playProgress', { relativePosition: .25 });
-check('Unmute restores audio and only genuine progress supplies the waveform position', () => {
-  assert.equal(player.volume, 100); assert.equal(mute.attributes['aria-label'], 'Mute music');
-  assert.equal(progress.at(-1), .25); assert.equal(published.at(-1).url, fixtureSounds[0].permalink_url);
-  const count = progress.length; player.fire('playProgress', { relativePosition: Infinity }); assert.equal(progress.length, count);
-});
-emit(mute, 'click'); emit(previous, 'click'); player.fire('play');
-check('Previous wraps from the first allowed artist track to the last', () => {
-  assert.equal(player.index, 3); assert.equal(title.textContent, 'Fixture B'); assert.equal(progress.at(-1), 0); assert.equal(player.seek, 0);
-  assert.equal(player.volume, 0);
-});
-emit(next, 'click'); player.fire('play'); assert.equal(player.volume, 0); emit(mute, 'click');
-emit(next, 'click');
-check('Next skips disallowed tracks and remains ready through the transition PAUSE', () => {
-  assert.equal(player.index, 3); assert.equal(root.dataset.state, 'loading'); assert.equal(changes.at(-1), false);
-  assert.equal(toggle.attributes['aria-pressed'], 'true');
-});
-player.fire('play');
-check('new track title is provider metadata rendered as text', () => {
-  assert.equal(title.textContent, 'Fixture B'); assert.equal(credit.href, fixtureSounds[3].permalink_url);
-});
-player.fire('pause'); player.fire('finish'); player.fire('play');
-check('track completion wraps the artist queue without advancing twice', () => {
-  assert.equal(player.index, 0); assert.equal(player.skips.at(-1), 0); assert.equal(title.textContent, 'Fixture A');
-});
-player.fire('error');
-check('a provider-rejected track advances to another artist track', () => {
-  assert.equal(player.index, 3); assert.equal(root.dataset.state, 'loading');
-});
-player.fire('error');
-check('a fully rejected queue stops after one bounded pass', () => {
-  assert.equal(root.dataset.state, 'error'); assert.equal(host.children.length, 0);
-});
-emit(toggle, 'click'); await flush(); player = players.at(-1); player.fire('ready'); player.fire('play');
-player.deferIndex = true; player.fire('play'); const staleIndex = player.indexCallback;
-emit(next, 'click'); emit(next, 'click'); staleIndex(3); player.deferIndex = false; player.fire('play');
-check('rapid Next keeps the latest target and obsolete metadata cannot roll it back', () => {
-  assert.equal(player.index, 0); assert.equal(title.textContent, 'Fixture A'); assert.equal(root.dataset.state, 'playing');
-});
-emit(toggle, 'click');
-check('Pause silences provider, freezes spectrum and updates accessible state', () => {
-  assert.equal(root.dataset.state, 'paused'); assert.equal(changes.at(-1), false);
-  assert.equal(toggle.attributes['aria-pressed'], 'false'); assert.ok(player.pauseCalls > 0);
-});
-const stoppedIndex = player.index; player.fire('finish');
-check('a late finish after explicit Pause cannot restart playback', () => {
-  assert.equal(root.dataset.state, 'paused'); assert.equal(player.index, stoppedIndex);
-});
-emit(toggle, 'click'); const pausesBeforeBuffering = player.pauseCalls; fireTimer(8000);
-check('slow audio keeps the requested Play active and offers the native provider control', () => {
-  assert.equal(root.dataset.state, 'loading'); assert.equal(changes.at(-1), false);
-  assert.equal(toggle.attributes['aria-pressed'], 'true'); assert.equal(root.dataset.waiting, 'audio');
-  assert.equal(title.textContent, 'Memuat audio…'); assert.equal(player.pauseCalls, pausesBeforeBuffering);
-  assert.equal(root.dataset.nativePlayer, 'true'); assert.equal(host.attributes['aria-hidden'], 'false');
-});
-player.fire('play');
-check('a delayed audio PLAY completes the existing request and clears the loading message', () => {
-  assert.equal(root.dataset.state, 'playing'); assert.equal(root.dataset.waiting, undefined);
-  assert.equal(root.dataset.nativePlayer, 'false'); assert.equal(title.textContent, 'Fixture A');
-});
-emit(toggle, 'click'); emit(toggle, 'click'); fireTimer(8000); emit(toggle, 'click'); player.fire('play');
-check('explicit Pause during audio buffering rejects late programmatic PLAY', () => {
-  assert.equal(root.dataset.state, 'paused'); assert.equal(toggle.attributes['aria-pressed'], 'false');
-  assert.equal(root.dataset.waiting, undefined); assert.equal(title.textContent, 'Fixture A');
-});
-document.activeElement = player.frame; player.fire('play');
-check('a focused native Play is a new visitor gesture and restores focus after recovery', () => {
-  assert.equal(root.dataset.state, 'playing'); assert.equal(root.dataset.nativePlayer, 'false');
-  assert.equal(host.attributes['aria-hidden'], 'true'); assert.equal(document.activeElement, toggle);
-});
-emit(document, 'portfolio:musicpause');
-check('spectrum Escape request pauses actual audio', () => assert.equal(root.dataset.state, 'paused'));
-emit(toggle, 'click'); player.fire('play'); emit(document, 'portfolio:sectionstart');
-check('tab navigation does not recreate the source or interrupt audio', () => {
-  assert.equal(host.children.length, 1); assert.equal(root.dataset.state, 'playing');
-});
-emit(window, 'pagehide');
-check('page-cache departure pauses audio and does not autoplay on restore', () => {
-  assert.equal(root.dataset.state, 'paused'); emit(window, 'pageshow'); assert.equal(root.dataset.state, 'paused');
-});
-const obsoleteError = player.handlers.get('error'), obsoletePlay = player.handlers.get('play'); player.fire('error');
-check('provider errors remove the broken iframe and allow explicit retry', () => {
-  assert.equal(root.dataset.state, 'error'); assert.equal(host.children.length, 0); assert.equal(next.disabled, true);
-});
-emit(toggle, 'click'); await flush(); player = players.at(-1); player.fire('pause'); player.fire('ready'); player.fire('play');
-obsoleteError(); obsoletePlay();
-check('retry owns one new widget and callbacks from its predecessor are ignored', () => {
-  assert.equal(root.dataset.state, 'playing'); assert.equal(host.children.length, 1); assert.ok(player.playCalls > 0);
-});
-const late = player.handlers.get('play'); abort.abort(); late(); emit(toggle, 'click');
-check('abort releases the iframe, bindings and timers and ignores late playback', () => {
-  assert.equal(host.children.length, 0); assert.equal(player.handlers.size, 0); assert.equal(timers.size, 0);
-  assert.equal(changes.at(-1), false); assert.equal(root.dataset.state, 'idle');
-});
-const emptyAbort = new AbortController(); setMaxListeners(0, emptyAbort.signal);
-initSoundCloudPlayer({ signal: emptyAbort.signal, loadAPI }); emit(toggle, 'click'); await flush();
-player = players.at(-1); player.sounds = [fixtureSounds[1]]; player.fire('ready');
-check('an empty or unavailable artist queue never fabricates songs', () => {
-  assert.equal(root.dataset.state, 'error'); assert.equal(next.disabled, true); assert.equal(host.children.length, 0);
-}); emptyAbort.abort();
-const timeoutAbort = new AbortController(); setMaxListeners(0, timeoutAbort.signal);
-initSoundCloudPlayer({ signal: timeoutAbort.signal, loadAPI }); emit(toggle, 'click'); await flush();
-const firstFrame = host.children[0], beforeSlowLoad = players.length;
-fireTimer(15000); await flush();
-check('slow provider loading preserves the exact iframe and Play intent without reconnecting', () => {
-  assert.equal(players.length, beforeSlowLoad); assert.equal(host.children.length, 1);
-  assert.equal(host.children[0], firstFrame); assert.equal(root.dataset.connectionAttempt, '1');
-  assert.equal(root.dataset.state, 'loading'); assert.equal(root.dataset.error, undefined);
-  assert.equal(toggle.attributes['aria-pressed'], 'true'); assert.equal(root.dataset.waiting, 'provider');
-  assert.equal(title.textContent, 'Memuat musik…'); assert.equal(root.dataset.nativePlayer, 'false');
-  assert.equal([...timers.values()].filter(t => t.ms === 15000).length, 0);
-});
-player = players.at(-1); const playsBeforeLateReady = player.playCalls; player.fire('ready');
-check('late provider readiness continues the still-requested Play instead of losing it', () => {
-  assert.equal(root.dataset.state, 'loading'); assert.equal(root.dataset.waiting, undefined);
-  assert.equal(player.playCalls, playsBeforeLateReady + 1); assert.equal(next.disabled, false);
-});
-player.fire('play');
-check('slow provider can finish normally on its original connection', () => {
-  assert.equal(root.dataset.state, 'playing'); assert.equal(host.children[0], firstFrame);
-}); timeoutAbort.abort();
-const cancelledAbort = new AbortController(); setMaxListeners(0, cancelledAbort.signal);
-initSoundCloudPlayer({ signal: cancelledAbort.signal, loadAPI }); emit(toggle, 'click'); await flush();
-const countBeforeCancel = players.length; emit(toggle, 'click'); fireTimer(15000); await flush();
-player = players.at(-1); const cancelledFrame = host.children[0];
-check('cancelling while the provider loads keeps a paused control and the pending frame', () => {
-  assert.equal(players.length, countBeforeCancel); assert.equal(root.dataset.state, 'paused');
-  assert.equal(toggle.attributes['aria-pressed'], 'false'); assert.equal(title.textContent, 'Musik dijeda');
-});
-emit(toggle, 'click');
-check('resume before readiness reuses the pending connection without another player', () => {
-  assert.equal(players.length, countBeforeCancel); assert.equal(host.children[0], cancelledFrame);
-  assert.equal(root.dataset.state, 'loading'); assert.equal(toggle.attributes['aria-pressed'], 'true');
+check('Play creates one official iframe without claiming confirmed playback', () => {
+  assert.equal(host.children.length, 1); assert.equal(root.dataset.state, 'loading'); assert.equal(player.playCalls, 0);
+  assert.equal(player.frame.attributes.allow, 'autoplay; encrypted-media'); assert.equal(player.frame.tabIndex, -1);
 });
 emit(toggle, 'click'); player.fire('ready'); player.fire('play');
-check('late readiness and PLAY cannot undo the visitor cancellation', () => {
-  assert.equal(player.playCalls, 0); assert.equal(root.dataset.state, 'paused');
-  assert.equal(toggle.attributes['aria-pressed'], 'false');
-}); cancelledAbort.abort();
-let resolveAPI;
-const delayed = new Promise(resolve => { resolveAPI = resolve; });
+check('Pause during loading rejects late readiness and PLAY', () => { assert.equal(player.playCalls, 0); assert.equal(root.dataset.state, 'paused'); });
+emit(toggle, 'click'); player.fire('play');
+check('confirmed playback publishes track metadata and audio state', () => {
+  assert.equal(root.dataset.state, 'playing'); assert.equal(changes.at(-1), true); assert.equal(credit.href, fixtureSounds[0].permalink_url);
+});
+emit(mute, 'click');
+check('Mute sets volume zero without pausing playback', () => {
+  assert.equal(player.volume, 0); assert.equal(root.dataset.state, 'playing'); assert.equal(mute.attributes['aria-label'], 'Unmute music');
+});
+emit(previous, 'click'); emit(next, 'click');
+check('detached legacy Next and Previous have no transport handlers', () => { assert.equal(player.index, 0); assert.equal(player.skips.length, 0); });
+player.fire('playProgress', {relativePosition:.25}); player.fire('playProgress', {relativePosition:Infinity});
+check('only valid genuine audio progress reaches the visualizer', () => assert.equal(progress.at(-1), .25));
+player.fire('playProgress', {relativePosition:.9,currentPosition:45000});
+check('exact provider milliseconds override a conflicting relative position', () => {
+  assert.equal(progress.at(-1),.25); assert.deepEqual(timings.at(-1),{positionMs:45000,durationMs:180000});
+  assert.equal(player.durationCalls,1);
+});
+player.fire('pause'); player.fire('finish'); player.fire('play');
+check('track completion automatically advances the allowed queue and retains mute', () => {
+  assert.equal(player.index, 3); assert.equal(title.textContent, 'Fixture B'); assert.equal(player.volume, 0); assert.equal(player.seek, 0);
+});
+emit(mute, 'click');
+check('Unmute restores volume without changing the track', () => { assert.equal(player.volume, 100); assert.equal(player.index, 3); assert.equal(mute.attributes['aria-label'], 'Mute music'); });
+emit(toggle, 'click'); const index = player.index; player.fire('finish'); player.fire('play');
+check('Pause cancels audio intent and rejects late finish and PLAY', () => { assert.equal(root.dataset.state, 'paused'); assert.equal(player.index, index); assert.equal(changes.at(-1), false); });
+emit(toggle, 'click'); fireTimer(8000);
+check('blocked or slow autoplay offers our Play button without exposing provider navigation', () => {
+  assert.equal(root.dataset.state, 'paused'); assert.equal(root.dataset.waiting, 'gesture'); assert.equal(toggle.attributes['aria-label'], 'Play music');
+  assert.equal(player.frame.tabIndex, -1); assert.equal(player.frame.attributes['aria-hidden'], 'true'); assert.equal(host.children.length, 1);
+});
+player.fire('play');
+check('a slow provider may still complete the original request after the gesture hint', () => assert.equal(root.dataset.state, 'playing'));
+emit(toggle, 'click'); emit(toggle, 'click'); fireTimer(8000);
+const sameFrame = player.frame; emit(toggle, 'click'); player.fire('play');
+check('a direct Play gesture resumes the same connection', () => { assert.equal(root.dataset.state, 'playing'); assert.equal(root.dataset.waiting, undefined); assert.equal(player.frame, sameFrame); });
+player.fire('error'); player.fire('error');
+check('provider errors try a bounded queue pass then stop', () => { assert.equal(root.dataset.state, 'error'); assert.equal(host.children.length, 0); });
+const obsoletePlay = player.handlers.get('play');
+emit(toggle, 'click'); await flush(); player = players.at(-1); player.fire('ready'); player.fire('play'); obsoletePlay?.();
+check('Retry creates one widget and ignores callbacks from the predecessor', () => { assert.equal(root.dataset.state, 'playing'); assert.equal(host.children.length, 1); });
+emit(window, 'pagehide'); emit(window, 'pageshow');
+check('page-cache departure pauses and restore does not restart cancelled audio', () => assert.equal(root.dataset.state, 'paused'));
+abort.abort();
+check('abort releases the iframe, bindings and timers', () => { assert.equal(host.children.length, 0); assert.equal(player.handlers.size, 0); assert.equal(timers.size, 0); });
+
+// Default app behavior: automatic request after entry, once only, cancellable.
+document.documentElement = {dataset:{entry:'loading'}}; document.hidden = false;
+const autoAbort = new AbortController(); setMaxListeners(0, autoAbort.signal);
+initSoundCloudPlayer({signal:autoAbort.signal, loadAPI}); await flush();
+check('default autoplay waits until entry has finished', () => assert.equal(host.children.length, 0));
+document.documentElement.dataset.entry = 'ready'; emit(document, 'portfolio:entryready'); await flush(); player = players.at(-1);
+check('entry completion starts loading music automatically without any visitor click', () => { assert.equal(host.children.length, 1); assert.equal(toggle.attributes['aria-label'], 'Pause music'); });
+const initialAutoFrame = player.frame; emit(document, 'portfolio:entryready'); emit(document, 'visibilitychange'); await flush();
+check('entry and visibility notifications never duplicate the autoplay connection', () => { assert.equal(host.children.length, 1); assert.equal(player.frame, initialAutoFrame); });
+fireTimer(15000);
+check('slow provider readiness preserves the exact autoplay request and Pause intent', () => {
+  assert.equal(root.dataset.waiting, 'provider'); assert.equal(host.children[0], initialAutoFrame); assert.equal(toggle.attributes['aria-pressed'], 'true');
+});
+player.fire('ready');
+check('late readiness attempts audible autoplay on the retained widget', () => { assert.equal(player.playCalls, 1); assert.equal(player.volume, 100); });
+player.fire('play');
+check('only a provider PLAY marks autoplay as playing', () => assert.equal(root.dataset.state, 'playing'));
+emit(toggle, 'click'); emit(document, 'visibilitychange'); emit(document, 'portfolio:entryready'); player.fire('play');
+check('explicit Pause is never undone by repeated lifecycle or late playback events', () => { assert.equal(root.dataset.state, 'paused'); assert.equal(player.playCalls, 1); });
+autoAbort.abort();
+const backgroundAbort = new AbortController(); setMaxListeners(0, backgroundAbort.signal); document.hidden = true;
+initSoundCloudPlayer({signal:backgroundAbort.signal, loadAPI}); await flush();
+check('a page initially hidden postpones its initial autoplay attempt', () => assert.equal(host.children.length, 0));
+document.hidden = false; emit(document, 'visibilitychange'); await flush(); player = players.at(-1);
+check('the initial autoplay attempt starts once the page becomes visible', () => assert.equal(host.children.length, 1));
+emit(toggle, 'click'); player.fire('ready'); player.fire('play');
+check('Pause cancels an initial autoplay request while the provider is loading', () => { assert.equal(root.dataset.state, 'paused'); assert.equal(player.playCalls, 0); });
+backgroundAbort.abort();
+
+const emptyAbort = new AbortController(); setMaxListeners(0, emptyAbort.signal); manual(emptyAbort.signal); emit(toggle, 'click'); await flush();
+player = players.at(-1); player.sounds = [fixtureSounds[1]]; player.fire('ready');
+check('an empty artist queue fails without inventing songs', () => { assert.equal(root.dataset.state, 'error'); assert.equal(host.children.length, 0); }); emptyAbort.abort();
+const cancelAbort = new AbortController(); setMaxListeners(0, cancelAbort.signal); manual(cancelAbort.signal); emit(toggle, 'click'); await flush(); player = players.at(-1);
+const pendingFrame = player.frame; emit(toggle, 'click'); fireTimer(15000); emit(toggle, 'click');
+check('cancel and resume before readiness reuse the pending connection', () => { assert.equal(host.children[0], pendingFrame); assert.equal(root.dataset.state, 'loading'); });
+player.fire('ready'); player.fire('play'); cancelAbort.abort();
+let resolveAPI; const delayed = new Promise(resolve => {resolveAPI = resolve;});
 const delayedAbort = new AbortController(); setMaxListeners(0, delayedAbort.signal);
-initSoundCloudPlayer({ signal: delayedAbort.signal, loadAPI: () => delayed }); emit(toggle, 'click'); await flush();
-check('the iframe cannot emit a lost READY before its local controller is initialized', () => {
-  assert.equal(host.children.length, 0); assert.equal(root.dataset.state, 'loading');
+initSoundCloudPlayer({autoplay:false, signal:delayedAbort.signal, loadAPI:()=>delayed}); emit(toggle, 'click'); await flush();
+check('the iframe is not appended before its local controller is ready', () => assert.equal(host.children.length, 0));
+delayedAbort.abort(); resolveAPI(Widget); await flush();
+check('an aborted controller load cannot create an orphan iframe', () => assert.equal(host.children.length, 0));
+const localAbort = new AbortController(); window.SC = {Widget(){throw Error('external SDK forbidden');}};
+check('the default control factory is bundled locally', () => assert.equal(typeof loadSoundCloudAPI, 'function'));
+assert.equal(typeof await loadSoundCloudAPI(localAbort.signal), 'function'); localAbort.abort(); await assert.rejects(loadSoundCloudAPI(localAbort.signal), /aborted/);
+// Exercise the real exclusion policy across multiple complete queue rounds.
+const rotationAbort = new AbortController(); setMaxListeners(0, rotationAbort.signal);
+manual(rotationAbort.signal); emit(toggle, 'click'); await flush(); player = players.at(-1);
+player.sounds = [
+  {title:'04:59AM',permalink_url:'https://soundcloud.com/blockcoreonline/04-59am'},
+  {title:'Former second track',permalink_url:'https://soundcloud.com/blockcoreonline/second'},
+  {title:'Third track',permalink_url:'https://soundcloud.com/blockcoreonline/third'},
+  {title:'Fourth track',permalink_url:'https://soundcloud.com/blockcoreonline/fourth'}
+];
+player.fire('ready'); player.fire('play');
+check('the removed first song is absent and startup selects the former second track', () => {
+  assert.equal(player.index, 1); assert.equal(title.textContent, 'Former second track');
+  assert.deepEqual(artistTracks(player.sounds).map(t=>t.widgetIndex), [1,2,3]);
+  assert.equal(artistTracks([{permalink_url:'http://soundcloud.com/blockcoreonline/04-59am/'}]).length, 0);
 });
-resolveAPI(Widget); await flush(); player = players.at(-1); player.fire('ready');
-check('controller readiness permits iframe creation and immediate provider readiness is handled', () => {
-  assert.equal(host.children.length, 1); assert.ok(player.playCalls > 0);
-  assert.equal(new URL(player.frame.src).searchParams.get('url'), 'https://api.soundcloud.com/users/1167960067');
-}); delayedAbort.abort();
-let resolveObsolete;
-const obsoleteAPI = new Promise(resolve => { resolveObsolete = resolve; });
-const abandonedAbort = new AbortController(); setMaxListeners(0, abandonedAbort.signal);
-initSoundCloudPlayer({ signal: abandonedAbort.signal, loadAPI: () => obsoleteAPI }); emit(toggle, 'click'); abandonedAbort.abort();
-resolveObsolete(Widget); await flush();
-check('an API response after teardown cannot create an orphan iframe', () => assert.equal(host.children.length, 0));
-const unavailableExternalSDK = { Widget() { throw new Error('external SDK must never be used'); } };
-window.SC = unavailableExternalSDK;
-const localAbort = new AbortController(); const localFactory = await loadSoundCloudAPI(localAbort.signal);
-check('the control API is local even when external SDK loading is unavailable', () => {
-  assert.equal(typeof localFactory, 'function'); assert.equal(localFactory.Events.READY, 'ready');
-  assert.equal(head.children.filter(c => c.tagName === 'script').length, 0); assert.equal(timers.size, 0);
+const rotation = [player.index];
+for (let i=0;i<8;i++) {
+  player.fire('pause'); player.fire('finish');
+  // Duplicate completion while the next source is loading must be ignored.
+  player.fire('finish'); player.fire('play'); rotation.push(player.index);
+}
+check('completion rotates every remaining song across multiple rounds without replaying the excluded song', () => {
+  assert.deepEqual(rotation, [1,2,3,1,2,3,1,2,3]); assert.equal(player.seek,0);
+  assert.equal(root.dataset.state,'playing'); assert.ok(!player.skips.includes(0));
 });
-const stoppedAPI = new AbortController(); stoppedAPI.abort();
-await assert.rejects(loadSoundCloudAPI(stoppedAPI.signal), /aborted/);
-check('an aborted API request cannot create scripts or leave timers', () => {
-  assert.equal(head.children.filter(c => c.tagName === 'script').length, 0); assert.equal(timers.size, 0);
+// Some provider players already move their native index before FINISH arrives.
+player.index = 1; player.fire('pause'); player.fire('finish'); player.fire('play');
+check('native provider advancement and FINISH converge on one next track', () => {
+  assert.equal(player.index,1); assert.equal(title.textContent,'Former second track');
 });
+emit(toggle,'click'); player.fire('finish');
+check('Pause cancels continuous queue progression until explicitly resumed', () => assert.equal(root.dataset.state,'paused'));
+rotationAbort.abort();
+const clockAbort = new AbortController(); setMaxListeners(0,clockAbort.signal);
+manual(clockAbort.signal); emit(toggle,'click'); await flush(); player=players.at(-1);
+player.deferDuration=true; player.fire('ready'); player.fire('play'); const obsoleteDuration=player.durationCallback;
+player.fire('finish'); player.fire('play'); const currentDuration=player.durationCallback;
+obsoleteDuration(999999); currentDuration(200000);
+player.fire('playProgress',{relativePosition:.9,currentPosition:40000}); player.fire('play');
+check('runtime duration belongs to its current song and is queried only once per track',()=>{
+  assert.equal(progress.at(-1),.2); assert.equal(timings.at(-1).durationMs,200000); assert.equal(player.durationCalls,2);
+});
+clockAbort.abort();
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/soundcloud-player.css', import.meta.url), 'utf8');
-check('player has four icon controls with metadata kept out of the visual dock', () => {
+check('the music dock exposes exactly Play/Pause and Mute/Unmute with 44px targets', () => {
   const surface = html.slice(html.indexOf('<section class="music-player"'), html.indexOf('<div class="theme-picker"'));
-  assert.equal((surface.match(/<button/g) || []).length, 4);
-  assert.match(surface, /data-music-previous/); assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/);
-  assert.match(surface, /soundcloud.com\/blockcoreonline/); assert.match(surface, /alt="SoundCloud"/);
-  assert.match(css, /max-width: calc\(100vw - 96px\)/); assert.match(css, /forced-colors/);
-  assert.doesNotMatch(html, /<iframe[^>]+w\.soundcloud/);
+  assert.equal((surface.match(/<button/g)||[]).length, 2); assert.doesNotMatch(surface, /data-music-(next|previous)/);
+  assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/); assert.match(css, /width: 44px; height: 44px/);
+  assert.doesNotMatch(css, /data-native-player/); assert.equal(timers.size, 0);
 });
-console.log(JSON.stringify({ mode: 'Widget fixtures and source checks; no live SoundCloud playback claim', passed: checks.length, checks }, null, 2));
+console.log(JSON.stringify({mode:'Widget lifecycle and automatic playback fixtures; no audible browser claim',passed:checks.length,checks},null,2));

@@ -35,6 +35,12 @@ check('concurrent getters share one request and resolve once from the iframe res
   assert.equal(sent.length, 1); assert.deepEqual(sent[0].data, { method: 'getSounds', value: null });
   assert.deepEqual(sounds, [{ title: 'Protocol fixture' }]); assert.deepEqual(second, sounds);
 });
+let duration = null; widget.getDuration(value => { duration = value; });
+message(frame,'getDuration',999999,{origin:'https://attacker.test'});
+check('duration getter accepts only the official iframe response in milliseconds',()=>{
+  assert.equal(duration,null); assert.deepEqual(sent.at(-1).data,{method:'getDuration',value:null});
+  message(frame,'getDuration',185000); assert.equal(duration,185000);
+});
 message(frame, 'play'); widget.unbind('play'); message(frame, 'play');
 check('event unbinding stops application callbacks and removes the remote subscription', () => {
   assert.equal(playEvents, 1); assert.deepEqual(sent.at(-1).data, { method: 'removeEventListener', value: 'play' });
@@ -75,6 +81,7 @@ document.createElement = tag => {
     else if (method === 'removeEventListener') providerSubscriptions.delete(value);
     else if (method === 'getSounds') queueMicrotask(() => message(element, method, tracks));
     else if (method === 'getCurrentSoundIndex') queueMicrotask(() => message(element, method, index));
+    else if (method === 'getDuration') queueMicrotask(() => message(element, method, 185000));
     else if (method === 'play') providerEvent('play');
     else if (method === 'pause') providerEvent('pause');
     else if (method === 'skip') { index = value; providerEvent('pause'); }
@@ -84,15 +91,20 @@ document.createElement = tag => {
 host.append = child => { Element.prototype.append.call(host, child); queueMicrotask(() => message(child, 'ready')); };
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 const abort = new AbortController(); setMaxListeners(0, abort.signal);
-let animation = false;
-initSoundCloudPlayer({ signal: abort.signal, onPlaybackChange: value => { animation = value; } });
+let animation = false, absoluteTiming = null, absoluteProgress = null;
+initSoundCloudPlayer({ autoplay: false, signal: abort.signal, onPlaybackChange: value => { animation = value; },
+  onProgress: (value,timing) => { absoluteProgress=value; absoluteTiming=timing; } });
 toggle.dispatchEvent(new Event('click')); await flush();
 check('actual player reaches playing through the local bridge while external script creation is blocked', () => {
   assert.equal(scriptRequests, 0); assert.equal(root.dataset.state, 'playing'); assert.equal(animation, true);
   assert.equal(title.textContent, 'Protocol track A'); assert.equal(host.children.length, 1);
 });
-next.dispatchEvent(new Event('click')); await flush();
-check('actual Next changes the provider index, title and playback through postMessage', () => {
+providerEvent('playProgress',{relativePosition:.9,currentPosition:37000}); await flush();
+check('real bridge/controller integration forwards the actual millisecond playback clock',()=>{
+  assert.equal(absoluteProgress,.2); assert.deepEqual(absoluteTiming,{positionMs:37000,durationMs:185000});
+});
+providerEvent('finish'); await flush();
+check('track completion advances automatically through postMessage', () => {
   assert.equal(index, 1); assert.equal(title.textContent, 'Protocol track B'); assert.equal(root.dataset.state, 'playing');
 });
 toggle.dispatchEvent(new Event('click')); await flush();

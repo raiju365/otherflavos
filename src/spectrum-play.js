@@ -1,29 +1,36 @@
-import { waveformURL, normalizeWaveform, waveformRange, createParticleField, particleGeometry, morphParticlePoses, settleParticlePose, paintParticlePose } from './spectrum-field.js';
+import { createWaveformPulse, sampleWaveformPulse } from './audio-pulse.js';
+import { waveformURL, normalizeWaveform, waveformRange, particleEnergy } from './spectrum-field.js';
+import { createPointillistField, createPointillistRenderer, pointillistMotion, POINTILLIST_FORMS } from './pointillist-flow.js';
 
 export function initSpectrumPlay(signal) {
   const root = document.querySelector('[data-spectrum-play]');
   if (!root || signal.aborted) return () => {};
   const board = root.querySelector('[data-spectrum-board]'), canvas = root.querySelector('canvas');
   if (!board || !canvas) return () => {};
-  const desktop = matchMedia('(min-width: 801px) and (min-height: 540px)');
+  const panel = root.closest('.panel');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)'), forced = matchMedia('(forced-colors: active)');
   const dialog = document.querySelector('#project-detail');
   const on = (target, type, fn) => target?.addEventListener(type, fn, { signal });
-  let ctx; try { ctx = canvas.getContext('2d'); } catch { /* Quiet CSS baseline. */ }
-  root.dataset.fallback = String(!ctx);
-  const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 } };
-  let frame = 0, disposed = false, visible = true, page = true, focused = true, playing = false, trackRevision = 0, load = null;
-  let swarm = null, seed = 'quiet', palette = null, ratio = 1, lastPaint = 0, providerTime = null, displayedProgress = 0;
-  let lastPose = null, trackMorph = null, morphTick = null;
-  const allowed = () => !disposed && !signal.aborted && ctx && !root.hidden && visible && page && focused
+  const renderer = createPointillistRenderer(canvas);
+  let graphicsLost = false;
+  root.dataset.fallback = String(!renderer);
+  root.dataset.renderer = renderer?.kind || 'css';
+  const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 }, pulse: null };
+  let frame = 0, disposed = false, visible = true, page = true, playing = false, trackRevision = 0, load = null;
+  let screen = null, palette = null, ratio = 1, lastPaint = 0, providerTime = null, displayedProgress = 0;
+  let morphTick = null, choreographyTime = 0;
+  let providerPositionMs = 0;
+  let providerCadenceMs = 750;
+  const predictionLimit = () => Math.min(1000, Math.max(250, providerCadenceMs * 1.2));
+  const allowed = () => !disposed && !signal.aborted && renderer && !graphicsLost && !root.hidden && !panel?.hidden && visible && page
     && !document.hidden && !dialog?.open && document.documentElement.dataset.entry !== 'loading';
   function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = 0; morphTick = null; root.dataset.active = 'false'; }
   function readPalette() {
     const css = getComputedStyle(root);
-    palette = { ink: css.color, accent: css.getPropertyValue('--accent').trim() || css.color };
+    palette = css.color;
   }
   function measure(force = false) {
-    if (!ctx || root.hidden) return;
+    if (!renderer || root.hidden || panel?.hidden) return;
     const box = board.getBoundingClientRect(), nextRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
     if (!force && field.width === box.width && field.height === box.height && ratio === nextRatio) return;
     ratio = nextRatio;
@@ -31,46 +38,39 @@ export function initSpectrumPlay(signal) {
     if (!box.width || !box.height) return;
     const w = Math.round(box.width * ratio), h = Math.round(box.height * ratio);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    swarm = createParticleField(box.width, box.height, seed);
-    root.dataset.particles = String(swarm.particles.length);
+    screen = createPointillistField(box.width, box.height, renderer.kind === 'canvas2d');
+    root.dataset.particles = String(screen.count);
   }
-  function running(time) {
-    return playing && !reduced.matches && field.samples.length > 1 && field.duration > 0
-      && providerTime !== null && time - providerTime < 800;
+  function freshPlayback(time) {
+    return playing && field.samples.length > 1 && field.duration > 0
+      && providerTime !== null && time - providerTime < Math.min(1800, Math.max(800, providerCadenceMs * 1.75));
   }
-  function paint(time = performance.now()) {
+  function paint() {
+    // Read execution time, not a potentially stale RAF timestamp after a
+    // delayed frame. Analytic motifs need no legacy spring timestep clamp.
+    const time = performance.now();
     frame = 0;
-    if (!allowed() || forced.matches || !swarm) { stop(); return; }
-    if (lastPaint && time - lastPaint < 1000 / 60 - .2 && running(time)) { schedule(); return; }
+    if (!allowed() || forced.matches || !screen) { stop(); return; }
+    if (lastPaint && time - lastPaint < 1000 / 60 - .2 && !reduced.matches) { schedule(); return; }
     lastPaint = time;
-    // Only bridge short gaps between provider positions. No independent beat clock,
-    // and no hidden-time catch-up when playback messages stop.
-    if (playing && providerTime !== null) displayedProgress = Math.min(1,
-      field.progress + Math.max(0, Math.min(350, time - providerTime)) / Math.max(1, field.duration));
-    let pose;
-    if (!playing && lastPose && !reduced.matches) {
-      pose = { ...lastPose, width: swarm.width, height: swarm.height, points: lastPose.points.map(p => ({ ...p,
-        x: p.x / lastPose.width * swarm.width, y: p.y / lastPose.height * swarm.height,
-        wake: p.wake?.map(q => ({ x: q.x / lastPose.width * swarm.width, y: q.y / lastPose.height * swarm.height })) })) };
-    } else {
-      pose = particleGeometry(swarm, field.samples, displayedProgress, field.duration, field.range);
-      if (reduced.matches) trackMorph = null;
-      if (trackMorph) {
-        if (running(time)) trackMorph.elapsed += morphTick === null ? 0 : Math.min(50, time - morphTick);
-        const amount = Math.min(1, trackMorph.elapsed / 2400);
-        pose = morphParticlePoses(trackMorph.from, pose, amount);
-        root.dataset.trackMorph = amount.toFixed(3);
-        if (amount === 1) trackMorph = null;
-      }
-      if (!reduced.matches && (running(time) || pose.level === 0))
-        pose = settleParticlePose(lastPose, pose, morphTick === null ? 0 : (time - morphTick) / 1000);
-      else if (!reduced.matches && lastPose) pose = { ...pose, points: lastPose.points };
-    }
-    morphTick = running(time) ? time : null; lastPose = pose;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); paintParticlePose(pose, palette, ctx);
-    root.dataset.energy = pose.level.toFixed(3); root.dataset.formation = pose.formation;
-    root.dataset.formationMorph = pose.morph.toFixed(3);
-    if ((pose.level > 0 || trackMorph) && running(time)) schedule();
+    // The provider owns audio timing. Decorative motion never adds a beat.
+    if (freshPlayback(time)) displayedProgress = Math.min(1,
+      (providerPositionMs + Math.max(0, Math.min(predictionLimit(), time - providerTime))) / Math.max(1, field.duration));
+    const elapsed = reduced.matches || morphTick === null ? 0 : Math.max(0, time - morphTick);
+    choreographyTime += elapsed / 1000;
+    const reaction = freshPlayback(time) && !reduced.matches
+      ? sampleWaveformPulse(field.pulse, displayedProgress) : { impact: 0, body: 0, detail: 0 };
+    const motion = pointillistMotion(choreographyTime);
+    renderer.paint(screen, { ...motion, ...reaction }, palette, ratio);
+    morphTick = reduced.matches ? null : time;
+    root.dataset.impact = reaction.impact.toFixed(3); root.dataset.body = reaction.body.toFixed(3); root.dataset.detail = reaction.detail.toFixed(3);
+    root.dataset.energy = (freshPlayback(time) ? particleEnergy(field.samples, displayedProgress, field.duration, field.range).level : 0).toFixed(3);
+    root.dataset.formation = POINTILLIST_FORMS[motion.from];
+    root.dataset.formationMorph = motion.morph.toFixed(3);
+    root.dataset.flowTime = motion.flow.toFixed(3);
+    root.dataset.renderPositionMs = (displayedProgress * field.duration).toFixed(1);
+    root.dataset.motionTime = choreographyTime.toFixed(3);
+    if (!reduced.matches) schedule();
     else root.dataset.active = 'false';
   }
   function schedule() {
@@ -79,23 +79,45 @@ export function initSpectrumPlay(signal) {
   }
   function reconcile() {
     if (disposed || signal.aborted) return;
-    root.hidden = !desktop.matches;
+    root.hidden = false;
+    readPalette();
     stop(); measure(); schedule();
   }
   function cleanup() {
     if (disposed) return; disposed = true; trackRevision++; load?.abort(); stop();
-    lastPose = trackMorph = null;
+    renderer?.dispose(); screen = null;
     resize?.disconnect(); intersection?.disconnect(); modal?.disconnect(); theme?.disconnect(); root.hidden = true;
   }
   cleanup.setPlaying = value => {
     if (disposed) return;
     playing = value === true; root.dataset.playing = String(playing);
-    if (playing) schedule(); else { providerTime = null; stop(); }
+    if (!playing) providerTime = null;
+    schedule();
   };
-  cleanup.setProgress = value => {
+  cleanup.setProgress = (value, timing = {}) => {
     if (disposed || !Number.isFinite(value)) return;
-    field.progress = Math.max(0, Math.min(1, value)); root.dataset.progress = field.progress.toFixed(5);
-    providerTime = performance.now();
+    const received = performance.now(), previousPosition = providerPositionMs;
+    if (Number.isFinite(timing.durationMs) && timing.durationMs > 0 && Math.abs(timing.durationMs - field.duration) > 1) {
+      field.duration = timing.durationMs;
+      field.pulse = createWaveformPulse(field.samples, field.duration);
+    }
+    const absolute = Number.isFinite(timing.positionMs) && timing.positionMs >= 0;
+    providerPositionMs = absolute ? Math.min(field.duration, timing.positionMs)
+      : Math.max(0, Math.min(1, value)) * field.duration;
+    if (providerTime !== null) {
+      const gap = received - providerTime, travel = providerPositionMs - previousPosition;
+      // Learn normal 1x playback cadence, excluding seeks, bursts and stalls.
+      if (gap >= 40 && gap <= 1500 && travel > 0 && Math.abs(travel - gap) < Math.max(80, gap * .35))
+        providerCadenceMs = providerCadenceMs * .5 + gap * .5;
+    }
+    field.progress = field.duration > 0 ? providerPositionMs / field.duration : Math.max(0, Math.min(1, value));
+    root.dataset.progress = field.progress.toFixed(5);
+    root.dataset.clockSource = absolute ? 'milliseconds' : 'relative';
+    root.dataset.positionMs = providerPositionMs.toFixed(1);
+    root.dataset.durationMs = String(field.duration);
+    root.dataset.clockCadenceMs = providerCadenceMs.toFixed(1);
+    root.dataset.predictionLimitMs = predictionLimit().toFixed(1);
+    providerTime = received;
     if (!playing) displayedProgress = field.progress;
     // Reduced motion keeps the particle composition still.
     if (!reduced.matches) schedule();
@@ -103,10 +125,10 @@ export function initSpectrumPlay(signal) {
   cleanup.setTrack = async track => {
     if (disposed || signal.aborted) return;
     const revision = ++trackRevision; load?.abort(); load = new AbortController();
-    trackMorph = lastPose ? { from: lastPose, elapsed: 0 } : null;
-    stop(); seed = track.url || track.waveform || 'quiet'; providerTime = null; displayedProgress = 0;
-    field.samples = []; field.image = null; field.progress = 0; field.duration = track.duration || 0;
-    field.range = { floor: 0, span: 1 }; measure(true);
+    // Keep the visible flow and rhythm phase intact across songs and loading.
+    providerTime = null; displayedProgress = 0; providerPositionMs = 0; providerCadenceMs = 750;
+    field.samples = []; field.image = null; field.pulse = null; field.progress = 0; field.duration = track.duration || 0;
+    field.range = { floor: 0, span: 1 };
     root.dataset.waveform = 'loading'; schedule();
     const url = waveformURL(track.waveform);
     if (!url) { root.dataset.waveform = 'unavailable'; return; }
@@ -119,6 +141,7 @@ export function initSpectrumPlay(signal) {
         if (disposed || revision !== trackRevision || active.aborted) return;
         field.samples = normalizeWaveform(data);
         field.range = waveformRange(field.samples);
+        field.pulse = createWaveformPulse(field.samples, field.duration);
         root.dataset.waveform = field.samples.length ? 'ready' : 'unavailable';
       } else {
         const image = new Image(); image.crossOrigin = 'anonymous'; image.src = url;
@@ -131,10 +154,21 @@ export function initSpectrumPlay(signal) {
       schedule();
     } catch { if (!disposed && revision === trackRevision) { root.dataset.waveform = 'unavailable'; schedule(); } }
   };
-  on(desktop, 'change', reconcile); on(reduced, 'change', reconcile); on(forced, 'change', reconcile);
+  on(canvas, 'webglcontextlost', event => {
+    event.preventDefault(); graphicsLost = true; stop(); root.dataset.fallback = 'true';
+  });
+  on(canvas, 'webglcontextrestored', () => {
+    if (disposed || !renderer) return;
+    try { renderer.restore(); graphicsLost = false; root.dataset.fallback = 'false'; measure(true); reconcile(); }
+    catch { graphicsLost = true; root.dataset.fallback = 'true'; stop(); }
+  });
+  on(reduced, 'change', reconcile); on(forced, 'change', reconcile);
+  on(document, 'portfolio:sectionstart', reconcile); on(document, 'portfolio:sectionsettled', reconcile);
   on(document, 'portfolio:entryready', reconcile); on(document, 'visibilitychange', reconcile);
   on(window, 'resize', reconcile);
-  on(window, 'blur', () => { focused = false; reconcile(); }); on(window, 'focus', () => { focused = true; reconcile(); });
+  // Visible embedded previews keep moving when the visitor focuses chat or
+  // another control. Actual visibility/offscreen/page-cache gates still stop.
+  on(window, 'focus', reconcile);
   on(window, 'pagehide', () => { page = false; reconcile(); }); on(window, 'pageshow', () => { page = true; reconcile(); });
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { measure(); schedule(); }) : null;
   const intersection = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => { visible = entries.some(e => e.isIntersecting); reconcile(); }) : null;
@@ -142,6 +176,6 @@ export function initSpectrumPlay(signal) {
   const theme = typeof MutationObserver === 'function' ? new MutationObserver(() => { readPalette(); schedule(); }) : null;
   resize?.observe(board); intersection?.observe(root); modal?.observe(dialog, { attributes: true, attributeFilter: ['open'] });
   theme?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  signal.addEventListener('abort', cleanup, { once: true }); readPalette(); reconcile();
+  signal.addEventListener('abort', cleanup, { once: true }); reconcile();
   return cleanup;
 }

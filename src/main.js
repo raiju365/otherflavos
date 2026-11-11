@@ -74,7 +74,7 @@ const hidePointerGuides=initPointerGuides(signal);
 const dialog=document.querySelector('#project-detail');let origin=null,previousOverflow='',previousWorkspaceOverflow='';
 const spectrum = initSpectrumPlay(signal);
 initSoundCloudPlayer({ signal, onPlaybackChange: value => spectrum.setPlaying?.(value),
-  onTrackChange: track => spectrum.setTrack?.(track), onProgress: value => spectrum.setProgress?.(value) });
+  onTrackChange: track => spectrum.setTrack?.(track), onProgress: (value, timing) => spectrum.setProgress?.(value, timing) });
 const detailMotion=createProjectDetailMotion({dialog,reduced,signal});
 function openProject(index){
   const p=projects[index];if(!p)return;

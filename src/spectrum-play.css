@@ -1,18 +1,23 @@
-.spectrum-play { display: none; }
-@media (min-width: 801px) and (min-height: 540px) {
-  .spectrum-play:not([hidden]) {
-    position: relative; z-index: 1; isolation: isolate; display: flex; flex: 1 1 auto;
-    overflow: hidden; contain: paint;
-    width: calc(100% - 16px); min-height: 144px; margin-top: clamp(12px, 2vh, 20px);
-    color: var(--rail-ink);
-  }
-  .spectrum-board { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; }
-  .spectrum-board canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .spectrum-fallback { display: none; position: absolute; inset: 18% 7%; opacity: .3; background-image: radial-gradient(circle at 12% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 24% 36%, currentColor 1px, transparent 2px), radial-gradient(circle at 33% 72%, currentColor 1px, transparent 2px), radial-gradient(circle at 47% 43%, currentColor 1px, transparent 2px), radial-gradient(circle at 58% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 72% 29%, currentColor 1px, transparent 2px), radial-gradient(circle at 83% 57%, currentColor 1px, transparent 2px); }
-  .spectrum-play[data-fallback=true] .spectrum-fallback { display: block; }
+#panel-more .spectrum-play:not([hidden]) {
+  position: relative; z-index: 1; isolation: isolate; display: flex; flex: 1 1 auto;
+  overflow: hidden; contain: paint;
+  width: 100%; min-height: 240px; margin: 24px 0;
+  color: var(--fg);
+}
+.spectrum-board { position: relative; flex: 1; min-height: 0; width: 100%; overflow: hidden; }
+.spectrum-board canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.spectrum-fallback { display: none; position: absolute; inset: 18% 7%; opacity: .75; background-image: radial-gradient(circle at 12% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 24% 36%, currentColor 1px, transparent 2px), radial-gradient(circle at 33% 72%, currentColor 1px, transparent 2px), radial-gradient(circle at 47% 43%, currentColor 1px, transparent 2px), radial-gradient(circle at 58% 65%, currentColor 1px, transparent 2px), radial-gradient(circle at 72% 29%, currentColor 1px, transparent 2px), radial-gradient(circle at 83% 57%, currentColor 1px, transparent 2px); }
+.spectrum-play[data-fallback=true] .spectrum-fallback { display: block; }
+#panel-more .about-contacts { padding-top: 0; margin-top: 0; }
+@media (min-width: 801px) and (max-height: 800px) {
+  .workspace[data-view=more] #panel-more { padding-bottom: 32px; }
+  #panel-more .spectrum-play:not([hidden]) { min-height: 180px; margin: 20px 0; }
+}
+@media (max-width: 800px) {
+  #panel-more .spectrum-play:not([hidden]) { flex: none; min-height: 220px; height: clamp(220px, 34vw, 300px); }
 }
 @media (forced-colors: active) {
-  .spectrum-play { color: CanvasText; }
+  #panel-more .spectrum-play { color: CanvasText; }
   .spectrum-board canvas { display: none; }
   .spectrum-board .spectrum-fallback { display: block; }
 }

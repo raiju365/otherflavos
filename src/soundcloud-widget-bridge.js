@@ -3,7 +3,7 @@
 const ORIGIN = 'https://w.soundcloud.com';
 const Events = Object.freeze({ READY: 'ready', PLAY: 'play', PAUSE: 'pause', FINISH: 'finish', ERROR: 'error', PLAY_PROGRESS: 'playProgress', SEEK: 'seek' });
 const eventNames = new Set(Object.values(Events));
-const getterNames = new Set(['getSounds', 'getCurrentSoundIndex']);
+const getterNames = new Set(['getSounds', 'getCurrentSoundIndex', 'getDuration']);
 
 export function createSoundCloudWidget(frame) {
   if (new URL(frame.src).origin !== ORIGIN) throw new Error('Unexpected SoundCloud player origin');
@@ -71,6 +71,7 @@ export function createSoundCloudWidget(frame) {
     setVolume(volume) { if (ready && Number.isFinite(volume)) send('setVolume', Math.max(0, Math.min(100, volume))); },
     getSounds(callback) { get('getSounds', callback); },
     getCurrentSoundIndex(callback) { get('getCurrentSoundIndex', callback); },
+    getDuration(callback) { get('getDuration', callback); },
     destroy() {
       if (disposed) return;
       for (const name of handlers.keys()) if (ready && name !== Events.READY) send('removeEventListener', name);

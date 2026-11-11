@@ -4,6 +4,8 @@ export const SOUNDCLOUD_ARTIST = 'https://soundcloud.com/blockcoreonline';
 export const SOUNDCLOUD_NAME = 'Blockcore';
 // Verified from SoundCloud's public oEmbed response for the supplied profile.
 export const SOUNDCLOUD_RESOURCE = 'https://api.soundcloud.com/users/1167960067';
+// Removed from this portfolio's rotation at the owner's request.
+export const SOUNDCLOUD_EXCLUDED_TRACK = 'https://soundcloud.com/blockcoreonline/04-59am';
 
 export function artistTracks(sounds) {
   if (!Array.isArray(sounds)) return [];
@@ -15,6 +17,7 @@ export function artistTracks(sounds) {
       // The widget enforces streaming availability itself; its API streamable flag
       // is not a reason to discard every otherwise valid embedded track.
       if (url.origin !== 'https://soundcloud.com' || !belongs
+        || url.href.replace(/\/$/, '') === SOUNDCLOUD_EXCLUDED_TRACK
         || sound.access === 'blocked' || sound.policy === 'BLOCK') return [];
       return [{ widgetIndex, url: url.href, title: typeof sound.title === 'string' ? sound.title : SOUNDCLOUD_NAME,
         waveform: sound.waveform_url, duration: Number(sound.duration) || 0 }];
@@ -37,18 +40,18 @@ export function loadSoundCloudAPI(signal) {
   return Promise.resolve(createSoundCloudWidget);
 }
 
-export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTrackChange = () => {}, onProgress = () => {}, loadAPI = loadSoundCloudAPI } = {}) {
+export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTrackChange = () => {}, onProgress = () => {}, loadAPI = loadSoundCloudAPI, autoplay = true } = {}) {
   const root = document.querySelector('[data-music-player]');
   if (!root || !signal || signal.aborted) return () => {};
-  const toggle = root.querySelector('[data-music-toggle]'), next = root.querySelector('[data-music-next]');
-  const previous = root.querySelector('[data-music-previous]'), mute = root.querySelector('[data-music-mute]');
+  const toggle = root.querySelector('[data-music-toggle]'), mute = root.querySelector('[data-music-mute]');
   const host = root.querySelector('[data-music-host]'), title = root.querySelector('[data-music-track]');
   const credit = root.querySelector('[data-music-credit]'), status = root.querySelector('[data-music-status]');
-  if (!toggle || !next || !host) return () => {};
+  if (!toggle || !host) return () => {};
   let widget = null, frame = null, events = null, queue = [], current = 0;
   let ready = false, wanted = false, playing = false, advancing = false, finishEligible = false, disposed = false, revision = 0, retargets = 0, consecutiveErrors = 0;
   let readyTimer = 0, playTimer = 0;
-  let nativeRecovery = false, warmed = false, muted = false, trackURL = '';
+  let autoplayPending = autoplay, warmed = false, muted = false, trackURL = '';
+  let trackClock = { duration: 0, pending: false };
   const alive = () => !disposed && !signal.aborted;
   const on = (target, event, handler) => target?.addEventListener(event, handler, { signal });
   const announce = text => { if (alive() && status) status.textContent = text; };
@@ -56,6 +59,7 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
   function publishTrack() {
     const track = queue[current];
     if (!track || track.url === trackURL) return;
+    trackClock = { duration: 0, pending: false };
     trackURL = track.url; onTrackChange(track); onProgress(0);
   }
   function renderMute() {
@@ -71,26 +75,20 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
     link.rel = 'preconnect'; link.href = 'https://w.soundcloud.com'; link.dataset.musicPreconnect = 'true';
     document.head.append(link);
   }
-  function showNative(value) {
-    nativeRecovery = value; root.dataset.nativePlayer = String(value);
-    host.setAttribute('aria-hidden', String(!value));
-    if (frame) { frame.setAttribute('aria-hidden', String(!value)); frame.tabIndex = value ? 0 : -1; }
-  }
   function render(state) {
     root.dataset.state = state;
-    toggle.setAttribute('aria-label', wanted ? 'Pause music' : state === 'error' ? 'Retry music' : 'Play music');
-    toggle.setAttribute('aria-pressed', String(wanted));
+    const needsGesture = root.dataset.waiting === 'gesture';
+    toggle.setAttribute('aria-label', wanted && !needsGesture ? 'Pause music' : state === 'error' ? 'Retry music' : 'Play music');
+    toggle.setAttribute('aria-pressed', String(wanted && !needsGesture));
     toggle.setAttribute('aria-busy', String(state === 'loading'));
-    next.disabled = !ready || queue.length < 1;
-    if (previous) previous.disabled = next.disabled;
   }
   function releaseWidget() {
-    showNative(false);
     clearTimeout(readyTimer); clearTimeout(playTimer);
     if (widget && events) for (const name of Object.values(events)) widget.unbind(name);
     try { widget?.pause(); } catch { /* Detached provider. */ }
     widget?.destroy?.();
     frame?.remove(); frame = widget = events = null; ready = false; queue = []; advancing = false;
+    trackClock = { duration: 0, pending: false };
   }
   function fail(reason = 'provider-error') {
     if (!alive()) return;
@@ -115,15 +113,14 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
   function requestPlay() {
     if (!alive() || !ready || !wanted) return;
     clearTimeout(playTimer);
-    // Buffering can be slow without failing. Keep Play intent and offer a
-    // direct provider gesture if the browser requires it after async loading.
+    // An audible autoplay request may need a direct visitor gesture. Reuse
+    // our Play control and the same iframe, without exposing provider transport.
     playTimer = setTimeout(() => {
       if (!alive() || playing || !wanted) return;
-      root.dataset.waiting = 'audio';
-      showNative(true);
-      visual(false); render('loading');
-      if (title) title.textContent = 'Memuat audio…';
-      announce('Audio masih dimuat. Tunggu atau gunakan tombol Play di player SoundCloud.');
+      root.dataset.waiting = 'gesture';
+      visual(false); render('paused');
+      if (title) title.textContent = 'Tekan Play untuk memulai musik';
+      announce('Tekan Play untuk memulai musik.');
     }, 8000);
     try { widget.play(); } catch { fail(); }
   }
@@ -140,22 +137,31 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
       if (advancing) widget.seekTo(0);
       current = position; advancing = false;
       publishTrack();
+      const clock = trackClock;
+      if (!clock.duration && !clock.pending && widget.getDuration) {
+        clock.pending = true;
+        widget.getDuration(duration => {
+          if (!alive() || token !== revision || !ready || clock !== trackClock) return;
+          clock.pending = false;
+          if (Number.isFinite(duration) && duration > 0) clock.duration = duration;
+        });
+      }
       if (title) { title.textContent = queue[current].title; title.title = queue[current].title; }
       if (credit) credit.href = queue[current].url;
     });
   }
   function pause() {
     if (!alive()) return;
-    wanted = advancing = finishEligible = false; clearTimeout(playTimer); visual(false);
+    autoplayPending = false; wanted = advancing = finishEligible = false; clearTimeout(playTimer); visual(false);
     delete root.dataset.waiting;
     try { widget?.pause(); } catch { fail(); return; }
     render(ready || frame || root.dataset.state === 'loading' ? 'paused' : 'idle');
     if (title) title.textContent = ready ? queue[current].title : 'Musik dijeda';
     announce('Musik dijeda.');
   }
-  function advance(direction = 1) {
+  function advance() {
     if (!alive() || !ready || !queue.length) return;
-    current = (current + direction + queue.length) % queue.length; revision++; retargets = 0; advancing = wanted = finishEligible = true;
+    current = (current + 1) % queue.length; revision++; retargets = 0; advancing = wanted = true; finishEligible = false;
     publishTrack(); onProgress(0);
     visual(false); render('loading'); announce('Memuat lagu berikutnya.');
     try { widget.skip(queue[current].widgetIndex); if (queue.length === 1) widget.seekTo(0); requestPlay(); } catch { fail(); }
@@ -200,13 +206,8 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
       });
       widget.bind(events.PLAY, () => {
         if (!currentSession()) return;
-        // A native Play click inside the exposed iframe is a fresh user action.
-        if (nativeRecovery && ready && document.activeElement === frame) wanted = true;
         if (!wanted || !ready) { widget.pause(); return; }
-        const restoreFocus = nativeRecovery && document.activeElement === frame;
-        showNative(false);
         delete root.dataset.waiting;
-        if (restoreFocus) toggle.focus?.({ preventScroll: true });
         clearTimeout(playTimer); consecutiveErrors = 0; finishEligible = true; visual(true); render('playing'); refreshCurrent();
       });
       widget.bind(events.PAUSE, () => {
@@ -217,8 +218,11 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
       });
       const progress = data => {
         if (!currentSession() || !ready || advancing || !playing) return;
-        const value = data?.relativePosition;
-        if (Number.isFinite(value) && value >= 0 && value <= 1) onProgress(value);
+        const durationMs = trackClock.duration || queue[current]?.duration || 0;
+        const positionMs = Number.isFinite(data?.currentPosition) && data.currentPosition >= 0 ? data.currentPosition : null;
+        const value = positionMs !== null && durationMs > 0
+          ? Math.min(1, positionMs / durationMs) : data?.relativePosition;
+        if (Number.isFinite(value) && value >= 0 && value <= 1) onProgress(value, { positionMs, durationMs });
       };
       if (events.PLAY_PROGRESS) widget.bind(events.PLAY_PROGRESS, progress);
       if (events.SEEK) widget.bind(events.SEEK, progress);
@@ -232,7 +236,10 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
     } catch { if (alive() && token === revision) fail('api-load'); }
   }
   on(toggle, 'click', () => {
-    if (wanted) { pause(); return; }
+    autoplayPending = false;
+    const needsGesture = root.dataset.waiting === 'gesture';
+    delete root.dataset.waiting;
+    if (wanted && !needsGesture) { pause(); return; }
     wanted = true;
     if (ready) { render('loading'); requestPlay(); }
     else if (frame && widget) {
@@ -242,8 +249,6 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
     } else if (root.dataset.state !== 'loading') start();
   });
   on(toggle, 'pointerenter', warmConnection); on(toggle, 'focusin', warmConnection);
-  on(next, 'click', () => advance(1));
-  on(previous, 'click', () => advance(-1));
   on(mute, 'click', () => {
     muted = !muted; renderMute();
     try { widget?.setVolume?.(muted ? 0 : 100); } catch { fail(); }
@@ -254,10 +259,17 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
   function cleanup() {
     if (disposed) return; disposed = true; revision++; wanted = finishEligible = false; visual(false); releaseWidget();
     delete root.dataset.waiting;
-    root.dataset.state = 'idle'; toggle.setAttribute('aria-pressed', 'false'); next.disabled = true;
-    if (previous) previous.disabled = true;
+    root.dataset.state = 'idle'; toggle.setAttribute('aria-pressed', 'false');
   }
   signal.addEventListener('abort', cleanup, { once: true });
-  visual(false); renderMute(); render('idle');
+  function tryAutoplay() {
+    if (!autoplayPending || !alive() || document.hidden
+      || document.documentElement?.dataset.entry === 'loading') return;
+    autoplayPending = false; wanted = true;
+    warmConnection(); start();
+  }
+  on(document, 'portfolio:entryready', tryAutoplay);
+  on(document, 'visibilitychange', tryAutoplay);
+  visual(false); renderMute(); render('idle'); tryAutoplay();
   return cleanup;
 }
