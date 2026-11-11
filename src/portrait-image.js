@@ -1,88 +1,89 @@
-export const portraitSource='/profile/selfphoto.png';
-export const portraitSize={width:200,height:250};
+export const portraitSource = '/profile/selfphoto.png';
+export const portraitSize = { width: 200, height: 250 };
+export const portraitPatternFrames = 8;
+const patternPeriod = 4200;
 
-export function portraitCrop(width,height){
-  const x=width*.24,y=height*.265;
-  const cropWidth=Math.min(width*.52,(height-y)*portraitSize.width/portraitSize.height);
-  return {x,y,width:cropWidth,height:cropWidth*portraitSize.height/portraitSize.width};
+export function portraitCrop(width, height) {
+  const x = width * .24;
+  const y = height * .265;
+  const cropWidth = Math.min(width * .52, (height - y) * portraitSize.width / portraitSize.height);
+  return { x, y, width: cropWidth, height: cropWidth * portraitSize.height / portraitSize.width };
 }
 
-export const portraitTreatment={asciiOpacity:1,sampleColumns:2,sampleRows:4,glyphCount:256,geometryCount:4,atlasColumns:32,dotRadius:.52};
-export const portraitAsciiVariants=4;
-export const portraitAsciiTempo={bpm:72,beats:8};
-const events=[[0,.5],[1.5,.65],[4,.45],[5,1.05]];
-const dotBits=[1,8,2,16,4,32,64,128];
-const noise=seed=>{const value=Math.sin(seed*127.1+311.7)*43758.5453;return value-Math.floor(value);};
-export function portraitEdgeAlpha(){return 1;}
-
-export function portraitAsciiGrid(displayWidth){
-  const columns=Math.max(32,Math.min(64,Math.round(displayWidth/3.33)));
-  return {columns,rows:Math.round(columns*portraitSize.height/portraitSize.width/2)};
+const clamp = value => Math.max(0, Math.min(1, value));
+function smooth(low, high, value) {
+  const t = clamp((value - low) / (high - low));
+  return t * t * (3 - 2 * t);
 }
 
-// Eight source samples per point character preserve eyes/lips instead of
-// flattening an entire facial patch into one heavy alphabetic glyph.
-export function portraitAsciiCells(pixels,columns,rows){
-  const pw=columns*2,ph=rows*4,count=pw*ph;
-  const full=pixels.length===count*4;
-  const values=new Float32Array(count),alphas=new Float32Array(count),lumas=new Float32Array(count);
-  for(let y=0;y<ph;y++)for(let x=0;x<pw;x++){
-    const i=y*pw+x,o=full?i*4:(Math.floor(y/4)*columns+Math.floor(x/2))*4;
-    const alpha=pixels[o+3]/255,L=(pixels[o]*.2126+pixels[o+1]*.7152+pixels[o+2]*.0722)/255;
-    const exposed=Math.max(0,Math.min(1,(L-.015)/.735));
-    alphas[i]=alpha;lumas[i]=L;values[i]=(1-exposed)*alpha;
-  }
-  const masks=Array.from({length:portraitAsciiVariants},()=>new Uint8Array(columns*rows));
-  for(let variant=0;variant<portraitAsciiVariants;variant++){
-    const work=Float32Array.from(values,(value,i)=>value<=.02||value>=.98?value:value+Math.sin(i*2.399963+variant*Math.PI/2)*.02);
-    // Reverse alternate scanlines to avoid a single directional texture.
-    for(let y=0;y<ph;y++)for(let step=0;step<pw;step++){
-      const direction=y%2?-1:1,x=direction===1?step:pw-1-step;
-      const i=y*pw+x;if(alphas[i]<.06)continue;
-      const value=Math.max(0,Math.min(1,work[i])),dot=value>=.5?1:0,error=value-dot;
-      if(dot)masks[variant][Math.floor(y/4)*columns+Math.floor(x/2)]|=dotBits[(y%4)*2+x%2];
-      if(x+direction>=0&&x+direction<pw)work[i+direction]+=error*7/16;
-      if(y+1<ph){if(x-direction>=0&&x-direction<pw)work[i+pw-direction]+=error*3/16;work[i+pw]+=error*5/16;if(x+direction>=0&&x+direction<pw)work[i+pw+direction]+=error/16;}
+function softenLuminance(source, width, height, radius) {
+  const horizontal = new Float32Array(source.length);
+  const softened = new Float32Array(source.length);
+  for (let y = 0; y < height; y++) {
+    const start = y * width;
+    for (let x = 0; x < width; x++) {
+      horizontal[start + x] = (
+        source[start + Math.max(0, x - radius)] +
+        source[start + x] * 2 +
+        source[start + Math.min(width - 1, x + radius)]
+      ) * .25;
     }
   }
-  const cells=[];
-  for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
-    let alpha=0,luminance=0;
-    for(let dy=0;dy<4;dy++)for(let dx=0;dx<2;dx++){const i=(row*4+dy)*pw+column*2+dx;alpha+=alphas[i]/8;luminance+=lumas[i]/8;}
-    if(alpha<.06)continue;
-    const phase=column*.31+row*.17,x=(column+.5)*portraitSize.width/columns,y=(row+.5)*portraitSize.height/rows;
-    const random=Math.sin(phase*12.9898+x*78.233+y*37.719)*43758.5453;
-    const seed=row*columns+column;
-    cells.push({x,y,alpha,luminance,phase,rhythmSeed:random-Math.floor(random),geometry:Math.floor(noise(seed+83)*portraitTreatment.geometryCount),
-      offsetX:(noise(seed+19)-.5)*.24,offsetY:(noise(seed+47)-.5)*.24,masks:masks.map(mask=>mask[row*columns+column])});
+  for (let y = 0; y < height; y++) {
+    const above = Math.max(0, y - radius) * width;
+    const below = Math.min(height - 1, y + radius) * width;
+    const start = y * width;
+    for (let x = 0; x < width; x++) {
+      softened[start + x] = (horizontal[above + x] + horizontal[start + x] * 2 + horizontal[below + x]) * .25;
+    }
   }
-  return cells;
+  return softened;
 }
 
-// Fixed microvariation breaks long rows without making the face jitter.
-// Geometry is independent of the changing masks, so shared dots never move.
-export function portraitAsciiGlyph(mask,geometry=0){
-  const dots=[];
-  for(let row=0;row<4;row++)for(let column=0;column<2;column++){
-    const seed=geometry*29+row*2+column;
-    if(mask&dotBits[row*2+column])dots.push({x:column+.5+(noise(seed+5)-.5)*.46,y:row+.5+(noise(seed+37)-.5)*.46,radius:portraitTreatment.dotRadius});
-  }
-  return {mark:String.fromCodePoint(0x2800+mask),alpha:1,dots};
-}
-export function portraitAsciiMask(cell,variant){return cell.masks[variant%portraitAsciiVariants];}
-export function portraitAsciiPose(cell){return {x:cell.x,y:cell.y};}
+const distanceToLine = phase => Math.abs(phase - Math.round(phase));
 
-export function portraitAsciiPulse(cell,elapsed,still=false){
-  if(still)return {from:0,to:0,mix:0};
-  const random=cell.rhythmSeed??Math.sin(cell.phase*12.9898+cell.x*78.233+cell.y*37.719)*43758.5453;
-  const seed=random-Math.floor(random),beatMs=60000/portraitAsciiTempo.bpm;
-  const beat=(Math.max(0,elapsed)/beatMs)%portraitAsciiTempo.beats;
-  let variant=Math.floor(seed*portraitAsciiVariants);
-  for(const[start,duration]of events){
-    const local=(beat-start-seed*.38)/duration;if(local<0)break;
-    const next=(variant+1)%portraitAsciiVariants;
-    if(local<1)return {from:variant,to:next,mix:local*local*(3-2*local)};
-    variant=next;
+// Work in the same 200 × 250 coordinates at every pixel density, so the
+// engraving retains the same spacing while its thin lines stay antialiased.
+export function engravePortrait(pixels, width, height) {
+  const luma = new Float32Array(width * height);
+  const masks = Array.from({ length: portraitPatternFrames }, () => new Uint8ClampedArray(luma.length));
+  for (let i = 0; i < luma.length; i++) {
+    const offset = i * 4;
+    const alpha = pixels[offset + 3] / 255;
+    const tone = (pixels[offset] * .2126 + pixels[offset + 1] * .7152 + pixels[offset + 2] * .0722) / 255;
+    luma[i] = tone * alpha + .55 * (1 - alpha);
   }
-  return {from:variant,to:variant,mix:0};
+  const scale = portraitSize.width / width;
+  const soft = softenLuminance(luma, width, height, Math.max(1, Math.round(2.2 / scale)));
+  for (let y = 0; y < height; y++) {
+    const v = (y + .5) * portraitSize.height / height;
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      const alpha = pixels[i * 4 + 3];
+      if (!alpha) continue;
+      const u = (x + .5) * scale;
+      const light = .67 * luma[i] + .33 * soft[i];
+      const shade = clamp((.68 - light) / .66);
+      const field = v + (u - 100) * .26 + 10 * Math.sin(u * .034 + v * .014) + soft[i] * 21;
+      const spacing = 4.5;
+      const lineEdge = .07 + shade * .14;
+      const edgeSoftness = Math.max(.09, scale / spacing);
+      const contour = 1 - smooth(.04, .19, distanceToLine(soft[i] * 8.6 + .13));
+      const key = .12 * shade + .22 * smooth(.22, .52, shade) + .32 * smooth(.62, .95, shade);
+      const hatch = (.14 + .37 * shade) * smooth(.06, .26, shade);
+      const cut = contour * .13 * smooth(.23, .43, shade) * (1 - smooth(.79, .94, shade));
+      // The contours and tonal values stay anchored. Only the hatching phase changes.
+      const phase = field / spacing;
+      for (let frame = 0; frame < masks.length; frame++) {
+        const distance = distanceToLine(phase - frame / masks.length);
+        const line = 1 - smooth(lineEdge - edgeSoftness, lineEdge + edgeSoftness, distance);
+        masks[frame][i] = alpha * clamp(key + hatch * line + cut);
+      }
+    }
+  }
+  return masks;
+}
+
+export function portraitPatternPosition(elapsed) {
+  return (Math.max(0, elapsed) % patternPeriod) / patternPeriod * portraitPatternFrames;
 }
