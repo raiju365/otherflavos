@@ -149,7 +149,7 @@ export function cameraProjection(layout, yaw, pitch, view) {
     scaleY = Math.max(1, Math.min(
       (layout.width - 2 * gutter) / Math.max(.32, horizontal.span * wide),
       (layout.height - 2 * gutter) / Math.max(.32, vertical.span),
-    ));
+    ) * .92);
     scaleX = scaleY * wide;
   }
   return {
