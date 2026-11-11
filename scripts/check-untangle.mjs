@@ -132,7 +132,8 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-new]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
+    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-new]', '[data-play-next]',
+    '.play-toolbar', '[data-play-highlight]', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
   const nodes = elements['[data-play-nodes]'], status = elements['[data-play-status]'];

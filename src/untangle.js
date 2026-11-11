@@ -20,6 +20,7 @@ export function initUntangle(root, signal, random = Math.random) {
   const front = root.querySelector('[data-play-front]');
   const next = root.querySelector('[data-play-next]');
   const toolbar = root.querySelector('.play-toolbar');
+  const highlight = root.querySelector('[data-play-highlight]');
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     field.hidden = toolbar.hidden = true;
@@ -36,6 +37,7 @@ export function initUntangle(root, signal, random = Math.random) {
   const vibrations = new Map();
   let points = [], contacts = [];
   let solved = false, selected = -1, drag = null;
+  let activeAction = null;
   let layout = null, frame = 0, pulse = null;
   let ratio = 1, ink = '', accent = '';
   const buttons = Array.from({ length: maxPoints }, (_, index) => {
@@ -106,6 +108,7 @@ export function initUntangle(root, signal, random = Math.random) {
     next.textContent = level === stageCount - 1 ? 'Play again' : 'Next knot';
     next.hidden = false;
     newKnot.hidden = level === stageCount - 1;
+    if (activeAction) highlightAction(activeAction.hidden ? null : activeAction);
     const restoreFocus = nodes.contains(document.activeElement);
     for (const button of buttons) button.disabled = true;
     syncSelection();
@@ -277,6 +280,16 @@ export function initUntangle(root, signal, random = Math.random) {
     schedule();
   }
 
+  function highlightAction(button, slide = false) {
+    highlight.dataset.slide = String(slide && activeAction !== null);
+    activeAction = button;
+    highlight.dataset.visible = String(Boolean(button));
+    if (!button) return;
+    highlight.style.width = `${button.offsetWidth}px`;
+    highlight.style.height = `${button.offsetHeight}px`;
+    highlight.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+  }
+
   function measure() {
     const { clientWidth: width, clientHeight: height } = field;
     if (!width || !height) {
@@ -289,6 +302,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     layout = boardLayout(width, height);
+    if (activeAction) highlightAction(activeAction);
     schedule();
   }
 
@@ -302,6 +316,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
   function resetView() {
     if (!available() || drag) return;
+    highlightAction(front, true);
     yaw = pitch = 0;
     view = frameView(points);
     schedule();
@@ -439,10 +454,20 @@ export function initUntangle(root, signal, random = Math.random) {
     syncSelection();
     finishMove(index);
   });
-  on(reset, 'click', () => { if (available()) restoreKnot(true); });
-  on(newKnot, 'click', () => { if (available()) loadKnot(level, true); });
+  on(reset, 'click', () => {
+    if (!available()) return;
+    restoreKnot(true);
+    highlightAction(reset, true);
+  });
+  on(newKnot, 'click', () => {
+    if (!available()) return;
+    loadKnot(level, true);
+    highlightAction(newKnot, true);
+  });
   on(next, 'click', () => {
-    if (available() && solved) loadKnot((level + 1) % stageCount, true);
+    if (!available() || !solved) return;
+    highlightAction(null);
+    loadKnot((level + 1) % stageCount, true);
   });
 
   function pause() {
@@ -471,6 +496,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
   resize?.observe(field);
+  resize?.observe(toolbar);
   const theme = typeof MutationObserver === 'function' ? new MutationObserver(readPalette) : null;
   theme?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   signal.addEventListener('abort', () => { pause(); resize?.disconnect(); theme?.disconnect(); }, { once: true });

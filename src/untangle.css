@@ -140,17 +140,36 @@
 #panel-home .play-field[data-solved=true] ~ .play-toolbar .play-status { color: var(--theme-panel-ink); }
 .play-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px 4px; }
 
+.play-action-highlight {
+  position: absolute;
+  inset: 0 auto auto 0;
+  border-radius: 24px;
+  border: 1px solid var(--theme-selection-line);
+  background: linear-gradient(155deg, var(--theme-selection-start), var(--theme-selection-end));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+.play-action-highlight[data-visible=true] { opacity: 1; }
+.play-action-highlight[data-slide=true] {
+  transition: transform 340ms var(--studio-ease), width 340ms var(--studio-ease),
+    height 340ms var(--studio-ease), opacity 150ms ease-out;
+}
+
 .play-actions button {
+  position: relative;
   min-height: 44px;
   min-width: 44px;
   padding-inline: 10px;
   border-radius: 24px;
   font-size: 13px;
+  transition: scale 220ms var(--studio-ease);
 }
 
+.play-actions button:active { scale: .94; transition-duration: 90ms; }
 .play-actions button:focus-visible { outline-color: currentColor; outline-offset: -3px; border-radius: 24px; }
 .play-reset { color: inherit; }
-.play-reset:is(:hover, :focus-visible) { background: var(--theme-selection-start); }
 .play-next { background: var(--theme-panel-ink); color: var(--theme-panel-solid); }
 .play-actions .play-next:focus-visible { outline-offset: -4px; }
 
@@ -181,6 +200,8 @@
 @media (prefers-reduced-motion: reduce) {
   .play-node::before { transition: none; }
   .play-next:not([hidden]) { animation: none; }
+  .play-action-highlight[data-slide], .play-actions button { transition: none; }
+  .play-actions button:active { scale: none; }
 }
 
 @media (forced-colors: active) {
@@ -188,5 +209,6 @@
   .play-node::before { background: Canvas; color: CanvasText; }
   .play-node:is(:focus-visible, [aria-pressed=true], [data-grabbed=true]) { color: Highlight; }
   #panel-home :is(.play-knot, .play-status) { color: CanvasText; }
+  .play-action-highlight { border-color: Highlight; }
   .play-next { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; }
 }
