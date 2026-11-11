@@ -280,14 +280,18 @@ export function initUntangle(root, signal, random = Math.random) {
     schedule();
   }
 
+  function positionHighlight() {
+    if (!activeAction) return;
+    highlight.style.width = `${activeAction.offsetWidth}px`;
+    highlight.style.height = `${activeAction.offsetHeight}px`;
+    highlight.style.transform = `translate(${activeAction.offsetLeft}px, ${activeAction.offsetTop}px)`;
+  }
+
   function highlightAction(button, slide = false) {
     highlight.dataset.slide = String(slide && activeAction !== null);
     activeAction = button;
     highlight.dataset.visible = String(Boolean(button));
-    if (!button) return;
-    highlight.style.width = `${button.offsetWidth}px`;
-    highlight.style.height = `${button.offsetHeight}px`;
-    highlight.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+    positionHighlight();
   }
 
   function measure() {
@@ -302,7 +306,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     layout = boardLayout(width, height);
-    if (activeAction) highlightAction(activeAction);
+    positionHighlight();
     schedule();
   }
 
