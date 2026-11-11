@@ -38,7 +38,7 @@ check('glass never fades, scales content, animates blur or changes panel layout 
     Object.keys(frame).every(key => ['offset','clipPath'].includes(key)))));
 });
 check('open reaches full panel with aligned X and full opacity content surface', () => {
-  assert.equal(batch()[0].frames.at(-1).clipPath, 'inset(0px 0px 0px 0px round 42px)');
+  assert.equal(batch()[0].frames.at(-1).clipPath, 'inset(0px 0px 0px 0px round 32px)');
   assert.equal(jobFor('close').frames.at(-1).opacity, 1);
   assert.equal(jobFor('close').frames.at(-1).transform, 'translate(4px, -4px) scale(1)');
 });
@@ -132,18 +132,31 @@ check('abort destroys effects, restores the circle, and cannot restart', () => {
   assert.equal(elements.glass.style.clipPath, 'inset(184px 164px 0px 0px round 28px)');
 });
 const staticGlass = { style: {}, offsetWidth: 240, offsetHeight: 288 };
+const styledGlass = {
+  ...staticGlass, style: {},
+  ownerDocument: {
+    defaultView: {
+      getComputedStyle: () => ({ getPropertyValue: name => name === '--theme-panel-radius' ? '36px' : '' }),
+    },
+  },
+};
+const styledMotion = createThemePanelMotion({ glass: styledGlass });
+styledMotion.set({ open: true, animate: false });
+check('the open mask uses the same CSS radius token as the inset selection', () => {
+  assert.equal(styledGlass.style.clipPath, 'inset(0px 0px 0px 0px round 36px)');
+});
 let fallbackRest;
 const fallback = createThemePanelMotion({ glass: staticGlass }, { onRest: state => { fallbackRest = state; } });
 fallback.set({ open: true });
 check('missing native API retains a usable immediate panel', () => {
-  assert.equal(staticGlass.style.clipPath, 'inset(0px 0px 0px 0px round 42px)');
+  assert.equal(staticGlass.style.clipPath, 'inset(0px 0px 0px 0px round 32px)');
   assert.equal(fallbackRest.open, true);
 });
 const failing = { ...elements.glass, style: {}, animate() { throw Error('unavailable'); } };
 const failure = createThemePanelMotion({ glass: failing });
 check('native animation failure falls back without throwing or leaving stale effects', () => {
   assert.doesNotThrow(() => failure.set({ open: true }));
-  assert.equal(failing.style.clipPath, 'inset(0px 0px 0px 0px round 42px)');
+  assert.equal(failing.style.clipPath, 'inset(0px 0px 0px 0px round 32px)');
 });
 await tick();
 console.log(JSON.stringify({ mode: 'Native-animation fixture; no browser FPS measurement', passed: passed.length, checks: passed }, null, 2));

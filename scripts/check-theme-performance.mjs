@@ -293,6 +293,14 @@ check('missing optional theme elements cannot crash application startup',()=>{
   document.querySelector=query;
 });
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+check('the four options retain their original circular gradient swatches', () => {
+  const css = readFileSync(new URL('../src/theme-picker.css', import.meta.url), 'utf8');
+  for (const theme of ['dark', 'light', 'unexpected', 'amethyst']) {
+    assert.match(html, new RegExp(`<span class="theme-swatch swatch-${theme}"`));
+    assert.match(css, new RegExp(`\\.swatch-${theme}\\s*\\{\\s*background:linear-gradient\\(`));
+  }
+  assert.match(css, /\.theme-swatch\s*\{[^}]*border-radius:50%/);
+});
 check('the menu remains accessible and releases the decorative pause on abort',()=>{
  assert.equal((html.match(/id="theme-toggle"/g)||[]).length,1);
  assert.ok(activity.includes(true));assert.equal(activity.at(-1),false);assert.equal(root.dataset.themeControlOpen,undefined);

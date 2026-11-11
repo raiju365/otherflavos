@@ -16,7 +16,7 @@ function reveal(progress, start, end) {
   return t * t * (3 - 2 * t);
 }
 
-export function panelFrame(progress, pressure, width, height) {
+export function panelFrame(progress, pressure, width, height, openRadius = 32) {
   const p = clamp(progress), q = clamp(pressure);
   // The circle first widens into a pill, then lifts into the menu. Both axes
   // derive from the same spring so reversal retains their presented velocity.
@@ -26,7 +26,7 @@ export function panelFrame(progress, pressure, width, height) {
   const inset = 2 * q * (1 - p);
   const top = (height - 56) * (1 - vertical) + inset;
   const right = (width - 56) * (1 - horizontal) + inset;
-  const radius = 28 + 14 * p - inset;
+  const radius = 28 + (openRadius - 28) * p - inset;
   const shift = 4 * p, scale = 1 - .06 * q;
   const toneMix = reveal(p, .08, .49);
   const closeMix = reveal(p, .38, .80);
@@ -49,10 +49,10 @@ export function panelFrame(progress, pressure, width, height) {
 }
 export function createThemePanelMotion(elements, { onRest = () => {}, now = () => performance.now() } = {}) {
   let active = null, progress = 0, pressure = 0, destroyed = false;
-  let width = 240, height = 288;
+  let width = 240, height = 288, openRadius = 32;
   const entries = Object.entries(elements).filter(([, element]) => element);
   function paint(p, q) {
-    const frame = panelFrame(p, q, width, height);
+    const frame = panelFrame(p, q, width, height, openRadius);
     for (const [key, element] of entries) Object.assign(element.style, frame[key]);
   }
   function cancel() {
@@ -81,6 +81,8 @@ export function createThemePanelMotion(elements, { onRest = () => {}, now = () =
   function measure() {
     width = elements.glass.offsetWidth || 240;
     height = elements.glass.offsetHeight || 288;
+    const style = elements.glass.ownerDocument?.defaultView?.getComputedStyle(elements.glass);
+    openRadius = parseFloat(style?.getPropertyValue('--theme-panel-radius')) || 32;
   }
   measure(); paint(0, 0);
   return {
@@ -106,7 +108,7 @@ export function createThemePanelMotion(elements, { onRest = () => {}, now = () =
         return { p: clamp(i === steps ? p : panelSpring(record.p, t).value),
           q: clamp(i === steps ? q : panelSpring(record.q, t).value) };
       });
-      const frames = record.samples.map(sample => panelFrame(sample.p, sample.q, width, height));
+      const frames = record.samples.map(sample => panelFrame(sample.p, sample.q, width, height, openRadius));
       try {
         const startTime = elements.glass.ownerDocument?.timeline?.currentTime;
         for (const [key, element] of entries) {
