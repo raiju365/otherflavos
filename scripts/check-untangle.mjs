@@ -332,11 +332,27 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const knot = f.nextExpected(1);
   emit(f.front, 'click');
   const origin = knot.points[0];
-  const raised = { ...origin, y: origin.y - 12 };
+  const raised = { ...origin, x: origin.x - 300, y: origin.y - 300 };
   const startView = frameView(knot.points);
   const layout = boardLayout(f.rect.width, f.rect.height);
   f.step();
-  f.drag(0, [origin.x, origin.y], [raised.x, raised.y]);
+  f.grab(0, [origin.x, origin.y]);
+  f.send('pointermove', [raised.x, raised.y]);
+  f.step(20);
+  const visibleNodes = f.nodes.children.filter(button => !button.hidden);
+  const insideField = ({ style }) => {
+    const x = parseFloat(style.left), y = parseFloat(style.top);
+    return x >= 22 && x <= layout.width - 22 && y >= 22 && y <= layout.height - 22;
+  };
+  check('all nodes stay inside the arena even before an extreme drag is released', () => {
+    assert.equal(f.nodes.children[0].hasPointerCapture(7), true);
+    assert.ok(visibleNodes.every(insideField));
+  });
+  f.send('pointermove', [origin.x, origin.y]);
+  f.step(30);
+  const front = cameraProjection(layout, 0, 0, startView);
+  assert.equal(f.nodes.children[0].style.top, `${front.project(origin).y}px`);
+  f.send('pointerup', [raised.x, raised.y]);
   f.step(40);
   const stretched = [raised, ...knot.points.slice(1)];
   const fit = cameraProjection(layout, 0, 0, frameView(stretched));
@@ -344,7 +360,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     for (const [index, point] of stretched.entries()) {
       const projected = fit.project(point);
       assert.ok(Math.abs(parseFloat(f.nodes.children[index].style.top) - projected.y) < .001);
-      assert.ok(projected.y >= 20 && projected.y <= f.rect.height - 20);
+      assert.ok(insideField(f.nodes.children[index]));
     }
   });
   f.fit(stretched);

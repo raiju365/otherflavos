@@ -129,7 +129,7 @@ export function frameView(points) {
   return { center, radius: Math.max(.16, ...points.map(point => distance(point, center))) };
 }
 
-export function cameraProjection(layout, yaw, pitch, view) {
+export function cameraProjection(layout, yaw, pitch, view, draggedPoint) {
   const c = Math.cos(yaw), s = Math.sin(yaw), p = Math.cos(pitch), q = Math.sin(pitch);
   const right = { x: c, y: 0, z: s };
   const down = { x: q * s, y: p, z: -q * c };
@@ -137,13 +137,18 @@ export function cameraProjection(layout, yaw, pitch, view) {
   const center = view?.center ?? { x: .5, y: .5, z: .5 };
   const centerX = dot(center, right), centerY = dot(center, down), centerZ = dot(center, near);
   const gutter = Math.min(34, Math.max(23, Math.min(layout.width, layout.height) * .045));
+  const innerWidth = Math.max(1, layout.width - 2 * gutter);
+  const innerHeight = Math.max(1, layout.height - 2 * gutter);
   const wide = view ? Math.max(1, Math.min(1.32, layout.width / layout.height / 1.13)) : 1;
   // Fit the entire rotation once. Projected bounds change as the scene turns,
   // but camera scale and pivot stay fixed until an actual reframe is needed.
-  const scaleY = view ? Math.max(1, Math.min(
-    (layout.width - 2 * gutter) / wide,
-    layout.height - 2 * gutter,
-  ) / (2 * view.radius) * .96) : layout.size;
+  let scaleY = view ? Math.min(innerWidth / wide, innerHeight) / (2 * view.radius) * .96 : layout.size;
+  if (draggedPoint) {
+    // Keep the dragged point in frame while input uses the original projection.
+    const x = Math.abs(dot(draggedPoint, right) - centerX);
+    const y = Math.abs(dot(draggedPoint, down) - centerY);
+    scaleY = Math.min(scaleY, innerWidth / (2 * wide * x), innerHeight / (2 * y));
+  }
   const scaleX = scaleY * wide;
   return {
     project(point) {

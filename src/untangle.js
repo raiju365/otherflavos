@@ -91,7 +91,7 @@ export function initUntangle(root, signal, random = Math.random) {
     const projection = camera();
     if (points.some(point => {
       const { x, y } = projection.project(point);
-      return distance(point, view.center) > view.radius * 1.04 ||
+      return distance(point, view.center) > view.radius ||
         x < 21 || x > layout.width - 21 || y < 21 || y > layout.height - 21;
     })) view = frameView(points);
     schedule();
@@ -152,7 +152,7 @@ export function initUntangle(root, signal, random = Math.random) {
     restoreKnot(focus);
   }
 
-  const camera = () => cameraProjection(layout, yaw, pitch, view);
+  const camera = draggedPoint => cameraProjection(layout, yaw, pitch, view, draggedPoint);
 
   function stroke(a, b, color, opacity, width) {
     ctx.strokeStyle = color;
@@ -203,7 +203,7 @@ export function initUntangle(root, signal, random = Math.random) {
     ctx.clearRect(0, 0, layout.width, layout.height);
     ctx.lineCap = 'round';
 
-    const projection = drag?.projection ?? camera();
+    const projection = drag?.moved ? camera(points[drag.index]) : camera();
     const vertices = points.map(point => projection.project(point));
     const marked = new Set(contacts.flatMap(crossing => crossing.edges));
     const active = drag?.index ?? selected;
