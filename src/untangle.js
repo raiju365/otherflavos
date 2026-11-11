@@ -87,7 +87,11 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function finishMove(index) {
-    if (points.some(point => distance(point, view.center) * view.zoom > .60)) view = frameView(points);
+    const projection = camera();
+    if (points.some(point => {
+      const { x, y } = projection.project(point);
+      return x < 21 || x > layout.width - 21 || y < 21 || y > layout.height - 21;
+    })) view = frameView(points);
     schedule();
     if (contacts.length) {
       announce(contactLabel());
@@ -193,7 +197,7 @@ export function initUntangle(root, signal, random = Math.random) {
     ctx.clearRect(0, 0, layout.width, layout.height);
     ctx.lineCap = 'round';
 
-    const projection = camera();
+    const projection = drag?.projection ?? camera();
     const vertices = points.map(point => projection.project(point));
     const marked = new Set(contacts.flatMap(crossing => crossing.edges));
     const active = drag?.index ?? selected;
@@ -216,7 +220,7 @@ export function initUntangle(root, signal, random = Math.random) {
       const opacity = activeWire ? .95 : crossing ? (points.length > 16 ? (active < 0 ? .48 : .22) : .82)
         : solved || forced.matches ? .76 : .35 + unit((z + 1) / 2) * .24;
       const color = crossing ? accent : ink;
-      const width = crossing ? 1.45 : 1.1;
+      const width = crossing ? 1.6 : 1.25;
       if (!sway.has(a) && !sway.has(b)) {
         stroke(vertices[a], vertices[b], color, opacity, width);
         continue;
@@ -318,6 +322,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (orbit?.id !== event.pointerId || !available()) return;
     const x = event.clientX - orbit.x, y = event.clientY - orbit.y;
     if (!orbitMoved && Math.hypot(x, y) < 5) return;
+    if (!orbitMoved) view = frameView(points);
     orbitMoved = true;
     field.dataset.orbiting = 'true';
     yaw = (orbit.yaw + x * .013) % (Math.PI * 2);

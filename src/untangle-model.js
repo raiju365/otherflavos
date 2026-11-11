@@ -122,31 +122,45 @@ export function createKnot(level, random = Math.random) {
 }
 
 export function frameView(points) {
-  const axes = ['x', 'y', 'z'];
-  const center = Object.fromEntries(axes.map(axis => {
-    const values = points.map(point => point[axis]);
-    return [axis, (Math.min(...values) + Math.max(...values)) / 2];
-  }));
-  const radius = Math.max(...points.map(point => distance(point, center)));
-  return { center, zoom: Math.min(1, .57 / Math.max(radius, .001)) };
+  return points.slice();
 }
 
-export function cameraProjection(layout, yaw, pitch, view = { center: { x: .5, y: .5, z: .5 }, zoom: 1 }) {
+export function cameraProjection(layout, yaw, pitch, view) {
   const c = Math.cos(yaw), s = Math.sin(yaw), p = Math.cos(pitch), q = Math.sin(pitch);
   const right = { x: c, y: 0, z: s };
   const down = { x: q * s, y: p, z: -q * c };
   const near = { x: -p * s, y: q, z: p * c };
-  const size = layout.size * view.zoom;
+  let centerX = dot({ x: .5, y: .5, z: .5 }, right);
+  let centerY = dot({ x: .5, y: .5, z: .5 }, down);
+  let centerZ = dot({ x: .5, y: .5, z: .5 }, near);
+  let scaleX = layout.size, scaleY = layout.size;
+  if (view?.length) {
+    const bounds = axis => {
+      const values = view.map(point => dot(point, axis));
+      const min = Math.min(...values), max = Math.max(...values);
+      return { center: (min + max) / 2, span: max - min };
+    };
+    const horizontal = bounds(right), vertical = bounds(down);
+    centerX = horizontal.center;
+    centerY = vertical.center;
+    centerZ = bounds(near).center;
+    const gutter = Math.min(34, Math.max(23, Math.min(layout.width, layout.height) * .045));
+    const wide = Math.max(1, Math.min(1.32, layout.width / layout.height / 1.13));
+    scaleY = Math.max(1, Math.min(
+      (layout.width - 2 * gutter) / Math.max(.32, horizontal.span * wide),
+      (layout.height - 2 * gutter) / Math.max(.32, vertical.span),
+    ));
+    scaleX = scaleY * wide;
+  }
   return {
     project(point) {
-      const local = subtract(point, view.center);
-      const depth = dot(local, near) * view.zoom;
-      return { x: layout.width / 2 + dot(local, right) * size,
-        y: layout.height / 2 + dot(local, down) * size, z: depth,
+      const depth = (dot(point, near) - centerZ) * scaleY / layout.size;
+      return { x: layout.width / 2 + (dot(point, right) - centerX) * scaleX,
+        y: layout.height / 2 + (dot(point, down) - centerY) * scaleY, z: depth,
         scale: Math.max(.76, Math.min(1.22, 1 + depth * .29)) };
     },
     move(point, dx, dy) {
-      const x = dx / size, y = dy / size;
+      const x = dx / scaleX, y = dy / scaleY;
       return {
         x: point.x + x * right.x + y * down.x,
         y: point.y + x * right.y + y * down.y,

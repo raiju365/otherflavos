@@ -63,6 +63,20 @@ check('full side view spreads by Z and screen drag remains reversible at every a
   assert.ok(Math.abs(side.project(point).x - side.project({ ...point, z: .84 }).x) > 100);
 });
 
+check('wide and compact views enlarge the network while keeping room for handles', () => {
+  for (const layout of [boardLayout(1096, 720), boardLayout(336, 410)]) {
+    for (let seed = 1; seed <= 16; seed++) {
+      const knot = createKnot(4, rng(seed));
+      const projection = cameraProjection(layout, .23, -.24, frameView(knot.points));
+      const pixels = knot.points.map(projection.project);
+      const width = Math.max(...pixels.map(p => p.x)) - Math.min(...pixels.map(p => p.x));
+      const height = Math.max(...pixels.map(p => p.y)) - Math.min(...pixels.map(p => p.y));
+      assert.ok(Math.max(width / layout.width, height / layout.height) > .83);
+      assert.ok(pixels.every(p => p.x >= 22 && p.x <= layout.width - 22 && p.y >= 22 && p.y <= layout.height - 22));
+    }
+  }
+});
+
 check('free drag moves beyond the original bounds and reaches depth from the side', () => {
   const layout = boardLayout(344, 332);
   const front = cameraProjection(layout, 0, 0);

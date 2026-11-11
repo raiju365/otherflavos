@@ -175,11 +175,8 @@
           <section id="panel-home" class="panel" role="tabpanel" aria-labelledby="tab-home" tabindex="0">
             <article class="play-untangle" data-untangle aria-labelledby="untangle-title">
               <div class="play-layout">
-                <header class="play-heading">
-                  <p class="play-knot" data-play-knot>Stage 1 / 5</p>
-                  <h2 id="untangle-title" class="sr-only">Untangle</h2>
-                  <p id="untangle-help">Separate the touching strings. Drag empty space to orbit.</p>
-                </header>
+                <h2 id="untangle-title" class="sr-only">Untangle</h2>
+                <p id="untangle-help" class="sr-only">Separate the touching strings. Drag empty space to orbit.</p>
                 <div class="play-field" data-play-field role="group" aria-label="Untangle board"
                   aria-describedby="untangle-help untangle-keys untangle-status">
                   <canvas width="400" height="400" aria-hidden="true"></canvas>
@@ -189,7 +186,10 @@
                   You can also select a point and tap a destination. Use the arrow keys to move a focused point, or hold Shift for smaller steps. Rotate the board to move in depth. Focus Front view and use the arrow keys to rotate.
                 </p>
                 <div class="play-toolbar">
-                  <p id="untangle-status" class="play-status" data-play-status></p>
+                  <div class="play-progress">
+                    <p class="play-knot" data-play-knot>Stage 1 / 5</p>
+                    <p id="untangle-status" class="play-status" data-play-status></p>
+                  </div>
                   <div class="play-actions">
                     <button type="button" class="play-reset" data-play-front title="Reset camera angle">Front view</button>
                     <button type="button" class="play-reset" data-play-reset>New knot</button>
