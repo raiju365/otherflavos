@@ -33,6 +33,38 @@
 }
 
 .play-field canvas { pointer-events: none; }
+.play-field[data-rupture=burst] .play-nodes { visibility: hidden; }
+
+.play-rupture {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  padding: max(14svh, env(safe-area-inset-top)) 24px 0;
+  color: #fff4f0;
+  text-align: center;
+  font-size: clamp(18px, 3vw, 30px);
+  font-weight: 600;
+  line-height: 1.15;
+  text-shadow: 0 1px 12px #380009;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.play-rupture::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #720916, #ad1425 85%);
+  opacity: .64;
+}
+
+.play-rupture[data-phase=burst]::before { animation: play-snap-wash 680ms ease-out both; }
+
+@keyframes play-snap-wash {
+  from { opacity: .84; }
+  to { opacity: .25; }
+}
 
 .play-node {
   position: absolute;
@@ -144,6 +176,7 @@
 @media (prefers-reduced-motion: reduce) {
   .play-node::before { transition: none; }
   .play-next:not([hidden]) { animation: none; }
+  .play-rupture[data-phase=burst]::before { animation: none; }
 }
 
 @media (forced-colors: active) {
@@ -151,4 +184,13 @@
   .play-node::before { background: Canvas; color: CanvasText; }
   .play-node:is(:focus-visible, [aria-pressed=true], [data-grabbed=true]) { color: Highlight; }
   .play-next { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; }
+  .play-rupture {
+    inset: 0 0 auto;
+    padding: 16px;
+    border-bottom: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    text-shadow: none;
+  }
+  .play-rupture::before { content: none; }
 }
