@@ -1,8 +1,6 @@
 import { boardLayout, cameraProjection, createKnot, distance, findContacts, frameView, maxPoints, movePoint, stageCount } from './untangle-model.js';
 
 const pulseDuration = 880;
-const warningDuration = 520;
-const burstDuration = 680;
 const arrows = {
   ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
 };
@@ -18,9 +16,9 @@ export function initUntangle(root, signal, random = Math.random) {
   const status = root.querySelector('[data-play-status]');
   const live = root.querySelector('[data-play-live]');
   const reset = root.querySelector('[data-play-reset]');
+  const newKnot = root.querySelector('[data-play-new]');
   const front = root.querySelector('[data-play-front]');
   const next = root.querySelector('[data-play-next]');
-  const warning = document.querySelector('[data-play-rupture]');
   const toolbar = root.querySelector('.play-toolbar');
   const ctx = canvas.getContext('2d');
   if (!ctx) {
@@ -39,7 +37,6 @@ export function initUntangle(root, signal, random = Math.random) {
   let points = [], contacts = [];
   let solved = false, selected = -1, drag = null;
   let layout = null, frame = 0, pulse = null;
-  let wireLimit = 0, rupture = null;
   let ratio = 1, ink = '', accent = '';
   const buttons = Array.from({ length: maxPoints }, (_, index) => {
     const button = document.createElement('button');
@@ -75,43 +72,6 @@ export function initUntangle(root, signal, random = Math.random) {
     if (status.textContent !== label) status.textContent = label;
   }
 
-  function showRupture(phase, message) {
-    field.dataset.rupture = phase;
-    warning.dataset.phase = phase;
-    warning.textContent = message;
-    warning.hidden = false;
-    announce(message);
-  }
-
-  function clearRupture() {
-    if (!rupture) return;
-    rupture = null;
-    delete field.dataset.rupture;
-    warning.hidden = true;
-    delete warning.dataset.phase;
-  }
-
-  function syncTension(index) {
-    const point = points[index];
-    const projection = drag?.projection ?? camera();
-    const height = layout.height;
-    const top = projection.project(point).y;
-    const tooTight = knot.edges.some(([a, b]) => {
-      if (a !== index && b !== index) return false;
-      const other = points[a === index ? b : a];
-      const length = distance(point, other);
-      return length > wireLimit || (length > .95 && top < height * .16 &&
-        projection.project(other).y - top > height * .58);
-    });
-    if (tooTight && !rupture) {
-      rupture = { phase: 'warning', start: null, restoreFocus: false };
-      showRupture('warning', 'Tension limit!');
-    } else if (!tooTight && rupture) {
-      clearRupture();
-      announce(contactLabel());
-    }
-  }
-
   function place(index, target) {
     const previous = points[index];
     if (!movePoint(points, index, target)) return false;
@@ -123,13 +83,11 @@ export function initUntangle(root, signal, random = Math.random) {
       vibrations.set(index, { x: dx / length * amplitude, y: dy / length * amplitude, z: dz / length * amplitude, start: null });
     }
     syncCrossings();
-    syncTension(index);
     schedule();
     return true;
   }
 
   function finishMove(index) {
-    if (rupture) return;
     const projection = camera();
     if (points.some(point => {
       const { x, y } = projection.project(point);
@@ -147,7 +105,7 @@ export function initUntangle(root, signal, random = Math.random) {
     status.textContent = level === stageCount - 1 ? 'All knots untangled' : 'Knot untangled';
     next.textContent = level === stageCount - 1 ? 'Play again' : 'Next knot';
     next.hidden = false;
-    reset.hidden = level === stageCount - 1;
+    newKnot.hidden = level === stageCount - 1;
     const restoreFocus = nodes.contains(document.activeElement);
     for (const button of buttons) button.disabled = true;
     syncSelection();
@@ -157,18 +115,13 @@ export function initUntangle(root, signal, random = Math.random) {
     schedule();
   }
 
-  function loadKnot(index, focus = false) {
-    cancelDrag();
+  function restoreKnot(focus = false) {
+    releaseDrag();
     releaseOrbit();
-    clearRupture();
     orbitMoved = false;
     yaw = .23;
     pitch = -.24;
-    level = index;
-    knot = createKnot(level, random);
-    points = knot.points;
-    const initialLengths = knot.edges.map(([a, b]) => distance(points[a], points[b]));
-    wireLimit = Math.max(1.52, Math.max(...initialLengths) * 1.25);
+    points = knot.points.slice();
     view = frameView(points);
     field.dataset.dense = String(points.length > 16);
     vibrations.clear();
@@ -179,7 +132,7 @@ export function initUntangle(root, signal, random = Math.random) {
     field.dataset.solved = 'false';
     label.textContent = `Stage ${level + 1} / ${stageCount}`;
     status.textContent = contactLabel();
-    reset.hidden = false;
+    newKnot.hidden = false;
     next.hidden = true;
     buttons.forEach((button, i) => {
       button.hidden = i >= points.length;
@@ -191,6 +144,12 @@ export function initUntangle(root, signal, random = Math.random) {
       buttons[0].focus({ preventScroll: true });
     }
     schedule();
+  }
+
+  function loadKnot(index, focus = false) {
+    level = index;
+    knot = createKnot(level, random);
+    restoreKnot(focus);
   }
 
   const camera = () => cameraProjection(layout, yaw, pitch, view);
@@ -237,74 +196,15 @@ export function initUntangle(root, signal, random = Math.random) {
     schedule();
   }
 
-  function restartAfterRupture(focus = false) {
-    loadKnot(0, focus);
-    announce(`Back to Stage 1. ${contactLabel()}.`);
-  }
-
-  function advanceRupture(now) {
-    if (!rupture) return false;
-    rupture.start ??= now;
-    if (rupture.phase === 'warning' && now - rupture.start >= warningDuration) {
-      rupture.restoreFocus = nodes.contains(document.activeElement);
-      rupture.phase = 'burst';
-      rupture.start = now;
-      releaseDrag();
-      releaseOrbit();
-      vibrations.clear();
-      showRupture('burst', 'Strings snapped.');
-    }
-    if (rupture.phase === 'burst' && now - rupture.start >= burstDuration) {
-      restartAfterRupture(rupture.restoreFocus);
-      return true;
-    }
-    schedule();
-    return false;
-  }
-
-  function paintFragments(now, vertices) {
-    if (reduced.matches || forced.matches) return;
-    const progress = unit((now - rupture.start) / burstDuration);
-    const spread = 1 - (1 - progress) ** 2;
-    const reach = Math.min(layout.width, layout.height) * .38;
-    const opacity = .95 * (1 - progress);
-    for (const [index, [a, b]] of knot.edges.entries()) {
-      const from = vertices[a], to = vertices[b];
-      const wireX = to.x - from.x, wireY = to.y - from.y;
-      const wireAngle = Math.atan2(wireY, wireX);
-      const halfLength = Math.min(34, Math.hypot(wireX, wireY) * .14);
-      for (let piece = 0; piece < 3; piece++) {
-        const t = (piece + .5) / 3;
-        const x = from.x + wireX * t;
-        const y = from.y + wireY * t;
-        const angle = Math.atan2(y - layout.height / 2, x - layout.width / 2)
-          + Math.sin(index * 2.4 + piece * 2.1) * 1.1;
-        const travel = spread * reach * (.55 + piece * .22);
-        const centerX = x + Math.cos(angle) * travel;
-        const centerY = y + Math.sin(angle) * travel + progress ** 2 * reach * .4;
-        const tilt = wireAngle + spread * (piece - 1) * 1.6;
-        const dx = Math.cos(tilt) * halfLength, dy = Math.sin(tilt) * halfLength;
-        stroke({ x: centerX - dx, y: centerY - dy }, { x: centerX + dx, y: centerY + dy },
-          piece === 1 ? '#ff9e94' : '#fff0e9', opacity, 1.45);
-      }
-    }
-  }
-
   function paint(now) {
     frame = 0;
     if (!visible() || !layout) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, layout.width, layout.height);
     ctx.lineCap = 'round';
-    ctx.globalAlpha = 1;
-    if (advanceRupture(now)) return;
 
     const projection = drag?.projection ?? camera();
     const vertices = points.map(point => projection.project(point));
-    if (rupture?.phase === 'burst') {
-      paintFragments(now, vertices);
-      return;
-    }
     const marked = new Set(contacts.flatMap(crossing => crossing.edges));
     const active = drag?.index ?? selected;
     const sway = new Map();
@@ -401,7 +301,7 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function resetView() {
-    if (!available() || drag || rupture) return;
+    if (!available() || drag) return;
     yaw = pitch = 0;
     view = frameView(points);
     schedule();
@@ -409,7 +309,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
   on(front, 'click', resetView);
   on(front, 'keydown', event => {
-    if (!available() || drag || rupture || !Object.hasOwn(arrows, event.key)) return;
+    if (!available() || drag || !Object.hasOwn(arrows, event.key)) return;
     event.preventDefault();
     const [x, y] = arrows[event.key];
     yaw += x * .18;
@@ -418,7 +318,7 @@ export function initUntangle(root, signal, random = Math.random) {
   });
 
   on(field, 'pointerdown', event => {
-    if (!available() || !layout || drag || orbit || rupture || event.button !== 0 || event.isPrimary === false) return;
+    if (!available() || !layout || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
     orbitMoved = false;
     if (event.target.closest?.('[data-play-node]')) return;
     orbit = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch };
@@ -455,10 +355,6 @@ export function initUntangle(root, signal, random = Math.random) {
       points[current.index] = current.origin;
       vibrations.delete(current.index);
       syncCrossings();
-      if (rupture) {
-        clearRupture();
-        announce(contactLabel());
-      }
     }
     schedule();
   }
@@ -475,7 +371,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
   buttons.forEach((button, index) => {
     on(button, 'pointerdown', event => {
-      if (!playable() || drag || orbit || rupture || event.button !== 0 || event.isPrimary === false) return;
+      if (!playable() || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
       const projection = camera();
       const origin = points[index];
       drag = {
@@ -491,10 +387,10 @@ export function initUntangle(root, signal, random = Math.random) {
     });
     on(button, 'click', event => {
       // Pointer selection is decided on release, after checking drag distance.
-      if (event.detail === 0 && playable() && !rupture) togglePoint(index);
+      if (event.detail === 0 && playable()) togglePoint(index);
     });
     on(button, 'keydown', event => {
-      if (!playable() || drag || rupture || event.altKey || event.ctrlKey || event.metaKey || !Object.hasOwn(arrows, event.key)) return;
+      if (!playable() || drag || event.altKey || event.ctrlKey || event.metaKey || !Object.hasOwn(arrows, event.key)) return;
       event.preventDefault();
       const [dx, dy] = arrows[event.key];
       const step = event.shiftKey ? .016 : .055;
@@ -534,7 +430,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (drag?.id === event.pointerId) cancelDrag();
   });
   on(field, 'click', event => {
-    if (!playable() || rupture || orbitMoved || selected < 0 || event.target.closest?.('[data-play-node]')) return;
+    if (!playable() || orbitMoved || selected < 0 || event.target.closest?.('[data-play-node]')) return;
     const pointer = pointerPosition(event);
     const projection = camera(), origin = points[selected], position = projection.project(origin);
     if (!place(selected, projection.move(origin, pointer.x - position.x, pointer.y - position.y))) return;
@@ -543,7 +439,8 @@ export function initUntangle(root, signal, random = Math.random) {
     syncSelection();
     finishMove(index);
   });
-  on(reset, 'click', () => { if (available() && !rupture) loadKnot(level, true); });
+  on(reset, 'click', () => { if (available()) restoreKnot(true); });
+  on(newKnot, 'click', () => { if (available()) loadKnot(level, true); });
   on(next, 'click', () => {
     if (available() && solved) loadKnot((level + 1) % stageCount, true);
   });
@@ -551,8 +448,6 @@ export function initUntangle(root, signal, random = Math.random) {
   function pause() {
     cancelDrag();
     releaseOrbit();
-    if (signal.aborted) clearRupture();
-    else if (rupture) restartAfterRupture();
     vibrations.clear();
     pulse = null;
     cancelAnimationFrame(frame);
@@ -570,7 +465,6 @@ export function initUntangle(root, signal, random = Math.random) {
   on(window, 'pagehide', pause);
   on(window, 'pageshow', resume);
   on(window, 'blur', pause);
-  on(window, 'focus', resume);
   on(window, 'resize', resume);
   on(reduced, 'change', () => { pulse = null; vibrations.clear(); schedule(); });
   on(forced, 'change', () => { pulse = null; vibrations.clear(); readPalette(); });

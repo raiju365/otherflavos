@@ -132,11 +132,12 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
+    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-new]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
   const nodes = elements['[data-play-nodes]'], status = elements['[data-play-status]'];
   const reset = elements['[data-play-reset]'], next = elements['[data-play-next]'];
+  const newKnot = elements['[data-play-new]'];
   const label = elements['[data-play-knot]'], live = elements['[data-play-live]'];
   const frames = new Map(), observers = [], strokes = [];
   let id = 0, ink = '#efeaf7', accent = '#ff784f';
@@ -157,9 +158,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   document.hidden = false;
   document.documentElement = { dataset: { entry: 'ready' } };
   document.createElement = () => new Element();
-  const warning = new Element();
-  warning.hidden = true;
-  document.querySelector = selector => selector === '[data-play-rupture]' ? warning : null;
+  document.querySelector = () => null;
   globalThis.window = new EventTarget();
   window.devicePixelRatio = 3;
   globalThis.getComputedStyle = () => ({ color: ink, getPropertyValue: () => accent });
@@ -214,7 +213,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     send('pointerup', to);
   }
   return {
-    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, warning, frames, observers, strokes, rect, nextExpected, fit, sideView,
+    abort, panel, field, canvas, nodes, status, front, reset, newKnot, next, label, live, frames, observers, strokes, rect, nextExpected, fit, sideView,
     fallback: elements['[data-play-fallback]'], toolbar: elements['.play-toolbar'],
     pointAt, grab, send, drag,
     step(now = 0) {
@@ -248,7 +247,6 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     assert.notEqual(f.nodes.children[0].style.left, before);
     assert.equal(f.status.textContent, count);
     assert.equal(f.frames.size, 0);
-    assert.equal(f.warning.hidden, true);
   });
   emit(window, 'pointerup', { pointerId: 8 });
   emit(f.front, 'click');
@@ -267,7 +265,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   f.step(900);
   check('cancelling the drag restores the original crossing count', () => assert.equal(f.status.textContent, count));
 
-  emit(f.reset, 'click');
+  emit(f.newKnot, 'click');
   knot = f.nextExpected(0);
   emit(f.front, 'click');
   f.step(920);
@@ -325,102 +323,64 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
 }
 
 {
-  const f = fixture({ reduced: true });
-  const knot = f.nextExpected(0);
-  const origin = knot.points[0];
-  const target = { ...origin, x: origin.x + .9 };
-  f.step();
-  f.drag(0, [origin.x, origin.y], [target.x, target.y]);
-  f.step(40);
-  knot.points[0] = target;
-  const fit = cameraProjection(boardLayout(f.rect.width, f.rect.height), 0, 0, frameView(knot.points));
-  check('free drag below the tension limit still reframes the full network after release', () => {
-    assert.equal(f.warning.hidden, true);
-    for (const [index, point] of knot.points.entries()) {
-      const projected = fit.project(point);
-      assert.ok(Math.abs(parseFloat(f.nodes.children[index].style.left) - projected.x) < .001);
-      assert.ok(projected.x >= 20 && projected.x <= f.rect.width - 20);
-    }
-  });
-  f.abort.abort();
-}
-
-{
   const f = fixture();
-  const knot = f.nextExpected(0);
-  const index = knot.order[0], start = knot.points[index], solution = knot.solution[index];
-  f.drag(index, [start.x, start.y, start.z], [solution.x, solution.y, solution.z]);
+  const first = f.nextExpected(0);
+  const index = first.order[0], from = first.points[index], to = first.solution[index];
+  f.drag(index, [from.x, from.y], [to.x, to.y]);
   assert.equal(f.next.hidden, false);
   emit(f.next, 'click');
-  const { points, edges } = f.nextExpected(1);
+  const knot = f.nextExpected(1);
   emit(f.front, 'click');
+  const origin = knot.points[0];
+  const raised = { ...origin, y: origin.y - 12 };
+  const startView = frameView(knot.points);
+  const layout = boardLayout(f.rect.width, f.rect.height);
   f.step();
-  const origin = [points[0].x, points[0].y];
-  const camera = cameraProjection(boardLayout(f.rect.width, f.rect.height), 0, 0, frameView(points));
-  const warningY = f.rect.height * .09;
-  const target = camera.move(points[0], 0, warningY - camera.project(points[0]).y);
-  const up = [target.x, target.y];
-  f.grab(0, origin);
-  f.send('pointermove', up);
+  f.drag(0, [origin.x, origin.y], [raised.x, raised.y]);
+  f.step(40);
+  const stretched = [raised, ...knot.points.slice(1)];
+  const fit = cameraProjection(layout, 0, 0, frameView(stretched));
+  check('dragging far above the field reframes the full network after release', () => {
+    for (const [index, point] of stretched.entries()) {
+      const projected = fit.project(point);
+      assert.ok(Math.abs(parseFloat(f.nodes.children[index].style.top) - projected.y) < .001);
+      assert.ok(projected.y >= 20 && projected.y <= f.rect.height - 20);
+    }
+  });
+  f.fit(stretched);
+  f.sideView();
+  f.step(60);
+  emit(f.reset, 'click');
+  f.step(80);
+  const startingCamera = cameraProjection(layout, .23, -.24, startView);
+  check('Reset restores the original points, contacts and camera at the same stage', () => {
+    assert.equal(f.label.textContent, 'Stage 2 / 5');
+    assert.equal(parseInt(f.status.textContent, 10), findContacts(knot.points, knot.edges).length);
+    assert.equal(f.field.dataset.solved, 'false');
+    assert.equal(f.next.hidden, true);
+    for (const [index, point] of knot.points.entries()) {
+      const projected = startingCamera.project(point);
+      const { style } = f.nodes.children[index];
+      assert.ok(Math.abs(parseFloat(style.left) - projected.x) < .001);
+      assert.ok(Math.abs(parseFloat(style.top) - projected.y) < .001);
+    }
+    assert.equal(f.frames.size, 0);
+  });
+
+  f.fit(knot.points);
+  f.grab(0, [origin.x, origin.y]);
+  f.send('pointermove', [raised.x, raised.y]);
+  assert.equal(f.nodes.children[0].hasPointerCapture(7), true);
+  emit(f.reset, 'click');
+  f.send('pointerup', [raised.x, raised.y]);
   f.step(100);
-  check('pulling a taut string near the top warns before the point leaves the field', () => {
-    assert.equal(f.warning.hidden, false);
-    assert.equal(f.warning.dataset.phase, 'warning');
-    assert.match(f.live.textContent, /Tension/);
-    assert.equal(f.label.textContent, 'Stage 2 / 5');
-    assert.ok(Math.abs(parseFloat(f.nodes.children[0].style.top) - warningY) < .001);
-  });
-  f.send('pointermove', origin);
-  f.step(650);
-  check('returning the held point clears the warning before the wires snap', () => {
-    assert.equal(f.warning.hidden, true);
-    assert.equal(f.label.textContent, 'Stage 2 / 5');
-    assert.equal(f.nodes.children[0].hasPointerCapture(7), true);
-  });
-  f.nodes.children[0].focus();
-  f.send('pointermove', up);
-  f.step(700);
-  f.step(1221);
-  check('sustained tension releases the pointer and scatters the wires', () => {
-    assert.equal(f.warning.dataset.phase, 'burst');
+  check('Reset releases the active drag and ignores its stale pointer release', () => {
     assert.equal(f.nodes.children[0].hasPointerCapture(7), false);
-    assert.equal(f.strokes.length, edges.length * 3);
-  });
-  f.send('pointerup', up);
-  f.step(1901);
-  const fresh = f.nextExpected(0);
-  emit(f.front, 'click');
-  f.step(1917);
-  check('the burst returns from stage two to a fresh stage one with focus restored', () => {
-    assert.equal(f.warning.hidden, true);
-    assert.equal(f.label.textContent, 'Stage 1 / 5');
-    assert.equal(parseInt(f.status.textContent, 10), findContacts(fresh.points, fresh.edges).length);
-    const point = f.pointAt(fresh.points[0].x, fresh.points[0].y, fresh.points[0].z);
-    assert.ok(Math.abs(parseFloat(f.nodes.children[0].style.left) - (point.clientX - f.rect.left)) < .001);
+    assert.equal(f.nodes.children[0].dataset.grabbed, undefined);
+    assert.equal(f.nodes.children[0].style.top, `${startingCamera.project(origin).y}px`);
     assert.equal(document.activeElement, f.nodes.children[0]);
     assert.equal(f.frames.size, 0);
   });
-  f.abort.abort();
-}
-
-{
-  const f = fixture({ reduced: true });
-  const { points } = f.nextExpected(0);
-  f.step();
-  const origin = [points[0].x, points[0].y];
-  const up = [origin[0], origin[1] - 3];
-  f.drag(0, origin, up);
-  f.step(100);
-  f.step(621);
-  check('releasing under tension still triggers the reset, with no fragments in reduced motion', () => {
-    assert.equal(f.warning.dataset.phase, 'burst');
-    assert.equal(f.strokes.length, 0);
-  });
-  f.step(1301);
-  f.step(1320);
-  assert.equal(f.warning.hidden, true);
-  assert.match(f.live.textContent, /Back to Stage 1/);
-  assert.equal(f.frames.size, 0);
   f.abort.abort();
 }
 
