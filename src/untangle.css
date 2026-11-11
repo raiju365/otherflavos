@@ -142,23 +142,6 @@
 .play-field[data-solved=true] ~ .play-toolbar .play-status { color: var(--fg); }
 .play-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
 
-.play-axis {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.play-axis select {
-  min-height: 44px;
-  padding-inline: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-}
-
 .play-actions button {
   min-height: 44px;
   min-width: 44px;

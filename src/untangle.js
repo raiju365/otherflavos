@@ -17,7 +17,6 @@ export function initUntangle(root, signal, random = Math.random) {
   const live = root.querySelector('[data-play-live]');
   const reset = root.querySelector('[data-play-reset]');
   const front = root.querySelector('[data-play-front]');
-  const axis = root.querySelector('[data-play-axis]');
   const next = root.querySelector('[data-play-next]');
   const toolbar = root.querySelector('.play-toolbar');
   const ctx = canvas.getContext('2d');
@@ -367,7 +366,7 @@ export function initUntangle(root, signal, random = Math.random) {
       const origin = points[index];
       drag = {
         button, index, id: event.pointerId, origin, moved: false,
-        x: event.clientX, y: event.clientY, projection, axis: axis.value,
+        x: event.clientX, y: event.clientY, projection,
       };
       button.dataset.grabbed = 'true';
       try { button.setPointerCapture?.(event.pointerId); } catch { /* Window input still tracks the drag. */ }
@@ -385,7 +384,7 @@ export function initUntangle(root, signal, random = Math.random) {
       event.preventDefault();
       const [dx, dy] = arrows[event.key];
       const step = event.shiftKey ? .016 : .055;
-      const target = camera().move(points[index], dx * step * layout.size, dy * step * layout.size, axis.value);
+      const target = camera().move(points[index], dx * step * layout.size, dy * step * layout.size);
       if (place(index, target)) finishMove(index);
     });
   });
@@ -398,7 +397,7 @@ export function initUntangle(root, signal, random = Math.random) {
       selected = -1;
       syncSelection();
     }
-    const target = drag.projection.move(drag.origin, event.clientX - drag.x, event.clientY - drag.y, drag.axis);
+    const target = drag.projection.move(drag.origin, event.clientX - drag.x, event.clientY - drag.y);
     place(drag.index, target);
   }
 
@@ -424,7 +423,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (!playable() || orbitMoved || selected < 0 || event.target.closest?.('[data-play-node]')) return;
     const pointer = pointerPosition(event);
     const projection = camera(), origin = points[selected], position = projection.project(origin);
-    if (!place(selected, projection.move(origin, pointer.x - position.x, pointer.y - position.y, axis.value))) return;
+    if (!place(selected, projection.move(origin, pointer.x - position.x, pointer.y - position.y))) return;
     const index = selected;
     selected = -1;
     syncSelection();

@@ -145,18 +145,13 @@ export function cameraProjection(layout, yaw, pitch, view = { center: { x: .5, y
         y: layout.height / 2 + dot(local, down) * size, z: depth,
         scale: Math.max(.76, Math.min(1.22, 1 + depth * .29)) };
     },
-    move(point, dx, dy, axis = 'free') {
+    move(point, dx, dy) {
       const x = dx / size, y = dy / size;
-      if (axis === 'free') return {
+      return {
         x: point.x + x * right.x + y * down.x,
         y: point.y + x * right.y + y * down.y,
         z: point.z + x * right.z + y * down.z,
       };
-      const rx = right[axis], ry = down[axis];
-      const projected = rx * rx + ry * ry;
-      // When a chosen axis points into the camera, use vertical motion for depth.
-      const amount = projected < .10 ? -y * Math.sign(near[axis]) : (x * rx + y * ry) / projected;
-      return { ...point, [axis]: point[axis] + amount };
     },
   };
 }

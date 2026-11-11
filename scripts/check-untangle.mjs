@@ -63,17 +63,18 @@ check('full side view spreads by Z and screen drag remains reversible at every a
   assert.ok(Math.abs(side.project(point).x - side.project({ ...point, z: .84 }).x) > 100);
 });
 
-check('all three world axes can move independently outside the original bounds', () => {
+check('free drag moves beyond the original bounds and reaches depth from the side', () => {
   const layout = boardLayout(344, 332);
-  const camera = cameraProjection(layout, 0, 0);
+  const front = cameraProjection(layout, 0, 0);
+  const side = cameraProjection(layout, Math.PI / 2, 0);
   const points = [{ x: .5, y: .5, z: .5 }, { x: .8, y: .8, z: .8 }];
-  for (const [axis, dx, dy] of [['x', 500, 0], ['y', 0, 500], ['z', 0, -500]]) {
-    const from = points[0];
-    const target = camera.move(from, dx, dy, axis);
-    assert.ok(target[axis] > 1);
-    for (const other of ['x', 'y', 'z'].filter(key => key !== axis)) assert.equal(target[other], from[other]);
-    assert.equal(movePoint(points, 0, target), true);
-  }
+  const outside = front.move(points[0], 500, -500);
+  assert.ok(outside.x > 1 && outside.y < 0);
+  assert.equal(outside.z, .5);
+  const deeper = side.move(outside, 500, 0);
+  assert.ok(deeper.z > 1);
+  assert.ok(Math.abs(deeper.x - outside.x) < 1e-10);
+  assert.equal(movePoint(points, 0, deeper), true);
   assert.equal(movePoint(points, 0, { ...points[1] }), true);
 });
 class Element extends EventTarget {
@@ -108,7 +109,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-front]', '[data-play-axis]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
+    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
   const nodes = elements['[data-play-nodes]'], status = elements['[data-play-status]'];
@@ -149,24 +150,31 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   }
   globalThis.ResizeObserver = globalThis.MutationObserver = Observer;
   const source = rng(12345), expected = rng(12345);
-  const axis = elements['[data-play-axis]'];
-  axis.value = 'free';
   initUntangle(root, abort.signal, source);
   const front = elements['[data-play-front]'];
   emit(front, 'click');
   const layout = boardLayout(rect.width, rect.height);
-  let view;
+  let view, yaw = 0;
   function nextExpected(level) {
     const knot = createKnot(level, expected);
     view = frameView(knot.points);
+    yaw = 0;
     return knot;
   }
   function fit(points) {
     view = frameView(points);
+    yaw = 0;
     emit(front, 'click');
   }
-  function pointAt(x, y) {
-    const point = cameraProjection(layout, 0, 0, view).project({ x, y, z: 0 });
+  function sideView() {
+    const pointer = { clientX: rect.left + 12, clientY: rect.top + 12, pointerId: 8 };
+    emit(field, 'pointerdown', { ...pointer, button: 0 });
+    emit(window, 'pointermove', { ...pointer, clientX: pointer.clientX + Math.PI / 2 / .013 });
+    emit(window, 'pointerup', pointer);
+    yaw = Math.PI / 2;
+  }
+  function pointAt(x, y, z = 0) {
+    const point = cameraProjection(layout, yaw, 0, view).project({ x, y, z });
     return { clientX: rect.left + point.x, clientY: rect.top + point.y };
   }
   function grab(index, point, pointerId = 7) {
@@ -181,7 +189,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     send('pointerup', to);
   }
   return {
-    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, frames, observers, strokes, rect, nextExpected, fit, axis,
+    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, frames, observers, strokes, rect, nextExpected, fit, sideView,
     fallback: elements['[data-play-fallback]'], toolbar: elements['.play-toolbar'],
     pointAt, grab, send, drag,
     step(now = 0) {
@@ -221,7 +229,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   f.step(40);
   assert.equal(f.nodes.children[0].style.left, before);
 
-  const i = knot.order[0], at = point => [point.x, point.y];
+  const i = knot.order[0], at = point => [point.x, point.y, point.z];
   f.grab(i, at(knot.points[i]));
   f.send('pointermove', at(knot.solution[i]));
   f.step(60);
@@ -246,13 +254,13 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     for (const index of knot.order) {
       if (!f.next.hidden) break;
       const origin = knot.points[index], target = knot.solution[index];
-      f.axis.value = 'free';
+
       f.drag(index, at(origin), at(target));
       knot.points[index] = { ...target, z: origin.z };
       if (!f.next.hidden) break;
       f.fit(knot.points);
-      f.axis.value = 'z';
-      f.drag(index, at(target), [target.x, target.y - (target.z - origin.z)]);
+      f.sideView();
+      f.drag(index, at(knot.points[index]), at(target));
       knot.points[index] = target;
       f.fit(knot.points);
     }
@@ -295,7 +303,6 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const knot = f.nextExpected(0);
   const origin = knot.points[0];
   f.step();
-  f.axis.value = 'x';
   f.drag(0, [origin.x, origin.y], [origin.x + 3, origin.y]);
   f.step(40);
   knot.points[0] = { ...origin, x: origin.x + 3 };
