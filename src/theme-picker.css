@@ -1,4 +1,6 @@
 /* The glass, lit edge and menu follow one anchored spring. */
+:root { --glass-dock-bottom: max(16px, env(safe-area-inset-bottom)); }
+
 .theme-picker {
   --theme-inset:8px; --theme-row-height:48px; --theme-row-gap:8px;
   --theme-row-padding:12px; --theme-swatch-size:24px; --theme-content-gap:12px;
@@ -7,7 +9,7 @@
   --theme-close-shift:calc(var(--theme-inset) + var(--theme-row-padding) + var(--theme-swatch-size)/2 - var(--theme-trigger-size)/2);
   --glass-width:min(240px,calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   --glass-height:min(calc(var(--theme-inset)*2 + var(--theme-row-height)*5 + var(--theme-row-gap)*4),calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-  position:fixed; left:max(16px,env(safe-area-inset-left)); bottom:max(16px,env(safe-area-inset-bottom));
+  position:fixed; left:max(16px,env(safe-area-inset-left)); bottom:var(--glass-dock-bottom);
   width:var(--theme-trigger-size); height:var(--theme-trigger-size); margin:0; z-index:30; isolation:isolate;
   font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;
 }
@@ -19,7 +21,8 @@
   --theme-panel-solid:#22262e;
   --theme-panel-bg:rgb(14 19 28 / .19);
   --theme-panel-ink:#fff;
-  --theme-backdrop:blur(4px) saturate(1.08) brightness(.53);
+  --glass-dark-backdrop:blur(4px) saturate(1.08) brightness(.53);
+  --theme-backdrop:var(--glass-dark-backdrop);
 }
 
 :root[data-theme=light] .glass-material {

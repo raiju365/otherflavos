@@ -115,6 +115,11 @@
 .play-toolbar-rim { position: absolute; inset: 0; border-radius: inherit; }
 .play-toolbar > :is(.play-progress, .play-actions) { position: relative; }
 
+/* The play area is darker than the textured rail behind the theme button. */
+:root:not([data-theme=light]) .play-toolbar {
+  --theme-backdrop: var(--glass-dark-backdrop) contrast(.73);
+}
+
 .play-progress {
   display: flex;
   align-items: baseline;
@@ -158,7 +163,10 @@
 }
 
 @media (min-width: 801px) {
-  .workspace[data-view=home] { overflow: clip; }
+  .workspace[data-view=home] {
+    overflow: clip;
+    padding-block-end: var(--glass-dock-bottom);
+  }
 }
 
 @media (max-width: 800px) {
