@@ -126,7 +126,6 @@
           </section>
           <div class="theme-picker" data-open="false">
             <div class="theme-glass">
-              <span class="theme-glass-rim" aria-hidden="true"></span>
               <div id="theme-menu" role="menu" aria-label="Color theme" aria-hidden="true" inert hidden>
                 <span class="theme-selection" aria-hidden="true"><svg class="theme-check" viewBox="0 0 20 20" width="18"
                     height="18">
@@ -134,24 +133,33 @@
                       stroke-linejoin="round" />
                   </svg></span>
                 <button class="theme-option" data-set-theme="dark" type="button" role="menuitemradio"
-                  aria-checked="true" tabindex="-1"><span class="theme-swatch swatch-dark"
-                    aria-hidden="true"></span><span class="theme-label">Dark</span></button>
+                  aria-checked="true" tabindex="-1"><svg class="theme-swatch" viewBox="0 0 24 24" aria-hidden="true"
+                    fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="8"/>
+                  </svg><span class="theme-label">Dark</span></button>
                 <button class="theme-option" data-set-theme="light" type="button" role="menuitemradio"
-                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-light"
-                    aria-hidden="true"></span><span class="theme-label">Light</span></button>
+                  aria-checked="false" tabindex="-1"><svg class="theme-swatch" viewBox="0 0 24 24" aria-hidden="true"
+                    fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.7 4.8a1.5 1.5 0 0 1 2.6 0l7 12.4a1.5 1.5 0 0 1-1.3 2.2H5a1.5 1.5 0 0 1-1.3-2.2Z"/>
+                  </svg><span class="theme-label">Light</span></button>
                 <button class="theme-option" data-set-theme="unexpected" type="button" role="menuitemradio"
-                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-unexpected"
-                    aria-hidden="true"></span><span class="theme-label">Sage</span></button>
+                  aria-checked="false" tabindex="-1"><svg class="theme-swatch" viewBox="0 0 24 24" aria-hidden="true"
+                    fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4.5" y="4.5" width="15" height="15" rx="2.1"/>
+                  </svg><span class="theme-label">Sage</span></button>
                 <button class="theme-option" data-set-theme="amethyst" type="button" role="menuitemradio"
-                  aria-checked="false" tabindex="-1"><span class="theme-swatch swatch-amethyst"
-                    aria-hidden="true"></span><span class="theme-label">Amethyst</span></button>
+                  aria-checked="false" tabindex="-1"><svg class="theme-swatch" viewBox="0 0 24 24" aria-hidden="true"
+                    fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3.4 7.5 4.3v8.6L12 20.6l-7.5-4.3V7.7Z"/>
+                  </svg><span class="theme-label">Amethyst</span></button>
               </div>
             </div>
+            <span class="theme-glass-rim" aria-hidden="true"></span>
             <button id="theme-toggle" type="button" aria-label="Choose color theme" title="Ganti warna"
               aria-haspopup="menu" aria-expanded="false" aria-controls="theme-menu">
               <span class="theme-close-surface" aria-hidden="true"></span>
               <svg class="theme-icon-tone" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
-                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.95" />
                 <path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor" />
               </svg>
               <svg class="theme-icon-close" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">

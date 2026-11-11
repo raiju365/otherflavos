@@ -1,7 +1,7 @@
 import { createThemeReveal } from './theme-reveal.js';
 import { createThemeSelectionMotion } from './theme-selection-motion.js';
 import { createThemePanelMotion } from './theme-panel-motion.js';
-// One bounded glass surface opens from the trigger. Its blur remains constant.
+// One glass surface opens from the trigger. Its shape, edge and menu share a spring.
 export function initThemePicker(signal) {
   const picker = document.querySelector('.theme-picker');
   const toggle = document.querySelector('#theme-toggle');
@@ -24,7 +24,7 @@ export function initThemePicker(signal) {
   let outsideGesture = null;
   let rows=[];
   const panelMotion = createThemePanelMotion({
-    glass, rim: glass.querySelector?.('.theme-glass-rim'),
+    glass, menu, rim: picker.querySelector?.('.theme-glass-rim'),
     tone: toggle.querySelector?.('.theme-icon-tone'),
     close: toggle.querySelector?.('.theme-icon-close'),
     closeSurface: toggle.querySelector?.('.theme-close-surface'),

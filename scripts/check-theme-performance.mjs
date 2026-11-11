@@ -28,17 +28,23 @@ function emit(target, type, properties = {}) {
   target.dispatchEvent(event);
   return event;
 }
-const picker = new Element(), toggle = new Element(), menu = new Element(), glass = new Element();
+const picker = new Element(), toggle = new Element(), menu = new Element(), glass = new Element(), rim = new Element();
 glass.offsetWidth = 240; glass.offsetHeight = 288;
 const panelJobs = [];
-glass.animate = (frames, timing) => {
+function panelEffect(frames, timing) {
   let resolve, reject;
   const job = { frames, timing, currentTime: 0, cancelled: false,
     finished: new Promise((yes, no) => { resolve = yes; reject = no; }),
     finish() { this.currentTime = timing.duration; resolve(); },
     cancel() { this.cancelled = true; reject(Error('cancel')); } };
-  panelJobs.push(job); return job;
+  return job;
+}
+glass.animate = (frames, timing) => {
+  const job = panelEffect(frames, timing);
+  panelJobs.push(job);
+  return job;
 };
+menu.animate = rim.animate = panelEffect;
 const finishPanel = async () => { panelJobs.at(-1).finish(); await Promise.resolve(); };
 const root = new Element(), meta = {}, outside = new Element(), selection = new Element();
 const indicatorJobs = [];
@@ -64,8 +70,8 @@ const options = ['dark', 'light', 'unexpected', 'amethyst'].map((theme, index) =
 menu.children = [selection, ...options];
 menu.querySelector = () => selection;
 glass.children = [menu];
-picker.children = [glass, toggle];
-picker.querySelector = () => glass;
+picker.children = [glass, rim, toggle];
+picker.querySelector = selector => selector === '.theme-glass-rim' ? rim : glass;
 menu.querySelectorAll = () => options;
 globalThis.document = new EventTarget();
 globalThis.window = new EventTarget();

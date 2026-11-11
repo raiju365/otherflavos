@@ -1,6 +1,6 @@
 // One progress/pressure clock drives the material, its rim and both glyphs.
 // Native keyframes do the playback; input samples the interrupted spring once.
-const duration = 480, frequency = 22, steps = 60;
+const duration = 460, frequency = 20, steps = 60;
 const clamp = value => Math.max(0, Math.min(1, value));
 const px = value => `${Number(value.toFixed(4))}px`;
 
@@ -11,25 +11,42 @@ export function panelSpring({ from, velocity, to }, seconds) {
     velocity: (velocity - frequency * slope * t) * decay };
 }
 
+function reveal(progress, start, end) {
+  const t = clamp((progress - start) / (end - start));
+  return t * t * (3 - 2 * t);
+}
+
 export function panelFrame(progress, pressure, width, height) {
   const p = clamp(progress), q = clamp(pressure);
-  // Pressure only compresses the resting circle. The expanded body stays put.
+  // The circle first widens into a pill, then lifts into the menu. Both axes
+  // derive from the same spring so reversal retains their presented velocity.
+  const stretch = p * (1 - p);
+  const horizontal = p + .72 * stretch;
+  const vertical = p - .42 * stretch;
   const inset = 2 * q * (1 - p);
-  const top = (height - 56) * (1 - p) + inset;
-  const right = (width - 56) * (1 - p) + inset;
-  const radius = 28 + 2 * p - inset;
+  const top = (height - 56) * (1 - vertical) + inset;
+  const right = (width - 56) * (1 - horizontal) + inset;
+  const radius = 28 + 14 * p - inset;
   const shift = 4 * p, scale = 1 - .06 * q;
+  const toneMix = reveal(p, .08, .49);
+  const closeMix = reveal(p, .38, .80);
+  const rows = reveal(p, .24, .86);
   const transform = size => `translate(${px(shift)}, ${px(-shift)}) scale(${Number(size.toFixed(5))})`;
   return {
     glass: { clipPath: `inset(${px(top)} ${px(right)} ${px(inset)} ${px(inset)} round ${px(radius)})` },
-    // Only this empty decorative border changes bounds; content/layout never do.
-    rim: { top: px(top), right: px(right), bottom: px(inset), left: px(inset), borderRadius: px(radius) },
-    tone: { opacity: 1 - p, transform: transform((1 - .2 * p) * scale) },
-    close: { opacity: p, transform: transform((.8 + .2 * p) * scale) },
-    closeSurface: { opacity: p, transform: transform((.9 + .1 * p) * scale) },
+    // The single decorative edge shares the silhouette, with room for its
+    // shadow outside the clip. The actual menu layout stays fixed.
+    rim: {
+      left: px(inset), bottom: px(inset),
+      width: px(width - right - inset), height: px(height - top - inset),
+      borderRadius: px(radius), opacity: .9 + .1 * Math.max(p, q),
+    },
+    menu: { opacity: rows, transform: `translateY(${px(12 * (1 - rows))})` },
+    tone: { opacity: 1 - toneMix, transform: transform((1 - .18 * toneMix) * scale) },
+    close: { opacity: closeMix, transform: transform((.84 + .16 * closeMix) * scale) },
+    closeSurface: { opacity: closeMix, transform: transform(1) },
   };
 }
-
 export function createThemePanelMotion(elements, { onRest = () => {}, now = () => performance.now() } = {}) {
   let active = null, progress = 0, pressure = 0, destroyed = false;
   let width = 240, height = 288;
