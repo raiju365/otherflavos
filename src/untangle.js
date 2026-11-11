@@ -90,7 +90,8 @@ export function initUntangle(root, signal, random = Math.random) {
     const projection = camera();
     if (points.some(point => {
       const { x, y } = projection.project(point);
-      return x < 21 || x > layout.width - 21 || y < 21 || y > layout.height - 21;
+      return distance(point, view.center) > view.radius * 1.04 ||
+        x < 21 || x > layout.width - 21 || y < 21 || y > layout.height - 21;
     })) view = frameView(points);
     schedule();
     if (contacts.length) {
@@ -322,7 +323,6 @@ export function initUntangle(root, signal, random = Math.random) {
     if (orbit?.id !== event.pointerId || !available()) return;
     const x = event.clientX - orbit.x, y = event.clientY - orbit.y;
     if (!orbitMoved && Math.hypot(x, y) < 5) return;
-    if (!orbitMoved) view = frameView(points);
     orbitMoved = true;
     field.dataset.orbiting = 'true';
     yaw = (orbit.yaw + x * .013) % (Math.PI * 2);

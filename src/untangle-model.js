@@ -122,7 +122,11 @@ export function createKnot(level, random = Math.random) {
 }
 
 export function frameView(points) {
-  return points.slice();
+  const center = Object.fromEntries(['x', 'y', 'z'].map(axis => {
+    const values = points.map(point => point[axis]);
+    return [axis, (Math.min(...values) + Math.max(...values)) / 2];
+  }));
+  return { center, radius: Math.max(.16, ...points.map(point => distance(point, center))) };
 }
 
 export function cameraProjection(layout, yaw, pitch, view) {
@@ -130,34 +134,23 @@ export function cameraProjection(layout, yaw, pitch, view) {
   const right = { x: c, y: 0, z: s };
   const down = { x: q * s, y: p, z: -q * c };
   const near = { x: -p * s, y: q, z: p * c };
-  let centerX = dot({ x: .5, y: .5, z: .5 }, right);
-  let centerY = dot({ x: .5, y: .5, z: .5 }, down);
-  let centerZ = dot({ x: .5, y: .5, z: .5 }, near);
-  let scaleX = layout.size, scaleY = layout.size;
-  if (view?.length) {
-    const bounds = axis => {
-      const values = view.map(point => dot(point, axis));
-      const min = Math.min(...values), max = Math.max(...values);
-      return { center: (min + max) / 2, span: max - min };
-    };
-    const horizontal = bounds(right), vertical = bounds(down);
-    centerX = horizontal.center;
-    centerY = vertical.center;
-    centerZ = bounds(near).center;
-    const gutter = Math.min(34, Math.max(23, Math.min(layout.width, layout.height) * .045));
-    const wide = Math.max(1, Math.min(1.32, layout.width / layout.height / 1.13));
-    scaleY = Math.max(1, Math.min(
-      (layout.width - 2 * gutter) / Math.max(.32, horizontal.span * wide),
-      (layout.height - 2 * gutter) / Math.max(.32, vertical.span),
-    ) * .92);
-    scaleX = scaleY * wide;
-  }
+  const center = view?.center ?? { x: .5, y: .5, z: .5 };
+  const centerX = dot(center, right), centerY = dot(center, down), centerZ = dot(center, near);
+  const gutter = Math.min(34, Math.max(23, Math.min(layout.width, layout.height) * .045));
+  const wide = view ? Math.max(1, Math.min(1.32, layout.width / layout.height / 1.13)) : 1;
+  // Fit the entire rotation once. Projected bounds change as the scene turns,
+  // but camera scale and pivot stay fixed until an actual reframe is needed.
+  const scaleY = view ? Math.max(1, Math.min(
+    (layout.width - 2 * gutter) / wide,
+    layout.height - 2 * gutter,
+  ) / (2 * view.radius) * .96) : layout.size;
+  const scaleX = scaleY * wide;
   return {
     project(point) {
       const depth = (dot(point, near) - centerZ) * scaleY / layout.size;
       return { x: layout.width / 2 + (dot(point, right) - centerX) * scaleX,
         y: layout.height / 2 + (dot(point, down) - centerY) * scaleY, z: depth,
-        scale: Math.max(.76, Math.min(1.22, 1 + depth * .29)) };
+        scale: Math.max(.76, Math.min(1.22, 1 + depth * .18)) };
     },
     move(point, dx, dy) {
       const x = dx / scaleX, y = dy / scaleY;

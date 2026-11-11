@@ -63,17 +63,25 @@ check('full side view spreads by Z and screen drag remains reversible at every a
   assert.ok(Math.abs(side.project(point).x - side.project({ ...point, z: .84 }).x) > 100);
 });
 
-check('wide and compact views keep the network large with breathing room', () => {
+check('wide and compact frames preserve camera scale and pivot throughout a full orbit', () => {
   for (const layout of [boardLayout(1096, 720), boardLayout(336, 410)]) {
     for (let seed = 1; seed <= 16; seed++) {
-      const knot = createKnot(4, rng(seed));
-      const projection = cameraProjection(layout, .23, -.24, frameView(knot.points));
-      const pixels = knot.points.map(projection.project);
-      const width = Math.max(...pixels.map(p => p.x)) - Math.min(...pixels.map(p => p.x));
-      const height = Math.max(...pixels.map(p => p.y)) - Math.min(...pixels.map(p => p.y));
-      const coverage = Math.max(width / layout.width, height / layout.height);
-      assert.ok(coverage > .78 && coverage < .9);
-      assert.ok(pixels.every(p => p.x >= 22 && p.x <= layout.width - 22 && p.y >= 22 && p.y <= layout.height - 22));
+      const { points } = createKnot(4, rng(seed));
+      const view = frameView(points);
+      const front = cameraProjection(layout, 0, 0, view);
+      for (let angle = 0; angle <= 360; angle += 15) {
+        const radians = angle * Math.PI / 180;
+        const camera = cameraProjection(layout, radians, radians / 2, view);
+        const pivot = camera.project(view.center);
+        assert.equal(pivot.x, layout.width / 2);
+        assert.equal(pivot.y, layout.height / 2);
+        const offset = camera.move(view.center, 80, 55);
+        const reference = front.move(view.center, 80, 55);
+        const length = point => Math.hypot(point.x - view.center.x, point.y - view.center.y, point.z - view.center.z);
+        assert.ok(Math.abs(length(offset) - length(reference)) < 1e-10);
+        assert.ok(points.map(camera.project).every(p => p.x >= 22 && p.x <= layout.width - 22 &&
+          p.y >= 22 && p.y <= layout.height - 22));
+      }
     }
   }
 });
