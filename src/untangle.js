@@ -1,4 +1,4 @@
-import { boardLayout, findCrossings, knots, movePoint, startingPoints } from './untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, findCrossings, maxPoints, movePoint, stageCount } from './untangle-model.js';
 
 const pulseDuration = 880;
 const arrows = {
@@ -6,7 +6,7 @@ const arrows = {
 };
 const unit = value => Math.max(0, Math.min(1, value));
 
-export function initUntangle(root, signal) {
+export function initUntangle(root, signal, random = Math.random) {
   if (!root || signal.aborted) return;
   const panel = root.closest('.panel');
   const field = root.querySelector('[data-play-field]');
@@ -16,6 +16,7 @@ export function initUntangle(root, signal) {
   const status = root.querySelector('[data-play-status]');
   const live = root.querySelector('[data-play-live]');
   const reset = root.querySelector('[data-play-reset]');
+  const front = root.querySelector('[data-play-front]');
   const next = root.querySelector('[data-play-next]');
   const toolbar = root.querySelector('.play-toolbar');
   const ctx = canvas.getContext('2d');
@@ -29,12 +30,14 @@ export function initUntangle(root, signal) {
   const forced = matchMedia('(forced-colors: active)');
   const dialog = document.querySelector('#project-detail');
   const on = (target, type, handler) => target.addEventListener(type, handler, { signal });
-  let level = 0;
+  let level = 0, knot;
+  let yaw = .23, pitch = -.24, orbit = null, orbitMoved = false;
+  const vibrations = new Map();
   let points = [], crossings = [];
   let solved = false, selected = -1, drag = null;
   let layout = null, frame = 0, pulse = null;
   let ratio = 1, ink = '', accent = '';
-  const buttons = Array.from({ length: Math.max(...knots.map(knot => knot.points.length)) }, (_, index) => {
+  const buttons = Array.from({ length: maxPoints }, (_, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'play-node';
@@ -63,13 +66,21 @@ export function initUntangle(root, signal) {
   }
 
   function syncCrossings() {
-    crossings = findCrossings(points, knots[level].edges);
+    crossings = findCrossings(points, knot.edges);
     const label = crossingLabel();
     if (status.textContent !== label) status.textContent = label;
   }
 
   function place(index, x, y) {
-    if (!movePoint(points, index, x, y)) return false;
+    const previous = points[index];
+    if (!movePoint(points, index, x, y, knot.spacing)) return false;
+    if (!reduced.matches && !forced.matches) {
+      const point = points[index];
+      const dx = previous.x - point.x, dy = previous.y - point.y;
+      const amplitude = Math.min(.12, Math.hypot(dx, dy) * 2.3);
+      const length = Math.hypot(dx, dy);
+      vibrations.set(index, { x: dx / length * amplitude, y: dy / length * amplitude, start: null });
+    }
     syncCrossings();
     schedule();
     return true;
@@ -83,10 +94,10 @@ export function initUntangle(root, signal) {
     solved = true;
     selected = -1;
     field.dataset.solved = 'true';
-    status.textContent = level === knots.length - 1 ? 'All knots untangled' : 'Knot untangled';
-    next.textContent = level === knots.length - 1 ? 'Play again' : 'Next knot';
+    status.textContent = level === stageCount - 1 ? 'All knots untangled' : 'Knot untangled';
+    next.textContent = level === stageCount - 1 ? 'Play again' : 'Next knot';
     next.hidden = false;
-    reset.hidden = level === knots.length - 1;
+    reset.hidden = level === stageCount - 1;
     const restoreFocus = nodes.contains(document.activeElement);
     for (const button of buttons) button.disabled = true;
     syncSelection();
@@ -98,15 +109,21 @@ export function initUntangle(root, signal) {
 
   function loadKnot(index, focus = false) {
     cancelDrag();
+    releaseOrbit();
+    orbitMoved = false;
+    yaw = .23;
+    pitch = -.24;
     level = index;
-    const knot = knots[level];
-    points = startingPoints(knot);
+    knot = createKnot(level, random);
+    points = knot.points;
+    field.dataset.dense = String(points.length > 16);
+    vibrations.clear();
     crossings = findCrossings(points, knot.edges);
     pulse = null;
     solved = false;
     selected = -1;
     field.dataset.solved = 'false';
-    label.textContent = `${knot.name} · ${level + 1} / ${knots.length}`;
+    label.textContent = `Stage ${level + 1} / ${stageCount}`;
     status.textContent = crossingLabel();
     reset.hidden = false;
     next.hidden = true;
@@ -116,15 +133,13 @@ export function initUntangle(root, signal) {
     });
     syncSelection();
     if (focus) {
-      announce(`${knot.name}. ${crossingLabel()}.`);
+      announce(`Stage ${level + 1}. ${crossingLabel()}.`);
       buttons[0].focus({ preventScroll: true });
     }
     schedule();
   }
 
-  function pixel(point) {
-    return { x: layout.left + point.x * layout.size, y: layout.top + point.y * layout.size };
-  }
+  const camera = () => cameraProjection(layout, yaw, pitch);
 
   function stroke(a, b, color, opacity, width) {
     ctx.strokeStyle = color;
@@ -145,7 +160,7 @@ export function initUntangle(root, signal) {
     ctx.stroke();
   }
 
-  function paintPulse(now, vertices) {
+  function paintPulse(now, vertices, projection) {
     pulse.start ??= now;
     const phase = (now - pulse.start) / pulseDuration;
     if (phase >= 1) {
@@ -155,7 +170,7 @@ export function initUntangle(root, signal) {
 
     const origin = pulse.origin;
     const distances = points.map(point => Math.hypot(point.x - origin.x, point.y - origin.y));
-    knots[level].edges.forEach(([a, b]) => {
+    knot.edges.forEach(([a, b]) => {
       if (distances[b] < distances[a]) [a, b] = [b, a];
       const local = (phase - distances[a] * .34) / .48;
       const head = unit(local), tail = unit(local - .30);
@@ -164,7 +179,7 @@ export function initUntangle(root, signal) {
       const along = t => ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
       stroke(along(tail), along(head), accent, .88 * (1 - phase), 2.3);
     });
-    ring(pixel(origin), 11 + phase * 54, .7 * (1 - phase) ** 2);
+    ring(projection.project(origin), 11 + phase * 54, .7 * (1 - phase) ** 2);
     schedule();
   }
 
@@ -175,27 +190,72 @@ export function initUntangle(root, signal) {
     ctx.clearRect(0, 0, layout.width, layout.height);
     ctx.lineCap = 'round';
 
-    const vertices = points.map(pixel);
+    const projection = camera();
+    const vertices = points.map(point => projection.project(point));
     const marked = new Set(crossings.flatMap(crossing => crossing.edges));
     const active = drag?.index ?? selected;
-    knots[level].edges.forEach(([a, b], index) => {
+    const sway = new Map();
+    for (const [index, vibration] of vibrations) {
+      vibration.start ??= now;
+      const time = (now - vibration.start) / 1000;
+      if (time >= .82) { vibrations.delete(index); continue; }
+      const decay = Math.exp(-time * 6);
+      const wave = Math.cos(time * 32) * decay;
+      sway.set(index, { x: vibration.x * wave, y: vibration.y * wave,
+        z: Math.hypot(vibration.x, vibration.y) * Math.sin(time * 30) * decay * .8 });
+    }
+
+    const outline = [[.035, .035], [.965, .035], [.965, .965], [.035, .965]].map(([x, y]) =>
+      projection.project({ x, y }, -.08));
+    outline.forEach((point, i) => stroke(point, outline[(i + 1) % outline.length], ink, .12, 1));
+
+    const wires = knot.edges.map(([a, b], index) => ({ a, b, index, z: vertices[a].z + vertices[b].z }));
+    wires.sort((a, b) => a.z - b.z);
+    for (const { a, b, index, z } of wires) {
       const crossing = marked.has(index);
       const activeWire = a === active || b === active;
-      const opacity = crossing || activeWire ? .9 : solved || forced.matches ? .75 : .40;
-      stroke(vertices[a], vertices[b], crossing ? accent : ink, opacity, crossing ? 1.55 : 1.15);
+      const opacity = activeWire ? .95 : crossing ? (points.length > 16 ? (active < 0 ? .48 : .22) : .82)
+        : solved || forced.matches ? .76 : .42 + z * .12;
+      const color = crossing ? accent : ink;
+      const width = crossing ? 1.45 : 1.1;
+      if (!sway.has(a) && !sway.has(b)) {
+        stroke(vertices[a], vertices[b], color, opacity, width);
+        continue;
+      }
+      const first = points[a], second = points[b];
+      const left = sway.get(a), right = sway.get(b);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = opacity;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(vertices[a].x, vertices[a].y);
+      for (let i = 1; i <= 12; i++) {
+        const t = i / 12, u = 1 - t, bend = Math.sin(Math.PI * t);
+        const x = first.x * u + second.x * t + bend * ((left?.x ?? 0) * u + (right?.x ?? 0) * t);
+        const y = first.y * u + second.y * t + bend * ((left?.y ?? 0) * u + (right?.y ?? 0) * t);
+        const point = projection.project({ x, y }, bend * ((left?.z ?? 0) * u + (right?.z ?? 0) * t));
+        ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+    }
+    const markerStep = active < 0 ? Math.max(1, Math.ceil(crossings.length / 38)) : 1;
+    crossings.forEach((crossing, index) => {
+      if (active >= 0 && !crossing.edges.some(edge => knot.edges[edge].includes(active))) return;
+      if (index % markerStep === 0) ring(projection.project(crossing), 3.8, .84);
     });
-    for (const crossing of crossings) ring(pixel(crossing), 4.25, .86);
 
-    vertices.forEach(({ x, y }, index) => {
+    vertices.forEach(({ x, y, z, scale }, index) => {
       const style = buttons[index].style;
       style.left = `${x}px`;
       style.top = `${y}px`;
+      style.zIndex = String(index === active ? 100 : Math.round(z * 20 + 30));
+      style.setProperty('--node-depth', scale);
     });
 
-    if (pulse) paintPulse(now, vertices);
+    if (pulse) paintPulse(now, vertices, projection);
+    if (vibrations.size) schedule();
     ctx.globalAlpha = 1;
   }
-
   function schedule() {
     if (!frame && visible() && layout) frame = requestAnimationFrame(paint);
   }
@@ -224,12 +284,49 @@ export function initUntangle(root, signal) {
 
   function pointerPosition(event) {
     const rect = field.getBoundingClientRect();
-    return {
-      x: (event.clientX - rect.left - field.clientLeft - layout.left) / layout.size,
-      y: (event.clientY - rect.top - field.clientTop - layout.top) / layout.size,
-    };
+    return camera().unproject({
+      x: event.clientX - rect.left - field.clientLeft,
+      y: event.clientY - rect.top - field.clientTop,
+    });
   }
 
+  function resetView() {
+    yaw = pitch = 0;
+    schedule();
+  }
+
+  on(front, 'click', resetView);
+  on(front, 'keydown', event => {
+    if (!available() || !Object.hasOwn(arrows, event.key)) return;
+    event.preventDefault();
+    const [x, y] = arrows[event.key];
+    yaw += x * .18;
+    pitch += y * .18;
+    schedule();
+  });
+
+  on(field, 'pointerdown', event => {
+    if (!available() || !layout || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
+    orbitMoved = false;
+    if (event.target.closest?.('[data-play-node]')) return;
+    orbit = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch };
+  });
+
+  on(window, 'pointermove', event => {
+    if (orbit?.id !== event.pointerId || !available()) return;
+    const x = event.clientX - orbit.x, y = event.clientY - orbit.y;
+    if (!orbitMoved && Math.hypot(x, y) < 5) return;
+    orbitMoved = true;
+    field.dataset.orbiting = 'true';
+    yaw = (orbit.yaw + x * .013) % (Math.PI * 2);
+    pitch = (orbit.pitch - y * .013) % (Math.PI * 2);
+    schedule();
+  });
+
+  function releaseOrbit() {
+    orbit = null;
+    delete field.dataset.orbiting;
+  }
   function releaseDrag() {
     const current = drag;
     drag = null;
@@ -244,6 +341,7 @@ export function initUntangle(root, signal) {
     if (!current) return;
     if (current.moved) {
       points[current.index] = current.origin;
+      vibrations.delete(current.index);
       syncCrossings();
     }
     schedule();
@@ -261,8 +359,9 @@ export function initUntangle(root, signal) {
 
   buttons.forEach((button, index) => {
     on(button, 'pointerdown', event => {
-      if (!playable() || drag || event.button !== 0 || event.isPrimary === false) return;
+      if (!playable() || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
       const pointer = pointerPosition(event);
+      if (!pointer) return;
       const origin = points[index];
       drag = {
         button, index, id: event.pointerId, origin, moved: false,
@@ -284,8 +383,10 @@ export function initUntangle(root, signal) {
       event.preventDefault();
       const [dx, dy] = arrows[event.key];
       const step = event.shiftKey ? .016 : .055;
-      const { x, y } = points[index];
-      if (place(index, x + dx * step, y + dy * step)) finishMove(index);
+      const projection = camera();
+      const { x, y } = projection.project(points[index]);
+      const target = projection.unproject({ x: x + dx * step * layout.size, y: y + dy * step * layout.size });
+      if (target && place(index, target.x, target.y)) finishMove(index);
     });
   });
 
@@ -298,11 +399,12 @@ export function initUntangle(root, signal) {
       syncSelection();
     }
     const pointer = pointerPosition(event);
-    place(drag.index, pointer.x + drag.offsetX, pointer.y + drag.offsetY);
+    if (pointer) place(drag.index, pointer.x + drag.offsetX, pointer.y + drag.offsetY);
   }
 
   on(window, 'pointermove', trackDrag);
   on(window, 'pointerup', event => {
+    if (orbit?.id === event.pointerId) releaseOrbit();
     if (drag?.id !== event.pointerId) return;
     if (!playable()) {
       cancelDrag();
@@ -315,11 +417,14 @@ export function initUntangle(root, signal) {
     schedule();
   });
   on(window, 'pointercancel', event => {
+    if (orbit?.id === event.pointerId) releaseOrbit();
     if (drag?.id === event.pointerId) cancelDrag();
   });
   on(field, 'click', event => {
-    if (!playable() || selected < 0 || event.target.closest?.('[data-play-node]')) return;
-    const { x, y } = pointerPosition(event);
+    if (!playable() || orbitMoved || selected < 0 || event.target.closest?.('[data-play-node]')) return;
+    const target = pointerPosition(event);
+    if (!target) return;
+    const { x, y } = target;
     if (!place(selected, x, y)) return;
     const index = selected;
     selected = -1;
@@ -328,11 +433,13 @@ export function initUntangle(root, signal) {
   });
   on(reset, 'click', () => { if (available()) loadKnot(level, true); });
   on(next, 'click', () => {
-    if (available() && solved) loadKnot((level + 1) % knots.length, true);
+    if (available() && solved) loadKnot((level + 1) % stageCount, true);
   });
 
   function pause() {
     cancelDrag();
+    releaseOrbit();
+    vibrations.clear();
     pulse = null;
     cancelAnimationFrame(frame);
     frame = 0;
@@ -348,10 +455,10 @@ export function initUntangle(root, signal) {
   on(document, 'visibilitychange', () => { if (document.hidden) pause(); else resume(); });
   on(window, 'pagehide', pause);
   on(window, 'pageshow', resume);
-  on(window, 'blur', cancelDrag);
+  on(window, 'blur', pause);
   on(window, 'resize', resume);
-  on(reduced, 'change', () => { pulse = null; schedule(); });
-  on(forced, 'change', () => { pulse = null; readPalette(); });
+  on(reduced, 'change', () => { pulse = null; vibrations.clear(); schedule(); });
+  on(forced, 'change', () => { pulse = null; vibrations.clear(); readPalette(); });
 
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
   resize?.observe(field);

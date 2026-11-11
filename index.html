@@ -176,9 +176,9 @@
             <article class="play-untangle" data-untangle aria-labelledby="untangle-title">
               <div class="play-layout">
                 <header class="play-heading">
-                  <p class="play-knot" data-play-knot>Loop · 1 / 3</p>
-                  <h2 id="untangle-title">Untangle</h2>
-                  <p id="untangle-help">Drag the points until no lines cross.</p>
+                  <p class="play-knot" data-play-knot>Stage 1 / 5</p>
+                  <h2 id="untangle-title" class="sr-only">Untangle</h2>
+                  <p id="untangle-help">Untangle the points. Drag empty space to orbit.</p>
                 </header>
                 <div class="play-field" data-play-field role="group" aria-label="Untangle board"
                   aria-describedby="untangle-help untangle-keys untangle-status">
@@ -186,12 +186,13 @@
                   <div class="play-nodes" data-play-nodes></div>
                 </div>
                 <p id="untangle-keys" class="sr-only">
-                  You can also select a point and tap a destination. Use the arrow keys to move a focused point, or hold Shift for smaller steps.
+                  You can also select a point and tap a destination. Use the arrow keys to move a focused point, or hold Shift for smaller steps. Focus Front view and use the arrow keys to rotate the board.
                 </p>
                 <div class="play-toolbar">
-                  <p id="untangle-status" class="play-status" data-play-status>3 crossings left</p>
+                  <p id="untangle-status" class="play-status" data-play-status></p>
                   <div class="play-actions">
-                    <button type="button" class="play-reset" data-play-reset>Reset</button>
+                    <button type="button" class="play-reset" data-play-front title="Reset camera angle">Front view</button>
+                    <button type="button" class="play-reset" data-play-reset>New knot</button>
                     <button type="button" class="play-next" data-play-next hidden>Next knot</button>
                   </div>
                 </div>

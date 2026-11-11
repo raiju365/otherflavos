@@ -1,43 +1,10 @@
-export const knots = [
-  {
-    name: 'Loop',
-    points: [[.29, .12], [.75, .18], [.88, .58], [.67, .83], [.27, .88], [.12, .47]],
-    displaced: { 1: [.42, .73] },
-    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [0, 3], [0, 2], [3, 5]],
-  },
-  {
-    name: 'Bridge',
-    points: [[.17, .27], [.49, .14], [.81, .27], [.88, .65], [.51, .85], [.14, .67], [.29, .47], [.71, .48]],
-    displaced: { 1: [.36, .72], 7: [.36, .21] },
-    edges: [
-      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0],
-      [0, 6], [5, 6], [1, 6], [4, 6], [1, 7], [2, 7], [3, 7], [4, 7], [6, 7],
-    ],
-  },
-  {
-    name: 'Rosette',
-    points: [[.50, .08], [.78, .20], [.92, .49], [.78, .78], [.49, .91], [.21, .79], [.08, .49], [.21, .21], [.49, .49]],
-    displaced: { 0: [.61, .70], 2: [.26, .59], 5: [.69, .31], 8: [.44, .29] },
-    edges: [
-      [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 0],
-      [8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 6], [8, 7],
-    ],
-  },
-];
-
 const epsilon = 1e-7;
-const spacing = .12;
+export const stageCount = 5;
+export const maxPoints = 25;
 const clamp = value => Math.max(0, Math.min(1, value));
 const cross = (x, y, u, v) => x * v - y * u;
 
-export function startingPoints(knot) {
-  return knot.points.map((point, index) => {
-    const [x, y] = knot.displaced[index] ?? point;
-    return { x, y };
-  });
-}
-
-export function movePoint(points, index, x, y) {
+export function movePoint(points, index, x, y, spacing = .085) {
   if (!points[index] || !Number.isFinite(x) || !Number.isFinite(y)) return false;
   const next = { x: clamp(x), y: clamp(y) };
   if (Math.hypot(points[index].x - next.x, points[index].y - next.y) < epsilon) return false;
@@ -91,4 +58,91 @@ export function boardLayout(width, height) {
   const padding = Math.min(48, Math.max(25, shortSide * .105));
   const size = Math.max(1, shortSide - padding * 2);
   return { width, height, size, left: (width - size) / 2, top: (height - size) / 2 };
+}
+
+const stages = [[3, 2, 1, 1], [3, 3, 3, 8], [4, 3, 6, 20], [4, 4, 10, 55], [5, 5, 20, 150]];
+
+export function createKnot(level, random = Math.random) {
+  const [columns, rows, moves, minimum] = stages[level];
+  const spacing = .44 / Math.max(rows, columns);
+  const count = rows * columns;
+  let best;
+  let bestCount = -1;
+  for (let attempt = 0; attempt < 48; attempt++) {
+    const points = Array.from({ length: count }, (_, i) => {
+      const x = (i % columns) / (columns - 1), y = Math.floor(i / columns) / (rows - 1);
+      return { x: .12 + .76 * x + (random() - .5) * .20 / columns + (y - .5) * .10 * (random() - .5),
+        y: .12 + .76 * y + (random() - .5) * .20 / rows };
+    });
+    if (random() < .5) points.forEach(point => { point.x = 1 - point.x; });
+    if (random() < .5) points.forEach(point => { [point.x, point.y] = [point.y, point.x]; });
+    const edges = [];
+    for (let i = 0; i < count; i++) {
+      const right = i % columns < columns - 1, below = i < count - columns;
+      if (right) edges.push([i, i + 1]);
+      if (below) edges.push([i, i + columns]);
+      if (right && below && (level >= 3 || random() > .25)) {
+        edges.push(random() < .5 ? [i, i + columns + 1] : [i + 1, i + columns]);
+      }
+    }
+    const solution = points.slice(), order = [];
+    const candidates = Array.from({ length: count }, (_, index) => index);
+    while (order.length < moves && candidates.length) {
+      const [index] = candidates.splice(Math.floor(random() * candidates.length), 1);
+      for (let sample = 0; sample < 24; sample++) {
+        const x = .06 + .88 * random(), y = .06 + .88 * random();
+        if (Math.hypot(x - solution[index].x, y - solution[index].y) < .21) continue;
+        if (movePoint(points, index, x, y, spacing)) {
+          order.push(index);
+          break;
+        }
+      }
+    }
+    const crossingCount = findCrossings(points, edges).length;
+    if (crossingCount > bestCount) {
+      bestCount = crossingCount;
+      best = { points, edges, solution, order: order.reverse(), spacing };
+    }
+    if (crossingCount >= minimum) return best;
+  }
+  return best;
+}
+
+// The puzzle lies in one plane. A perspective camera can orbit the scene
+// independently, so viewing angle and the depth of the strings cannot win a stage.
+export function cameraProjection(layout, yaw, pitch) {
+  const c = Math.cos(yaw), s = Math.sin(yaw), p = Math.cos(pitch), q = Math.sin(pitch);
+  const distance = 2.65;
+  const cx = layout.width / 2, cy = layout.height / 2;
+  let size = layout.size;
+  // The closest corner can grow under perspective, especially at diagonal
+  // angles. Reserve a hit-target margin before mapping both draw and input.
+  for (const x of [-.5, .5]) {
+    for (const y of [-.5, .5]) {
+      const depth = -s * x;
+      const z = q * y + p * depth;
+      const scale = distance / (distance - z);
+      size = Math.min(size, (cx - 23) / Math.max(.001, Math.abs(c * x * scale)),
+        (cy - 23) / Math.max(.001, Math.abs((p * y - q * depth) * scale)));
+    }
+  }
+  size = Math.max(1, size);
+  return {
+    project(point, height = 0) {
+      const x = point.x - .5, y = point.y - .5;
+      const depth = -s * x + c * height;
+      const z = q * y + p * depth;
+      const scale = distance / (distance - z);
+      return { x: cx + (c * x + s * height) * size * scale,
+        y: cy + (p * y - q * depth) * size * scale, z, scale };
+    },
+    unproject(point) {
+      const x = (point.x - cx) / size, y = (point.y - cy) / size;
+      const a = c - x * p * s / distance, b = x * q / distance;
+      const d = q * s - y * p * s / distance, e = p + y * q / distance;
+      const determinant = a * e - b * d;
+      if (Math.abs(determinant) < .065) return null;
+      return { x: .5 + (x * e - b * y) / determinant, y: .5 + (a * y - x * d) / determinant };
+    },
+  };
 }

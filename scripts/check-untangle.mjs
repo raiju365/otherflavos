@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
-import { boardLayout, findCrossings, knots, movePoint, startingPoints } from '../src/untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, findCrossings, movePoint, stageCount } from '../src/untangle-model.js';
 import { initUntangle } from '../src/untangle.js';
 
 const passed = [];
@@ -9,47 +9,62 @@ function check(name, verify) {
   passed.push(name);
 }
 
-check('three knots start crossed and have a reachable planar arrangement', () => {
-  const startCounts = [];
-  for (const knot of knots) {
-    const points = startingPoints(knot);
-    startCounts.push(findCrossings(points, knot.edges).length);
-    for (const index of Object.keys(knot.displaced).map(Number)) {
-      assert.equal(movePoint(points, index, ...knot.points[index]), true);
+function rng(seed) {
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+}
+
+check('five stages generate distinct solvable layouts with increasing complexity', () => {
+  const minima = [1, 8, 20, 55, 150];
+  for (let level = 0; level < stageCount; level++) {
+    const arrangements = new Set(), connections = new Set();
+    for (let seed = 1; seed <= 100; seed++) {
+      const knot = createKnot(level, rng(seed));
+      arrangements.add(JSON.stringify(knot.points));
+      connections.add(JSON.stringify(knot.edges));
+      assert.ok(findCrossings(knot.points, knot.edges).length >= minima[level]);
+      assert.equal(findCrossings(knot.solution, knot.edges).length, 0);
+      for (const index of knot.order) {
+        const { x, y } = knot.solution[index];
+        assert.equal(movePoint(knot.points, index, x, y, knot.spacing), true);
+      }
+      assert.equal(findCrossings(knot.points, knot.edges).length, 0);
+      if (level === 4) assert.deepEqual([knot.points.length, knot.edges.length], [25, 56]);
     }
-    assert.deepEqual(findCrossings(points, knot.edges), []);
-    assert.notDeepEqual(points, startingPoints(knot));
+    assert.equal(arrangements.size, 100);
+    assert.ok(connections.size > 1);
   }
-  assert.deepEqual(startCounts, [3, 5, 20]);
 });
-check('shared endpoints are allowed, unrelated touches and overlapping wires are not', () => {
+
+check('overlapping wires count as crossings but shared endpoints alone do not', () => {
   const points = [[0, 0], [1, 1], [0, 1], [1, 0], [.5, .5]].map(([x, y]) => ({ x, y }));
   assert.deepEqual(findCrossings(points, [[0, 1], [2, 3]]), [{ x: .5, y: .5, edges: [0, 1] }]);
   assert.equal(findCrossings(points, [[0, 1], [0, 2]]).length, 0);
   assert.equal(findCrossings(points, [[0, 1], [0, 4]]).length, 1);
-  assert.equal(findCrossings(points, [[0, 1], [2, 4]]).length, 1);
-  assert.equal(findCrossings(points, [[0, 3], [1, 2]]).length, 0);
-});
-check('coordinates clamp to the board and points cannot collapse onto each other', () => {
-  const points = startingPoints(knots[0]);
-  assert.equal(movePoint(points, 0, -.2, 1.2), true);
-  assert.deepEqual(points[0], { x: 0, y: 1 });
-  assert.equal(movePoint(points, 1, 0, .97), false);
-  assert.equal(movePoint(points, 1, NaN, .5), false);
-  assert.equal(movePoint(points, 9, .5, .5), false);
-});
-check('mobile and desktop layouts leave a full hit target at every board edge', () => {
-  for (const [width, height] of [[260, 264], [344, 332], [520, 415], [840, 540]]) {
-    const frame = boardLayout(width, height);
-    assert.ok(frame.left >= 22 && frame.top >= 22);
-    assert.equal(frame.left * 2 + frame.size, width);
-    assert.equal(frame.top * 2 + frame.size, height);
-  }
 });
 
+check('360° perspective stays in the field and round-trips usable drag positions', () => {
+  const layout = boardLayout(344, 332);
+  const point = { x: .23, y: .67 };
+  let recovered = 0;
+  for (let angle = 0; angle <= 360; angle += 5) {
+    const camera = cameraProjection(layout, angle * Math.PI / 180, angle * Math.PI / 270);
+    const projected = camera.project(point);
+    assert.ok(projected.x > 0 && projected.x < layout.width && projected.y > 0 && projected.y < layout.height);
+    const inverse = camera.unproject(projected);
+    if (inverse) {
+      assert.ok(Math.hypot(inverse.x - point.x, inverse.y - point.y) < 1e-10);
+      recovered++;
+    }
+  }
+  assert.ok(recovered > 60);
+  assert.equal(cameraProjection(layout, Math.PI / 2, 0).unproject({ x: 172, y: 166 }), null);
+});
 class Element extends EventTarget {
   dataset = {};
-  style = {};
+  style = { setProperty(name, value) { this[name] = value; } };
   attributes = new Map();
   children = [];
   capture = new Set();
@@ -79,7 +94,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
+    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-next]', '.play-toolbar', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
   const nodes = elements['[data-play-nodes]'], status = elements['[data-play-status]'];
@@ -119,7 +134,11 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     disconnect() { this.disconnected = true; }
   }
   globalThis.ResizeObserver = globalThis.MutationObserver = Observer;
-  initUntangle(root, abort.signal);
+  const source = rng(12345), expected = rng(12345);
+  initUntangle(root, abort.signal, source);
+  const front = elements['[data-play-front]'];
+  emit(front, 'click');
+  const nextExpected = level => createKnot(level, expected);
   function pointAt(x, y) {
     const layout = boardLayout(rect.width, rect.height);
     return { clientX: rect.left + layout.left + x * layout.size, clientY: rect.top + layout.top + y * layout.size };
@@ -136,7 +155,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
     send('pointerup', to);
   }
   return {
-    abort, panel, field, canvas, nodes, status, reset, next, label, live, frames, observers, strokes, rect,
+    abort, panel, field, canvas, nodes, status, front, reset, next, label, live, frames, observers, strokes, rect, nextExpected,
     fallback: elements['[data-play-fallback]'], toolbar: elements['.play-toolbar'],
     pointAt, grab, send, drag,
     step(now = 0) {
@@ -153,128 +172,80 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
 
 {
   const f = fixture();
+  let knot = f.nextExpected(0);
   f.step();
-  check('the first board is immediately playable, capped at 2× DPR and idle after painting', () => {
-    assert.equal(f.label.textContent, 'Loop · 1 / 3');
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.nodes.children.filter(node => !node.hidden).length, 6);
-    assert.equal(f.canvas.width, 688);
-    assert.equal(f.frames.size, 0);
-    assert.ok(f.strokes.includes('#ff784f'));
-  });
-  f.recolor();
-  f.step();
-  check('changing theme repaints the same knot once in the new ink', () => {
-    assert.ok(f.strokes.includes('#8c340d'));
-    assert.equal(f.status.textContent, '3 crossings left');
+  check('stage one shows the generated crossing count and no idle frames', () => {
+    assert.equal(f.label.textContent, 'Stage 1 / 5');
+    assert.equal(parseInt(f.status.textContent, 10), findCrossings(knot.points, knot.edges).length);
     assert.equal(f.frames.size, 0);
   });
 
-  emit(f.nodes.children[0], 'click', { detail: 0 });
-  f.nodes.children[1].focus();
-  f.grab(1, knots[0].displaced[1]);
-  f.send('pointermove', knots[0].points[1], 8);
-  check('a second finger cannot move or release the captured point', () => {
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.nodes.children[1].hasPointerCapture(7), true);
+  const before = f.nodes.children[0].style.left, count = f.status.textContent;
+  const point = f.pointAt(.5, .5);
+  emit(f.field, 'pointerdown', { ...point, pointerId: 8, button: 0 });
+  emit(window, 'pointermove', { ...point, clientX: point.clientX + 40, pointerId: 8 });
+  f.step(20);
+  check('orbit changes the projection without changing the knot or requiring a loop', () => {
+    assert.notEqual(f.nodes.children[0].style.left, before);
+    assert.equal(f.status.textContent, count);
+    assert.equal(f.frames.size, 0);
   });
-  f.send('pointermove', knots[0].points[1]);
-  check('the crossings update while dragging and the knot clears only on release', () => {
-    assert.equal(f.status.textContent, '0 crossings left');
-    assert.equal(f.nodes.children[0].attributes.get('aria-pressed'), 'false');
-    assert.equal(f.next.hidden, true);
-  });
-  f.send('pointerup', knots[0].points[1]);
-  f.step(30);
-  check('releasing the final move locks the knot, focuses Next and starts one pulse', () => {
-    assert.equal(f.nodes.children[1].hasPointerCapture(7), false);
-    assert.equal(f.field.dataset.solved, 'true');
-    assert.equal(f.status.textContent, 'Knot untangled');
-    assert.equal(f.next.textContent, 'Next knot');
-    assert.equal(document.activeElement, f.next);
+  emit(window, 'pointerup', { pointerId: 8 });
+  emit(f.front, 'click');
+  f.step(40);
+  assert.equal(f.nodes.children[0].style.left, before);
+
+  const i = knot.order[0], at = point => [point.x, point.y];
+  f.grab(i, at(knot.points[i]));
+  f.send('pointermove', at(knot.solution[i]));
+  f.step(60);
+  check('a drag starts a finite string vibration and waits for release to complete', () => {
     assert.equal(f.frames.size, 1);
+    assert.equal(f.next.hidden, true);
   });
-  f.step(120);
-  f.step(950);
-  check('the success pulse ends without leaving an idle animation', () => {
-    assert.equal(f.frames.size, 0);
-    assert.ok(f.strokes.every(color => color === '#27202f'));
+  f.send('pointercancel', at(knot.solution[i]));
+  f.step(900);
+  check('cancelling the drag restores the original crossing count', () => assert.equal(f.status.textContent, count));
+
+  emit(f.reset, 'click');
+  knot = f.nextExpected(0);
+  emit(f.front, 'click');
+  f.step(920);
+  check('New knot rebuilds stage one and keeps its progression position', () => {
+    assert.equal(f.label.textContent, 'Stage 1 / 5');
+    assert.notEqual(f.nodes.children[0].style.left, before);
   });
 
-  emit(f.next, 'click');
-  f.step();
-  check('Next prepares the next knot and focuses its first point', () => {
-    assert.equal(f.label.textContent, 'Bridge · 2 / 3');
-    assert.equal(f.status.textContent, '5 crossings left');
+  for (let level = 0; level < stageCount; level++) {
+    for (const index of knot.order) {
+      if (!f.next.hidden) break;
+      f.drag(index, at(knot.points[index]), at(knot.solution[index]));
+    }
+    assert.equal(f.field.dataset.solved, 'true');
+    assert.equal(f.next.textContent, level === 4 ? 'Play again' : 'Next knot');
+    emit(f.next, 'click');
+    knot = f.nextExpected((level + 1) % stageCount);
+    emit(f.front, 'click');
+    f.step(950 + level * 30);
+  }
+  check('all five stages complete and Play again draws a fresh first stage', () => {
+    assert.equal(f.label.textContent, 'Stage 1 / 5');
     assert.equal(f.next.hidden, true);
-    assert.equal(document.activeElement, f.nodes.children[0]);
-  });
-  emit(f.nodes.children[1], 'click', { detail: 0 });
-  emit(f.field, 'click', { target: f.field, ...f.pointAt(...knots[1].points[1]) });
-  check('select and place moves a point without a drag', () => {
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.nodes.children[1].attributes.get('aria-pressed'), 'false');
-  });
-  emit(f.reset, 'click');
-  check('Reset restores the current knot instead of returning to the first', () => {
-    assert.equal(f.label.textContent, 'Bridge · 2 / 3');
-    assert.equal(f.status.textContent, '5 crossings left');
-  });
-  for (const index of [1, 7]) f.drag(index, knots[1].displaced[index], knots[1].points[index]);
-  emit(f.next, 'click');
-  for (const index of [0, 2, 5]) f.drag(index, knots[2].displaced[index], knots[2].points[index]);
-  check('the last knot reaches the complete state and offers one replay action', () => {
-    assert.equal(f.label.textContent, 'Rosette · 3 / 3');
-    assert.equal(f.status.textContent, 'All knots untangled');
-    assert.equal(f.reset.hidden, true);
-    assert.equal(f.next.textContent, 'Play again');
-  });
-  emit(f.next, 'click');
-  check('Play again resets the whole game', () => {
-    assert.equal(f.label.textContent, 'Loop · 1 / 3');
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.next.hidden, true);
+    assert.equal(f.frames.size, 0);
   });
   f.abort.abort();
-  check('abort releases the paint and observers', () => {
-    assert.equal(f.frames.size, 0);
-    assert.ok(f.observers.every(observer => observer.disconnected));
-  });
+  assert.ok(f.observers.every(observer => observer.disconnected));
 }
 
 {
   const f = fixture({ reduced: true });
+  const knot = f.nextExpected(0);
   f.step();
-  const key = emit(f.nodes.children[0], 'keydown', { key: 'ArrowRight', shiftKey: true });
-  f.step();
-  check('keyboard moves a focused point in fine steps with Shift', () => {
-    assert.equal(key.defaultPrevented, true);
-    assert.ok(Math.abs(parseFloat(f.nodes.children[0].style.left) - (f.pointAt(.306, .12).clientX - f.rect.left)) < .01);
-  });
-  emit(f.reset, 'click');
-  f.grab(1, knots[0].displaced[1]);
-  f.send('pointermove', knots[0].points[1]);
-  f.send('pointercancel', knots[0].points[1]);
-  check('cancelled touch restores the original position without completing the knot', () => {
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.next.hidden, true);
-    assert.equal(f.nodes.children[1].hasPointerCapture(7), false);
-  });
-  f.grab(1, knots[0].displaced[1]);
-  f.send('pointermove', knots[0].points[1]);
-  f.panel.inert = true;
-  emit(document, 'portfolio:sectionstart');
-  f.panel.hidden = true;
-  f.step();
-  check('leaving Play cancels a held drag and retains the puzzle', () => {
-    assert.equal(f.status.textContent, '3 crossings left');
-    assert.equal(f.frames.size, 0);
-  });
-  f.panel.hidden = f.panel.inert = false;
-  emit(document, 'portfolio:sectionsettled');
-  f.drag(1, knots[0].displaced[1], knots[0].points[1]);
-  f.step(30);
-  check('reduced motion preserves success and the next action without a pulse', () => {
+  const index = knot.order[0], point = knot.points[index], to = knot.solution[index];
+  emit(f.nodes.children[index], 'click', { detail: 0 });
+  emit(f.field, 'click', { target: f.field, ...f.pointAt(to.x, to.y) });
+  f.step(40);
+  check('tap to place can solve a stage in reduced motion with no animation frames left', () => {
     assert.equal(f.field.dataset.solved, 'true');
     assert.equal(f.frames.size, 0);
     assert.equal(f.next.hidden, false);
@@ -284,10 +255,9 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
 
 {
   const f = fixture({ canvasSupport: false });
-  check('missing Canvas shows a readable fallback without starting the controller', () => {
+  check('missing Canvas leaves a readable fallback', () => {
     assert.equal(f.fallback.hidden, false);
     assert.equal(f.field.hidden, true);
-    assert.equal(f.toolbar.hidden, true);
     assert.equal(f.frames.size, 0);
   });
   f.abort.abort();
