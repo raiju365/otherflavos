@@ -173,9 +173,34 @@
         </nav>
         <div class="panels">
           <section id="panel-home" class="panel" role="tabpanel" aria-labelledby="tab-home" tabindex="0">
-            <article class="play-untangle" data-untangle aria-labelledby="untangle-title">
+            <section class="play-menu" data-play-menu aria-labelledby="play-menu-title">
+              <h2 id="play-menu-title">Choose a game</h2>
+              <div class="play-game-list">
+                <button type="button" class="play-game-card" data-open-game="untangle">
+                  <span class="play-game-art play-game-art--untangle" aria-hidden="true"></span>
+                  <span class="play-game-copy"><strong>Untangle</strong><span>Separate the strings in 3D.</span></span>
+                  <span class="play-game-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="play-game-card" data-open-game="afterglow">
+                  <span class="play-game-art play-game-art--afterglow" aria-hidden="true"></span>
+                  <span class="play-game-copy"><strong>Afterglow</strong><span>Turn every light off.</span></span>
+                  <span class="play-game-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="play-game-card" data-open-game="shift">
+                  <span class="play-game-art play-game-art--shift" aria-hidden="true"></span>
+                  <span class="play-game-copy"><strong>Shift</strong><span>Slide tiles into number order.</span></span>
+                  <span class="play-game-arrow" aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </section>
+            <div class="play-game-screen" data-play-game hidden>
+              <header class="play-game-header">
+                <button type="button" class="play-game-back" data-play-back>← Games</button>
+                <h2 data-game-title tabindex="-1"></h2>
+                <p data-game-help></p>
+              </header>
+            <article class="play-untangle" data-untangle aria-label="Untangle" hidden>
               <div class="play-layout">
-                <h2 id="untangle-title" class="sr-only">Untangle</h2>
                 <p id="untangle-help" class="sr-only">Separate the touching strings. Drag empty space to orbit.</p>
                 <div class="play-field" data-play-field role="group" aria-label="Untangle board"
                   aria-describedby="untangle-help untangle-keys untangle-status">
@@ -203,6 +228,24 @@
                 <p class="sr-only" data-play-live aria-live="polite" aria-atomic="true"></p>
               </div>
             </article>
+              <div class="play-layout puzzle-layout" data-puzzle hidden>
+                <div class="puzzle-space">
+                  <div class="puzzle-board" data-puzzle-board role="group" aria-describedby="puzzle-status"></div>
+                </div>
+                <div class="play-toolbar glass-material glass-surface">
+                  <span class="play-toolbar-rim glass-rim" aria-hidden="true"></span>
+                  <div class="play-progress">
+                    <p class="play-knot" data-puzzle-stage></p>
+                    <p id="puzzle-status" class="play-status" data-puzzle-status role="status"></p>
+                  </div>
+                  <div class="play-actions">
+                    <button type="button" class="play-reset" data-puzzle-reset>Reset</button>
+                    <button type="button" class="play-reset" data-puzzle-new>New puzzle</button>
+                    <button type="button" class="play-next" data-puzzle-next hidden>Next level</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
           <section id="panel-projects" class="panel" role="tabpanel" aria-labelledby="tab-projects" tabindex="0" hidden>
             <h2 class="sr-only">Selected projects</h2>

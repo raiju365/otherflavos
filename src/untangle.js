@@ -50,7 +50,7 @@ export function initUntangle(root, signal, random = Math.random) {
   });
   nodes.append(...buttons);
 
-  const visible = () => !signal.aborted && !document.hidden && !panel?.hidden && !dialog?.open;
+  const visible = () => !signal.aborted && !document.hidden && !root.hidden && !panel?.hidden && !dialog?.open;
   const available = () => visible() && !panel?.inert && document.documentElement.dataset.entry !== 'loading';
   const playable = () => available() && !solved && layout;
 
@@ -508,4 +508,5 @@ export function initUntangle(root, signal, random = Math.random) {
   loadKnot(0);
   readPalette();
   measure();
+  return { pause, resume };
 }
