@@ -128,13 +128,7 @@
   isolation: isolate;
 }
 
-.puzzle-board[data-game=conduit] {
-  background: linear-gradient(145deg, #244452, #101e29);
-  border: 1px solid #527181;
-  box-shadow: inset 0 1px 0 #8eafbf4f, 0 16px 40px #08192329;
-  border-radius: clamp(8px, 2.5cqh, 18px);
-  gap: clamp(2px, .65cqh, 4px);
-}
+.puzzle-board[data-game=conduit] { gap: 0; padding: 0; }
 .puzzle-tile {
   min-inline-size: 0;
   min-block-size: 0;
@@ -144,50 +138,111 @@
 }
 
 .puzzle-tile:focus-visible { outline: 2px solid white; outline-offset: -3px; z-index: 2; }
-.puzzle-board[data-game=conduit] .puzzle-tile {
-  --conduit-ink: #7693a1;
-  background:
-    radial-gradient(circle, #7babb638 0 1px, transparent 1.5px) center / 10px 10px,
-    linear-gradient(145deg, #1b333f, #142631);
-  box-shadow: inset 0 0 0 1px #476672;
-  border-radius: 5px;
-  overflow: hidden;
+.puzzle-board[data-game=conduit] .puzzle-tile { overflow: hidden; }
+.puzzle-board[data-game=conduit] .puzzle-tile:focus-visible { outline-color: var(--fg); }
+@media (hover: hover) {
+  .puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 21%, transparent); }
 }
-.puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px #91b4c1; }
-.puzzle-board[data-game=conduit] .puzzle-tile[data-powered=true] { --conduit-ink: #9de8f6; }
-.conduit-wire, .conduit-wire i { position: absolute; inset: 0; pointer-events: none; }
-.conduit-wire {
+.conduit-pipe, .conduit-pipe i { position: absolute; inset: 0; pointer-events: none; }
+.conduit-pipe {
   transform: rotate(var(--circuit-angle, 0deg));
   transition: transform 215ms var(--studio-ease);
 }
-.conduit-wire i { transform: rotate(calc(var(--port) * 90deg)); }
-.conduit-wire i::before {
+.conduit-pipe i { transform: rotate(calc(var(--port) * 90deg)); }
+.conduit-pipe i::before,
+.conduit-pipe i::after {
   content: '';
   position: absolute;
   left: 50%;
-  top: 0;
   translate: -50% 0;
-  inline-size: max(2px, 7%);
-  block-size: 50%;
-  background: var(--conduit-ink);
 }
-.puzzle-board[data-game=conduit] .puzzle-tile::after {
-  content: '';
+.conduit-pipe i::before {
+  inset-block-start: 0;
+  inline-size: clamp(8px, 24%, 30px);
+  block-size: 50%;
+  border-inline: 1px solid rgb(126 73 46 / .62);
+  background:
+    linear-gradient(#713b29a6 0 2px, #d4996780 3px 5px, transparent 6px),
+    radial-gradient(ellipse at 25% 45%, #9d4c2ba0 0 1px, transparent 2px) 0 0 / 6px 11px,
+    radial-gradient(ellipse at 80% 40%, #bc75489c 0 1.5px, transparent 2.5px) 0 4px / 11px 15px,
+    linear-gradient(90deg, #7c4b36a1, #fff0d840 22%, #d5dad610 44% 65%, #8f52358c);
+}
+.conduit-pipe i::after {
+  inset-block-start: 1px;
+  inline-size: clamp(4px, 15%, 19px);
+  block-size: calc(50% - 1px);
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, #2289a7aa, #8ae1edbd 36%, #399ab9c9 75%, #277f9caa);
+  opacity: 0;
+  transform-origin: center bottom;
+  transition: opacity 130ms ease;
+}
+.conduit-pipe i[data-inlet=true]::after { transform-origin: center top; }
+.puzzle-tile[data-filled=true] .conduit-pipe i::after {
+  opacity: 1;
+  animation: conduit-fill var(--water-half-pipe, 85ms) linear var(--water-delay, 0ms) both;
+}
+.conduit-chamber {
   position: absolute;
   inset: 50% auto auto 50%;
   translate: -50% -50%;
-  inline-size: max(5px, 15%);
+  inline-size: clamp(10px, 28%, 34px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #1c3541;
-  border: 2px solid var(--conduit-ink);
+  border: 1px solid #9d5d3da1;
+  background:
+    radial-gradient(circle at 24% 22%, #ebbe8cbf 0 7%, transparent 9%),
+    radial-gradient(circle at 74% 76%, #914829a6 0 12%, transparent 14%),
+    radial-gradient(circle, #a18b6f16 45%, #b38253a8 77%, #774027b3);
+  box-shadow: inset 0 0 0 1px #deb18755;
   pointer-events: none;
 }
-.puzzle-board[data-game=conduit] .puzzle-tile[data-source=true]::after {
-  inline-size: 23%;
-  background: #ffd288;
-  border-color: #fff0c9;
-  box-shadow: 0 0 10px #ffd28855;
+.conduit-chamber::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: inherit;
+  background: radial-gradient(circle at 36% 29%, #b6f4facb, #3da6c0c9 55%, #227a96bf);
+  opacity: 0;
+}
+.puzzle-tile[data-filled=true] .conduit-chamber::after {
+  opacity: 1;
+  animation: conduit-pool 100ms ease-out var(--water-hub-delay, 0ms) both;
+}
+.puzzle-tile[data-source=true] .conduit-chamber {
+  inline-size: clamp(16px, 35%, 40px);
+  border: 2px solid #b2774b;
+}
+.conduit-fountain {
+  position: absolute;
+  inset: 25%;
+  pointer-events: none;
+}
+.conduit-fountain::before, .conduit-fountain::after {
+  content: '';
+  position: absolute;
+  inset: 46% auto auto 46%;
+  width: 12%;
+  aspect-ratio: 1;
+  border-radius: 65% 45% 65% 45%;
+  background: #a3edf5;
+  box-shadow: -2px 3px #5fc5dbb0, 3px 5px #9ce4f0a0;
+  animation: conduit-splash 1.7s ease-out infinite both;
+}
+.conduit-fountain::after { --splash-x: 260%; animation-delay: .82s; }
+@keyframes conduit-fill {
+  from { transform: scaleY(0); opacity: 0; }
+  12% { opacity: 1; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+@keyframes conduit-pool {
+  from { opacity: 0; scale: .55; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes conduit-splash {
+  0%, 66%, 100% { opacity: 0; transform: translate(0, 0) scale(.45); }
+  14% { opacity: .94; }
+  43% { opacity: 0; transform: translate(var(--splash-x, -220%), -440%) scale(1.06); }
 }
 
 .shift-woodwork { display: none; }
@@ -321,15 +376,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .play-game-card, .conduit-wire { transition: none; }
+  .play-game-card, .conduit-pipe { transition: none; }
   .play-game-card:hover { translate: none; }
+  .puzzle-tile[data-filled=true] :is(.conduit-pipe i, .conduit-chamber)::after,
+  .conduit-fountain::before, .conduit-fountain::after { animation: none; transition: none; }
+  .conduit-fountain { display: none; }
 }
 
 @media (forced-colors: active) {
   .puzzle-board { border: 1px solid CanvasText; }
   .puzzle-board .puzzle-tile { border: 1px solid CanvasText; }
-  .puzzle-board[data-game=conduit] .puzzle-tile { --conduit-ink: CanvasText; }
-  .puzzle-board[data-game=conduit] .puzzle-tile[data-powered=true] { --conduit-ink: Highlight; }
-  .conduit-wire i::before { forced-color-adjust: none; }
-  .puzzle-board[data-game=conduit] .puzzle-tile[data-source=true]::after { background: Highlight; }
+  .puzzle-board[data-game=conduit], .puzzle-board[data-game=conduit] .puzzle-tile { border: 0; }
+  .conduit-pipe i::before, .conduit-chamber { border-color: CanvasText; }
+  .conduit-pipe i::after, .conduit-chamber::after { background: Highlight; forced-color-adjust: none; }
 }

@@ -1,15 +1,16 @@
 import { initUntangle } from './untangle.js';
 import { initShiftBoard } from './shift-board.js';
-import { createPuzzle, neighbors, poweredTiles, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
+import { createPuzzle, neighbors, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
 
 const games = {
   untangle: { title: 'Untangle', help: 'Drag points apart. Drag the background to orbit.' },
-  conduit: { title: 'Conduit', help: 'Rotate each tile to connect it to the amber source.' },
+  conduit: { title: 'Conduit', help: 'Turn the pipes to fill them from the water source.' },
   shift: { title: 'Shift', help: 'Drag the frame to turn it. Slide tiles into the gap.' },
 };
 
 const directions = { ArrowUp: 0, ArrowLeft: 1, ArrowRight: 2, ArrowDown: 3 };
 const ports = ['up', 'right', 'down', 'left'];
+const pipeFill = 85;
 
 export function initPlayGames(panel, signal) {
   const menu = panel.querySelector('[data-play-menu]');
@@ -33,6 +34,7 @@ export function initPlayGames(panel, signal) {
   const on = (target, event, listener) => target.addEventListener(event, listener, { signal });
   let currentGame, opener, untangleControls, buttons = [], focused = 0;
   let tileMotion = null;
+  const fillEnds = new Map();
 
   const available = () => !panel.hidden && !panel.inert
     && document.documentElement.dataset.entry !== 'loading';
@@ -60,15 +62,45 @@ export function initPlayGames(panel, signal) {
     return state;
   }
 
-  function paintPuzzle() {
+  function paintWater(route, turning) {
+    const now = performance.now();
+    for (const index of fillEnds.keys()) {
+      if (route.has(index)) continue;
+      fillEnds.delete(index);
+      buttons[index].dataset.filled = 'false';
+    }
+    // The map follows the flow from the pump, so each inlet can wait for its upstream pipe.
+    for (const [index, { from, inlet }] of route) {
+      if (fillEnds.has(index)) continue;
+      const button = buttons[index];
+      const turn = Number.parseInt(button.style.getPropertyValue('--circuit-angle'), 10) / 90;
+      const start = Math.max(now + (turning ? 175 : 0), fillEnds.get(from) ?? 0);
+      const hub = start + (inlet ? pipeFill : 0);
+      button.style.setProperty('--water-hub-delay', `${hub - now}ms`);
+      button.style.setProperty('--water-half-pipe', `${pipeFill}ms`);
+      for (const arm of button.querySelectorAll('[data-pipe-side]')) {
+        const side = (Number(arm.dataset.pipeSide) + turn) % ports.length;
+        const incoming = Boolean(inlet & (1 << side));
+        arm.dataset.inlet = String(incoming);
+        arm.style.setProperty('--water-delay', `${(incoming ? start : hub) - now}ms`);
+      }
+      fillEnds.set(index, hub + pipeFill);
+      button.dataset.filled = 'true';
+    }
+  }
+
+  function paintPuzzle(turning = false) {
     const state = current();
     const { level, size, tiles, source } = state;
     const circuit = currentGame === 'conduit';
-    const powered = circuit ? poweredTiles(tiles, size, source) : null;
+    const water = circuit ? traceConduit(tiles, size, source) : null;
     const movable = circuit ? [] : neighbors(tiles.indexOf(0), size);
-    if (circuit) state.solved = powered.size === tiles.length;
+    if (circuit) {
+      paintWater(water, turning);
+      state.solved = water.size === tiles.length;
+    }
     const { solved } = state;
-    const count = circuit ? powered.size
+    const count = circuit ? water.size
       : tiles.filter((value, index) => value === index + 1).length;
     board.dataset.solved = String(solved);
     buttons.forEach((button, index) => {
@@ -76,10 +108,9 @@ export function initPlayGames(panel, signal) {
       button.dataset.value = String(value);
       button.tabIndex = index === focused && !solved ? 0 : -1;
       if (circuit) {
-        const live = powered.has(index);
+        const filled = water.has(index);
         const open = ports.filter((_, side) => value & (1 << side));
-        button.dataset.powered = String(live);
-        button.setAttribute('aria-label', `${index === source ? 'Power source' : `Tile ${index + 1}`}. ${open.join(', ')}. ${live ? 'Powered' : 'Unpowered'}`);
+        button.setAttribute('aria-label', `${index === source ? 'Water source' : `Pipe ${index + 1}`}. ${open.join(', ')}. ${filled ? 'Filled' : 'Empty'}`);
         button.setAttribute('aria-disabled', String(solved));
       } else {
         const canMove = movable.includes(index) && !solved;
@@ -91,13 +122,14 @@ export function initPlayGames(panel, signal) {
     });
     stage.textContent = `Stage ${level + 1} / ${puzzleLevels}`;
     status.textContent = solved ? (level === puzzleLevels - 1 ? 'All stages cleared' : 'Stage cleared')
-      : circuit ? `${count} / ${tiles.length} powered`
+      : circuit ? `${count} / ${tiles.length} filled`
         : `${count} / ${tiles.length - 1} in place`;
     next.textContent = level === puzzleLevels - 1 ? 'Play again' : 'Next level';
     next.hidden = !solved;
   }
 
   function buildBoard(focus = false) {
+    fillEnds.clear();
     shiftBoard.clear();
     tileMotion?.cancel();
     const { size, tiles, source } = current();
@@ -115,16 +147,26 @@ export function initPlayGames(panel, signal) {
         button.style.setProperty('--tile-gloss-x', `${index % size / (size - 1) * 100}%`);
         button.style.setProperty('--tile-gloss-y', `${Math.floor(index / size) / (size - 1) * 100}%`);
       } else {
-        const wire = document.createElement('span');
-        wire.className = 'conduit-wire';
-        wire.setAttribute('aria-hidden', 'true');
+        const pipe = document.createElement('span');
+        pipe.className = 'conduit-pipe';
+        pipe.setAttribute('aria-hidden', 'true');
         for (let side = 0; side < ports.length; side++) {
           if (!(value & (1 << side))) continue;
           const arm = document.createElement('i');
           arm.style.setProperty('--port', side);
-          wire.append(arm);
+          arm.dataset.pipeSide = String(side);
+          pipe.append(arm);
         }
-        button.append(wire);
+        const chamber = document.createElement('span');
+        chamber.className = 'conduit-chamber';
+        chamber.setAttribute('aria-hidden', 'true');
+        button.append(pipe, chamber);
+        if (index === source) {
+          const fountain = document.createElement('span');
+          fountain.className = 'conduit-fountain';
+          fountain.setAttribute('aria-hidden', 'true');
+          button.append(fountain);
+        }
         button.dataset.source = String(index === source);
         button.style.setProperty('--circuit-angle', '0deg');
       }
@@ -227,7 +269,7 @@ export function initPlayGames(panel, signal) {
     const angle = Number.parseInt(tile.style.getPropertyValue('--circuit-angle'), 10);
     tile.style.setProperty('--circuit-angle', `${angle + 90}deg`);
     focused = index;
-    paintPuzzle();
+    paintPuzzle(true);
     if (state.solved) next.focus({ preventScroll: true });
   });
 

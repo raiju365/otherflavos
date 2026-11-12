@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPuzzle, neighbors, poweredTiles, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
+import { createPuzzle, neighbors, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
 import { slideProgress } from '../src/shift-board.js';
 
 // A board turned in perspective can show a local horizontal slide on a diagonal.
@@ -19,13 +19,19 @@ function rng(seed) {
 
 assert.equal(turnCircuit(8), 1);
 assert.equal(turnCircuit(5), 10);
-assert.equal(poweredTiles([2, 8, 1, 1], 2, 0).size, 2);
-assert.equal(poweredTiles([4, 8, 2, 1], 2, 0).size, 1);
+assert.equal(traceConduit([2, 8, 1, 1], 2, 0).size, 2);
+assert.equal(traceConduit([4, 8, 2, 1], 2, 0).size, 1);
+assert.deepEqual([...traceConduit([2, 12, 2, 9], 2, 0)], [
+  [0, { from: null, inlet: 0 }],
+  [1, { from: 0, inlet: 8 }],
+  [3, { from: 1, inlet: 1 }],
+  [2, { from: 3, inlet: 2 }],
+]);
 
 function canConnect({ tiles, size, source }) {
   const layout = [];
   function visit(index) {
-    if (index === tiles.length) return poweredTiles(layout, size, source).size === tiles.length;
+    if (index === tiles.length) return traceConduit(layout, size, source).size === tiles.length;
     const column = index % size;
     const up = index >= size && Boolean(layout[index - size] & 4);
     const left = column > 0 && Boolean(layout[index - 1] & 2);
@@ -48,7 +54,7 @@ for (let level = 0; level < puzzleLevels; level++) {
   for (let seed = 1; seed <= 32; seed++) {
     const circuit = createPuzzle('conduit', level, rng(seed));
     assert.ok(circuit.tiles.every(mask => mask > 0 && mask <= 15));
-    assert.ok(poweredTiles(circuit.tiles, circuit.size, circuit.source).size < circuit.tiles.length);
+    assert.ok(traceConduit(circuit.tiles, circuit.size, circuit.source).size < circuit.tiles.length);
     assert.ok(canConnect(circuit), `Conduit stage ${level + 1}, seed ${seed}`);
     circuitLayouts.add(circuit.tiles.join(','));
     const shift = createPuzzle('shift', level, rng(seed));

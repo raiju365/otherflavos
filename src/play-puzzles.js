@@ -38,12 +38,15 @@ function portBetween(from, to, size) {
   return delta === -size ? 1 : delta === 1 ? 2 : delta === size ? 4 : 8;
 }
 
-export function poweredTiles(tiles, size, source) {
-  const connected = new Set([source]);
-  for (const index of connected) {
+export function traceConduit(tiles, size, source) {
+  const connected = new Map([[source, { from: null, inlet: 0 }]]);
+  for (const index of connected.keys()) {
     for (const next of neighbors(index, size)) {
-      if ((tiles[index] & portBetween(index, next, size)) &&
-        (tiles[next] & portBetween(next, index, size))) connected.add(next);
+      if (connected.has(next)) continue;
+      const inlet = portBetween(next, index, size);
+      if ((tiles[index] & portBetween(index, next, size)) && (tiles[next] & inlet)) {
+        connected.set(next, { from: index, inlet });
+      }
     }
   }
   return connected;
@@ -78,7 +81,7 @@ function circuitPuzzle(level, random) {
     const options = [...orientations];
     if (options.length) tiles[index] = options[Math.floor(random() * options.length)];
   }
-  if (poweredTiles(tiles, size, source).size === count) {
+  if (traceConduit(tiles, size, source).size === count) {
     const terminal = tiles.findIndex(mask => (mask & (mask - 1)) === 0);
     tiles[terminal] = turnCircuit(tiles[terminal]);
   }
