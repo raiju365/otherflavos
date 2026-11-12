@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPuzzle, neighbors, puzzleLevels, shiftDistance, shiftTile, toggleLights } from '../src/play-puzzles.js';
+import { createPuzzle, neighbors, poweredTiles, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
 import { slideProgress } from '../src/shift-board.js';
 
 // A board turned in perspective can show a local horizontal slide on a diagonal.
@@ -17,28 +17,40 @@ function rng(seed) {
   };
 }
 
-function canTurnOff(tiles, size) {
-  // Once the first row is chosen, every later press is forced by the row above.
-  for (let firstRow = 0; firstRow < 2 ** size; firstRow++) {
-    const candidate = tiles.slice();
-    for (let column = 0; column < size; column++) {
-      if (firstRow & (1 << column)) toggleLights(candidate, size, column);
-    }
-    for (let index = size; index < candidate.length; index++) {
-      if (candidate[index - size]) toggleLights(candidate, size, index);
-    }
-    if (!candidate.some(Boolean)) return true;
+assert.equal(turnCircuit(8), 1);
+assert.equal(turnCircuit(5), 10);
+assert.equal(poweredTiles([2, 8, 1, 1], 2, 0).size, 2);
+assert.equal(poweredTiles([4, 8, 2, 1], 2, 0).size, 1);
+
+function canConnect({ tiles, size, source }) {
+  const layout = [];
+  function visit(index) {
+    if (index === tiles.length) return poweredTiles(layout, size, source).size === tiles.length;
+    const column = index % size;
+    const up = index >= size && Boolean(layout[index - size] & 4);
+    const left = column > 0 && Boolean(layout[index - 1] & 2);
+    let mask = tiles[index];
+    do {
+      if (Boolean(mask & 1) === up && Boolean(mask & 8) === left
+        && (column < size - 1 || !(mask & 2)) && (index < size * (size - 1) || !(mask & 4))) {
+        layout[index] = mask;
+        if (visit(index + 1)) return true;
+      }
+      mask = turnCircuit(mask);
+    } while (mask !== tiles[index]);
+    return false;
   }
-  return false;
+  return visit(0);
 }
 
 for (let level = 0; level < puzzleLevels; level++) {
-  const lightLayouts = new Set(), shiftLayouts = new Set();
+  const circuitLayouts = new Set(), shiftLayouts = new Set();
   for (let seed = 1; seed <= 32; seed++) {
-    const light = createPuzzle('afterglow', level, rng(seed));
-    assert.ok(light.tiles.some(Boolean));
-    assert.ok(canTurnOff(light.tiles, light.size));
-    lightLayouts.add(light.tiles.join(''));
+    const circuit = createPuzzle('conduit', level, rng(seed));
+    assert.ok(circuit.tiles.every(mask => mask > 0 && mask <= 15));
+    assert.ok(poweredTiles(circuit.tiles, circuit.size, circuit.source).size < circuit.tiles.length);
+    assert.ok(canConnect(circuit), `Conduit stage ${level + 1}, seed ${seed}`);
+    circuitLayouts.add(circuit.tiles.join(','));
     const shift = createPuzzle('shift', level, rng(seed));
     const { size, tiles } = shift;
     const numbered = tiles.filter(Boolean);
@@ -57,8 +69,8 @@ for (let level = 0; level < puzzleLevels; level++) {
     assert.equal(shiftTile(tiles, size, gap), adjacent);
     assert.deepEqual(tiles, unchanged);
   }
-  assert.ok(lightLayouts.size >= 12);
+  assert.ok(circuitLayouts.size >= 16);
   assert.ok(shiftLayouts.size >= 16);
 }
 
-console.log('Afterglow and Shift passed 160 seeded layouts each across all five stages.');
+console.log('Conduit and Shift passed 160 seeded layouts each across all five stages.');

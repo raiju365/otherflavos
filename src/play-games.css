@@ -67,14 +67,22 @@
   clip-path: polygon(21% 3%, 89% 21%, 80% 95%, 4% 81%);
 }
 
-.play-game-art--afterglow { background: radial-gradient(ellipse at 60% 38%, #294937, #101e18 76%); }
-.play-game-art--afterglow::before {
-  inline-size: min(58%, 128px);
-  block-size: 68%;
+.play-game-art--conduit {
+  background: radial-gradient(ellipse at 62% 36%, #173e50, #0b1924 76%);
+}
+.play-game-art--conduit::before {
+  inline-size: min(64%, 148px);
+  block-size: 70%;
   background:
-    radial-gradient(circle, #d1f8af 0 12%, #79b55c 18%, transparent 60%) 25% 24% / 36% 36% no-repeat,
-    radial-gradient(circle, #d1f8af 0 12%, #79b55c 18%, transparent 60%) 69% 75% / 36% 36% no-repeat,
-    radial-gradient(circle, #89ac85 0 11%, #497055 14% 21%, transparent 24%) center / 25% 25%;
+    radial-gradient(circle at 50% 50%, #ffd189 0 4px, #c2864840 5px 12px, transparent 13px),
+    radial-gradient(circle at 20% 20%, #b2e5f0 0 3px, transparent 4px),
+    radial-gradient(circle at 80% 36%, #b2e5f0 0 3px, transparent 4px),
+    radial-gradient(circle at 80% 77%, #b2e5f0 0 3px, transparent 4px),
+    linear-gradient(#85ccdf, #85ccdf) 20% 20% / 2px 30% no-repeat,
+    linear-gradient(90deg, #85ccdf, #85ccdf) 29% 50% / 31% 2px no-repeat,
+    linear-gradient(90deg, #85ccdf, #85ccdf) 72% 50% / 31% 2px no-repeat,
+    linear-gradient(#85ccdf, #85ccdf) 80% 60% / 2px 41% no-repeat,
+    radial-gradient(circle, #98bcc53d 0 1px, transparent 1.5px) center / 12px 12px;
 }
 
 .play-game-art--shift { background: radial-gradient(ellipse at 68% 10%, #b77859, #4d2b24 80%); }
@@ -120,7 +128,13 @@
   isolation: isolate;
 }
 
-.puzzle-board[data-game=afterglow] { background: #14251e; border: 1px solid #54765d; }
+.puzzle-board[data-game=conduit] {
+  background: linear-gradient(145deg, #244452, #101e29);
+  border: 1px solid #527181;
+  box-shadow: inset 0 1px 0 #8eafbf4f, 0 16px 40px #08192329;
+  border-radius: clamp(8px, 2.5cqh, 18px);
+  gap: clamp(2px, .65cqh, 4px);
+}
 .puzzle-tile {
   min-inline-size: 0;
   min-block-size: 0;
@@ -130,21 +144,51 @@
 }
 
 .puzzle-tile:focus-visible { outline: 2px solid white; outline-offset: -3px; z-index: 2; }
-.puzzle-board[data-game=afterglow] .puzzle-tile {
-  background: radial-gradient(circle, #375642 0 22%, #253e32 24% 40%, #1e3229 42%);
-  border: 1px solid #355545;
+.puzzle-board[data-game=conduit] .puzzle-tile {
+  --conduit-ink: #7693a1;
+  background:
+    radial-gradient(circle, #7babb638 0 1px, transparent 1.5px) center / 10px 10px,
+    linear-gradient(145deg, #1b333f, #142631);
+  box-shadow: inset 0 0 0 1px #476672;
+  border-radius: 5px;
+  overflow: hidden;
 }
-.puzzle-board[data-game=afterglow] .puzzle-tile::after {
+.puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px #91b4c1; }
+.puzzle-board[data-game=conduit] .puzzle-tile[data-powered=true] { --conduit-ink: #9de8f6; }
+.conduit-wire, .conduit-wire i { position: absolute; inset: 0; pointer-events: none; }
+.conduit-wire {
+  transform: rotate(var(--circuit-angle, 0deg));
+  transition: transform 215ms var(--studio-ease);
+}
+.conduit-wire i { transform: rotate(calc(var(--port) * 90deg)); }
+.conduit-wire i::before {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle, #e3ffc8 0 20%, #a9e27e 27%, #537c45 52%, #345344 90%);
-  opacity: 0;
-  transition: opacity 240ms ease;
+  left: 50%;
+  top: 0;
+  translate: -50% 0;
+  inline-size: max(2px, 7%);
+  block-size: 50%;
+  background: var(--conduit-ink);
 }
-.puzzle-board[data-game=afterglow] .puzzle-tile[data-value='1']::after { opacity: 1; }
-.puzzle-board[data-game=afterglow] .puzzle-tile:active::after { scale: .91; }
+.puzzle-board[data-game=conduit] .puzzle-tile::after {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  inline-size: max(5px, 15%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #1c3541;
+  border: 2px solid var(--conduit-ink);
+  pointer-events: none;
+}
+.puzzle-board[data-game=conduit] .puzzle-tile[data-source=true]::after {
+  inline-size: 23%;
+  background: #ffd288;
+  border-color: #fff0c9;
+  box-shadow: 0 0 10px #ffd28855;
+}
 
 .shift-woodwork { display: none; }
 .puzzle-space[data-game=shift] {
@@ -277,12 +321,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .play-game-card, .puzzle-tile::after { transition: none; }
+  .play-game-card, .conduit-wire { transition: none; }
   .play-game-card:hover { translate: none; }
 }
 
 @media (forced-colors: active) {
   .puzzle-board { border: 1px solid CanvasText; }
   .puzzle-board .puzzle-tile { border: 1px solid CanvasText; }
-  .puzzle-board[data-game=afterglow] .puzzle-tile[data-value='1']::after { background: Highlight; forced-color-adjust: none; inset: 25%; border-radius: 50%; }
+  .puzzle-board[data-game=conduit] .puzzle-tile { --conduit-ink: CanvasText; }
+  .puzzle-board[data-game=conduit] .puzzle-tile[data-powered=true] { --conduit-ink: Highlight; }
+  .conduit-wire i::before { forced-color-adjust: none; }
+  .puzzle-board[data-game=conduit] .puzzle-tile[data-source=true]::after { background: Highlight; }
 }

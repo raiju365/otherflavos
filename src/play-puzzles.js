@@ -10,11 +10,6 @@ export function neighbors(index, size) {
   ].filter(cell => cell >= 0);
 }
 
-export function toggleLights(tiles, size, index) {
-  tiles[index] ^= 1;
-  for (const cell of neighbors(index, size)) tiles[cell] ^= 1;
-}
-
 export function shiftTile(tiles, size, index) {
   const gap = tiles.indexOf(0);
   if (!neighbors(gap, size).includes(index)) return -1;
@@ -31,20 +26,63 @@ export function shiftDistance(tiles, size) {
   }, 0);
 }
 
-const lightStages = [[3, 2], [3, 4], [4, 6], [5, 9], [6, 15]];
+const circuitStages = [[3, 4], [4, 8], [4, 13], [5, 20], [6, 31]];
 const shiftStages = [[3, 10, 4], [3, 24, 9], [4, 44, 16], [4, 76, 24], [5, 128, 38]];
 
-function lightPuzzle(level, random) {
-  const [size, moves] = lightStages[level];
+export function turnCircuit(mask) {
+  return ((mask << 1) | (mask >> 3)) & 15;
+}
+
+function portBetween(from, to, size) {
+  const delta = to - from;
+  return delta === -size ? 1 : delta === 1 ? 2 : delta === size ? 4 : 8;
+}
+
+export function poweredTiles(tiles, size, source) {
+  const connected = new Set([source]);
+  for (const index of connected) {
+    for (const next of neighbors(index, size)) {
+      if ((tiles[index] & portBetween(index, next, size)) &&
+        (tiles[next] & portBetween(next, index, size))) connected.add(next);
+    }
+  }
+  return connected;
+}
+
+function circuitPuzzle(level, random) {
+  const [size, moves] = circuitStages[level];
   const count = size * size;
   const tiles = Array(count).fill(0);
+  const source = Math.floor(size / 2) * size + Math.floor(size / 2);
+  const connected = new Set([source]);
+  const frontier = neighbors(source, size).map(next => [source, next]);
+  while (connected.size < count) {
+    const [from, to] = frontier.splice(Math.floor(random() * frontier.length), 1)[0];
+    if (connected.has(to)) continue;
+    tiles[from] |= portBetween(from, to, size);
+    tiles[to] |= portBetween(to, from, size);
+    connected.add(to);
+    for (const next of neighbors(to, size)) {
+      if (!connected.has(next)) frontier.push([to, next]);
+    }
+  }
   const choices = Array.from({ length: count }, (_, index) => index);
   for (let move = 0; move < moves; move++) {
     const [index] = choices.splice(Math.floor(random() * choices.length), 1);
-    toggleLights(tiles, size, index);
+    const orientations = new Set();
+    let rotated = tiles[index];
+    for (let turn = 0; turn < 3; turn++) {
+      rotated = turnCircuit(rotated);
+      if (rotated !== tiles[index]) orientations.add(rotated);
+    }
+    const options = [...orientations];
+    if (options.length) tiles[index] = options[Math.floor(random() * options.length)];
   }
-  if (!tiles.some(Boolean)) toggleLights(tiles, size, choices[0]);
-  return { size, tiles };
+  if (poweredTiles(tiles, size, source).size === count) {
+    const terminal = tiles.findIndex(mask => (mask & (mask - 1)) === 0);
+    tiles[terminal] = turnCircuit(tiles[terminal]);
+  }
+  return { size, tiles, source };
 }
 
 function slidingPuzzle(level, random) {
@@ -72,5 +110,5 @@ function slidingPuzzle(level, random) {
 }
 
 export function createPuzzle(game, level, random = Math.random) {
-  return game === 'afterglow' ? lightPuzzle(level, random) : slidingPuzzle(level, random);
+  return game === 'conduit' ? circuitPuzzle(level, random) : slidingPuzzle(level, random);
 }

@@ -1,14 +1,15 @@
 import { initUntangle } from './untangle.js';
 import { initShiftBoard } from './shift-board.js';
-import { createPuzzle, neighbors, puzzleLevels, shiftDistance, shiftTile, toggleLights } from './play-puzzles.js';
+import { createPuzzle, neighbors, poweredTiles, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
 
 const games = {
   untangle: { title: 'Untangle', help: 'Drag points apart. Drag the background to orbit.' },
-  afterglow: { title: 'Afterglow', help: 'Tap to toggle a light and its neighbors.' },
+  conduit: { title: 'Conduit', help: 'Rotate each tile to connect it to the amber source.' },
   shift: { title: 'Shift', help: 'Drag the frame to turn it. Slide tiles into the gap.' },
 };
 
 const directions = { ArrowUp: 0, ArrowLeft: 1, ArrowRight: 2, ArrowDown: 3 };
+const ports = ['up', 'right', 'down', 'left'];
 
 export function initPlayGames(panel, signal) {
   const menu = panel.querySelector('[data-play-menu]');
@@ -49,30 +50,37 @@ export function initPlayGames(panel, signal) {
 
   function createSession(game, level) {
     const previous = sessions.get(game);
-    let { size, tiles } = createPuzzle(game, level);
+    let { size, tiles, source } = createPuzzle(game, level);
     for (let retry = 0; retry < 8 && previous?.level === level
       && tiles.every((value, index) => value === previous.starting[index]); retry++) {
-      ({ size, tiles } = createPuzzle(game, level));
+      ({ size, tiles, source } = createPuzzle(game, level));
     }
-    const state = { level, size, starting: tiles, tiles: tiles.slice(), solved: false };
+    const state = { level, size, source, starting: tiles, tiles: tiles.slice(), solved: false };
     sessions.set(game, state);
     return state;
   }
 
   function paintPuzzle() {
-    const { level, size, tiles, solved } = current();
-    const lights = currentGame === 'afterglow';
-    const movable = lights ? [] : neighbors(tiles.indexOf(0), size);
-    const count = lights ? tiles.filter(Boolean).length
+    const state = current();
+    const { level, size, tiles, source } = state;
+    const circuit = currentGame === 'conduit';
+    const powered = circuit ? poweredTiles(tiles, size, source) : null;
+    const movable = circuit ? [] : neighbors(tiles.indexOf(0), size);
+    if (circuit) state.solved = powered.size === tiles.length;
+    const { solved } = state;
+    const count = circuit ? powered.size
       : tiles.filter((value, index) => value === index + 1).length;
     board.dataset.solved = String(solved);
     buttons.forEach((button, index) => {
       const value = tiles[index];
       button.dataset.value = String(value);
       button.tabIndex = index === focused && !solved ? 0 : -1;
-      if (lights) {
-        button.setAttribute('aria-label', `Light ${index + 1}`);
-        button.setAttribute('aria-pressed', String(Boolean(value)));
+      if (circuit) {
+        const live = powered.has(index);
+        const open = ports.filter((_, side) => value & (1 << side));
+        button.dataset.powered = String(live);
+        button.setAttribute('aria-label', `${index === source ? 'Power source' : `Tile ${index + 1}`}. ${open.join(', ')}. ${live ? 'Powered' : 'Unpowered'}`);
+        button.setAttribute('aria-disabled', String(solved));
       } else {
         const canMove = movable.includes(index) && !solved;
         button.textContent = value || '';
@@ -83,7 +91,7 @@ export function initPlayGames(panel, signal) {
     });
     stage.textContent = `Stage ${level + 1} / ${puzzleLevels}`;
     status.textContent = solved ? (level === puzzleLevels - 1 ? 'All stages cleared' : 'Stage cleared')
-      : lights ? `${count} ${count === 1 ? 'light' : 'lights'} on`
+      : circuit ? `${count} / ${tiles.length} powered`
         : `${count} / ${tiles.length - 1} in place`;
     next.textContent = level === puzzleLevels - 1 ? 'Play again' : 'Next level';
     next.hidden = !solved;
@@ -92,13 +100,13 @@ export function initPlayGames(panel, signal) {
   function buildBoard(focus = false) {
     shiftBoard.clear();
     tileMotion?.cancel();
-    const { size, tiles } = current();
+    const { size, tiles, source } = current();
     board.dataset.game = currentGame;
     space.dataset.game = currentGame;
     front.hidden = currentGame !== 'shift';
     board.setAttribute('aria-label', `${games[currentGame].title}, ${size} by ${size} board`);
     board.style.setProperty('--side', size);
-    buttons = tiles.map((_, index) => {
+    buttons = tiles.map((value, index) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'puzzle-tile';
@@ -106,10 +114,23 @@ export function initPlayGames(panel, signal) {
       if (currentGame === 'shift') {
         button.style.setProperty('--tile-gloss-x', `${index % size / (size - 1) * 100}%`);
         button.style.setProperty('--tile-gloss-y', `${Math.floor(index / size) / (size - 1) * 100}%`);
+      } else {
+        const wire = document.createElement('span');
+        wire.className = 'conduit-wire';
+        wire.setAttribute('aria-hidden', 'true');
+        for (let side = 0; side < ports.length; side++) {
+          if (!(value & (1 << side))) continue;
+          const arm = document.createElement('i');
+          arm.style.setProperty('--port', side);
+          wire.append(arm);
+        }
+        button.append(wire);
+        button.dataset.source = String(index === source);
+        button.style.setProperty('--circuit-angle', '0deg');
       }
       return button;
     });
-    focused = currentGame === 'shift' ? neighbors(tiles.indexOf(0), size)[0] : 0;
+    focused = currentGame === 'shift' ? neighbors(tiles.indexOf(0), size)[0] : source;
     board.replaceChildren(...buttons);
     paintPuzzle();
     if (focus) buttons[focused].focus({ preventScroll: true });
@@ -201,8 +222,10 @@ export function initPlayGames(panel, signal) {
       moveShift(index);
       return;
     }
-    toggleLights(state.tiles, state.size, index);
-    state.solved = !state.tiles.some(Boolean);
+    state.tiles[index] = turnCircuit(state.tiles[index]);
+    const tile = buttons[index];
+    const angle = Number.parseInt(tile.style.getPropertyValue('--circuit-angle'), 10);
+    tile.style.setProperty('--circuit-angle', `${angle + 90}deg`);
     focused = index;
     paintPuzzle();
     if (state.solved) next.focus({ preventScroll: true });
