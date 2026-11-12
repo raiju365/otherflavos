@@ -151,6 +151,8 @@
   position: relative;
   perspective: 900px;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   cursor: grab;
 }
 .puzzle-space[data-game=shift][data-holding=true] { cursor: grabbing; }
