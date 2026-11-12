@@ -117,7 +117,9 @@ export function initPlayGames(panel, signal) {
         button.textContent = value || '';
         button.setAttribute('aria-label', value ? `Tile ${value}` : 'Empty space');
         button.setAttribute('aria-disabled', String(!canMove));
-        button.style.setProperty('--tile-order', value / (tiles.length - 1));
+        button.style.setProperty('--tile-grain-x', `${(value * 37) % 101}%`);
+        button.style.setProperty('--tile-grain-y', `${(value * 61) % 101}%`);
+        button.style.setProperty('--tile-stain', (value * 5 % 7) * .017);
       }
     });
     stage.textContent = `Stage ${level + 1} / ${puzzleLevels}`;
