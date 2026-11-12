@@ -1,10 +1,11 @@
 import { initUntangle } from './untangle.js';
+import { initShiftBoard } from './shift-board.js';
 import { createPuzzle, neighbors, puzzleLevels, shiftDistance, shiftTile, toggleLights } from './play-puzzles.js';
 
 const games = {
   untangle: { title: 'Untangle', help: 'Drag points apart. Drag the background to orbit.' },
   afterglow: { title: 'Afterglow', help: 'Tap to toggle a light and its neighbors.' },
-  shift: { title: 'Shift', help: 'Slide tiles into the gap to put them in order.' },
+  shift: { title: 'Shift', help: 'Drag the frame to turn it. Slide tiles into the gap.' },
 };
 
 const directions = { ArrowUp: 0, ArrowLeft: 1, ArrowRight: 2, ArrowDown: 3 };
@@ -18,6 +19,9 @@ export function initPlayGames(panel, signal) {
   const untangle = panel.querySelector('[data-untangle]');
   const puzzle = panel.querySelector('[data-puzzle]');
   const board = panel.querySelector('[data-puzzle-board]');
+  const space = panel.querySelector('[data-puzzle-space]');
+  const object = panel.querySelector('[data-puzzle-object]');
+  const front = panel.querySelector('[data-puzzle-front]');
   const stage = panel.querySelector('[data-puzzle-stage]');
   const status = panel.querySelector('[data-puzzle-status]');
   const reset = panel.querySelector('[data-puzzle-reset]');
@@ -32,6 +36,16 @@ export function initPlayGames(panel, signal) {
   const available = () => !panel.hidden && !panel.inert
     && document.documentElement.dataset.entry !== 'loading';
   const current = () => sessions.get(currentGame);
+  const shiftBoard = initShiftBoard(space, object, front, {
+    signal, reduced, move: moveShift,
+    available: () => currentGame === 'shift' && !screen.hidden && available(),
+    findGap(tile) {
+      tileMotion?.cancel();
+      const { size, tiles, solved } = current();
+      const gap = tiles.indexOf(0);
+      return !solved && neighbors(gap, size).includes(Number(tile.dataset.cell)) ? buttons[gap] : null;
+    },
+  });
 
   function createSession(game, level) {
     const previous = sessions.get(game);
@@ -76,9 +90,12 @@ export function initPlayGames(panel, signal) {
   }
 
   function buildBoard(focus = false) {
+    shiftBoard.clear();
     tileMotion?.cancel();
     const { size, tiles } = current();
     board.dataset.game = currentGame;
+    space.dataset.game = currentGame;
+    front.hidden = currentGame !== 'shift';
     board.setAttribute('aria-label', `${games[currentGame].title}, ${size} by ${size} board`);
     board.style.setProperty('--side', size);
     buttons = tiles.map((_, index) => {
@@ -117,6 +134,7 @@ export function initPlayGames(panel, signal) {
 
   function closeGame() {
     untangleControls?.pause?.();
+    shiftBoard.clear();
     tileMotion?.cancel();
     screen.hidden = true;
     untangle.hidden = true;
@@ -148,33 +166,42 @@ export function initPlayGames(panel, signal) {
     if (neighbors(index, size).includes(destination)) buttons[destination].focus({ preventScroll: true });
   });
 
+  function moveShift(index, progress = 0) {
+    const state = current();
+    if (state.solved) return;
+    const { size, tiles } = state;
+    const destination = shiftTile(tiles, size, index);
+    if (destination < 0) return;
+    tileMotion?.cancel();
+    state.solved = shiftDistance(tiles, size) === 0;
+    focused = destination;
+    paintPuzzle();
+    const from = buttons[index], to = buttons[destination];
+    if (!reduced.matches && progress < 1 && typeof to.animate === 'function') {
+      const dx = (from.offsetLeft - to.offsetLeft) * (1 - progress);
+      const dy = (from.offsetTop - to.offsetTop) * (1 - progress);
+      tileMotion = to.animate(
+        [{ translate: `${dx}px ${dy}px`, zIndex: 2 }, { translate: '0px 0px', zIndex: 2 }],
+        { duration: 150 + 100 * (1 - progress), easing: 'cubic-bezier(.22, 1, .36, 1)' },
+      );
+    }
+    if (state.solved) next.focus({ preventScroll: true });
+    else to.focus({ preventScroll: true });
+  }
+
   on(board, 'click', event => {
     const state = current();
     const index = Number(event.target.closest('[data-cell]')?.dataset.cell);
     if (!Number.isInteger(index) || !available() || state.solved) return;
-    const { size, tiles } = state;
-    let destination = index;
-    if (currentGame === 'afterglow') {
-      toggleLights(tiles, size, index);
-      state.solved = !tiles.some(Boolean);
-    } else {
-      destination = shiftTile(tiles, size, index);
-      if (destination < 0) return;
-      state.solved = shiftDistance(tiles, size) === 0;
+    if (currentGame === 'shift') {
+      moveShift(index);
+      return;
     }
-    focused = destination;
+    toggleLights(state.tiles, state.size, index);
+    state.solved = !state.tiles.some(Boolean);
+    focused = index;
     paintPuzzle();
-    if (destination !== index && !reduced.matches && typeof buttons[destination].animate === 'function') {
-      tileMotion?.cancel();
-      const from = buttons[index].getBoundingClientRect();
-      const to = buttons[destination].getBoundingClientRect();
-      tileMotion = buttons[destination].animate(
-        [{ transform: `translate(${from.x - to.x}px, ${from.y - to.y}px)` }, { transform: 'none' }],
-        { duration: 210, easing: 'cubic-bezier(.22, 1, .36, 1)' },
-      );
-    }
     if (state.solved) next.focus({ preventScroll: true });
-    else if (destination !== index) buttons[destination].focus({ preventScroll: true });
   });
 
   on(reset, 'click', () => {

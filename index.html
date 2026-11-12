@@ -229,8 +229,17 @@
               </div>
             </article>
               <div class="play-layout puzzle-layout" data-puzzle hidden>
-                <div class="puzzle-space">
-                  <div class="puzzle-board" data-puzzle-board role="group" aria-describedby="puzzle-status"></div>
+                <div class="puzzle-space" data-puzzle-space>
+                  <div class="puzzle-object" data-puzzle-object>
+                    <div class="puzzle-board" data-puzzle-board role="group" aria-describedby="puzzle-status"></div>
+                    <div class="shift-woodwork" aria-hidden="true">
+                      <span class="shift-face shift-back"></span>
+                      <span class="shift-face shift-top"></span>
+                      <span class="shift-face shift-bottom"></span>
+                      <span class="shift-face shift-left"></span>
+                      <span class="shift-face shift-right"></span>
+                    </div>
+                  </div>
                 </div>
                 <div class="play-toolbar glass-material glass-surface">
                   <span class="play-toolbar-rim glass-rim" aria-hidden="true"></span>
@@ -239,6 +248,7 @@
                     <p id="puzzle-status" class="play-status" data-puzzle-status role="status"></p>
                   </div>
                   <div class="play-actions">
+                    <button type="button" class="play-reset" data-puzzle-front title="Restore the front view. Arrow keys rotate the board." hidden>Front view</button>
                     <button type="button" class="play-reset" data-puzzle-reset>Reset</button>
                     <button type="button" class="play-reset" data-puzzle-new>New puzzle</button>
                     <button type="button" class="play-next" data-puzzle-next hidden>Next level</button>
