@@ -103,6 +103,10 @@ export function initPlayGames(panel, signal) {
       button.type = 'button';
       button.className = 'puzzle-tile';
       button.dataset.cell = String(index);
+      if (currentGame === 'shift') {
+        button.style.setProperty('--tile-gloss-x', `${index % size / (size - 1) * 100}%`);
+        button.style.setProperty('--tile-gloss-y', `${Math.floor(index / size) / (size - 1) * 100}%`);
+      }
       return button;
     });
     focused = currentGame === 'shift' ? neighbors(tiles.indexOf(0), size)[0] : 0;

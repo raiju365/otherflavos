@@ -154,6 +154,7 @@
   -webkit-user-select: none;
   user-select: none;
   cursor: grab;
+  background: radial-gradient(ellipse at 37% 35%, rgb(255 222 174 / .08), transparent 58%);
 }
 .puzzle-space[data-game=shift][data-holding=true] { cursor: grabbing; }
 .puzzle-space[data-game=shift]::before {
@@ -170,17 +171,22 @@
   --shift-size: min(86cqw, 82cqh, 408px);
   --shift-depth: clamp(10px, 4.8cqh, 22px);
   --shift-half-depth: calc(var(--shift-depth) / 2);
-  --wood-grain:
-    repeating-radial-gradient(ellipse 210% 11% at -33% 52%, #3a180b25 0 .5px, transparent 1px 4px, #ffe0a411 5px 6px, transparent 7px 11px),
-    repeating-linear-gradient(176deg, #3a180b18 0 1px, transparent 2px 4px, #ffddb515 6px 7px, transparent 8px 11px);
+  --wood-grain: url('/textures/shift-wood-grain.webp');
   inline-size: var(--shift-size);
   transform-style: preserve-3d;
   transform: rotateX(var(--shift-pitch, 13deg)) rotateY(var(--shift-yaw, -17deg));
 }
 .puzzle-space[data-game=shift] .shift-woodwork { display: contents; }
+.puzzle-space[data-game=shift] :is(.puzzle-board, .shift-face, .puzzle-tile) {
+  --wood-sheen: radial-gradient(ellipse 44% 27% at var(--wood-sheen-x, var(--wood-gloss-x)) var(--wood-gloss-y),
+    rgb(255 244 217 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .51)),
+    rgb(255 222 175 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .22)) 46%, transparent 100%);
+}
 .shift-face, .puzzle-board[data-game=shift] {
   backface-visibility: hidden;
-  background: var(--wood-grain), linear-gradient(155deg, #8b5636, #623a25 54%, #422719);
+  background: var(--wood-sheen), var(--wood-grain), linear-gradient(155deg, #98623d, #75442b 54%, #4b2a1c);
+  background-size: 100% 100%;
+  background-blend-mode: normal, overlay, normal;
 }
 .puzzle-board[data-game=shift] {
   transform: translateZ(var(--shift-half-depth));
@@ -192,6 +198,8 @@
 }
 .shift-face { position: absolute; border: 1px solid #734627; }
 .shift-back {
+  --wood-sheen-x: calc(100% - var(--wood-gloss-x));
+  --wood-sheen-strength: var(--wood-gloss-back);
   inset: 0;
   border-radius: 5px;
   transform: rotateY(180deg) translateZ(var(--shift-half-depth));
@@ -214,7 +222,8 @@
 .shift-left { transform: rotateY(-90deg) translateZ(calc(var(--shift-size) / 2)); }
 .shift-right { transform: rotateY(90deg) translateZ(calc(var(--shift-size) / 2)); }
 .shift-face:not(.shift-back) {
-  background: var(--wood-grain), linear-gradient(165deg, #8b5535, #4c2b1b);
+  --wood-sheen-strength: .16;
+  background-image: var(--wood-sheen), var(--wood-grain), linear-gradient(165deg, #965c38, #4c2b1b);
 }
 .puzzle-board[data-game=shift] .puzzle-tile {
   display: grid;
@@ -226,8 +235,12 @@
   border-radius: clamp(2px, 1.4cqh, 7px);
   touch-action: none;
   text-shadow: 0 1px #ffe7c199;
-  background: var(--wood-grain), linear-gradient(155deg, #fff4d550, #7e432720),
+  background: var(--wood-sheen), var(--wood-grain), linear-gradient(155deg, #fff4d550, #7e432720),
     color-mix(in srgb, #edcea0, #c78c5e calc(var(--tile-order) * 78%));
+  background-size: calc(var(--side) * 100%) calc(var(--side) * 100%), 190% 210%, 100% 100%;
+  background-position: var(--tile-gloss-x) var(--tile-gloss-y), calc(var(--tile-order) * 100%) 46%, center;
+  background-repeat: no-repeat;
+  background-blend-mode: normal, overlay, normal;
   box-shadow: inset 0 1px 1px #fff5, inset 1px 0 1px #ffe1b470,
     inset -1px -3px 1px #5e32195c, 0 1px 2px #2c170b78;
 }
@@ -235,6 +248,8 @@
 .puzzle-board[data-game=shift] .puzzle-tile[data-sliding=true] { cursor: grabbing; z-index: 2; }
 .puzzle-board[data-game=shift] .puzzle-tile[data-value='0'] {
   background: var(--wood-grain), #472c20;
+  background-size: 100% 100%;
+  background-blend-mode: soft-light;
   box-shadow: inset 0 3px 8px #1b0e08b0, 0 1px #b781555c;
 }
 .puzzle-board[data-solved=true] .puzzle-tile { cursor: default; }

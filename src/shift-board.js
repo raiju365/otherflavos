@@ -2,6 +2,24 @@ const radians = Math.PI / 180;
 const clamp = value => Math.max(0, Math.min(1, value));
 const turn = 360;
 
+function woodReflection(pitch, yaw) {
+  // The half vector between the viewer and a light above and to the left.
+  const light = { x: -.32, y: -.38, z: .868 };
+  const x = pitch * radians, y = yaw * radians;
+  const sinX = Math.sin(x), cosX = Math.cos(x);
+  const sinY = Math.sin(y), cosY = Math.cos(y);
+  const vertical = light.y * cosX + light.z * sinX;
+  const depth = light.z * cosX - light.y * sinX;
+  const horizontal = light.x * cosY - depth * sinY;
+  const facing = light.x * sinY + depth * cosY;
+  return {
+    x: 50 + 84 * horizontal,
+    y: 50 + 84 * vertical,
+    front: clamp(facing) ** 8,
+    back: clamp(-facing) ** 8,
+  };
+}
+
 export function slideProgress(from, to, dx, dy) {
   const x = to.x - from.x, y = to.y - from.y;
   const lengthSquared = x * x + y * y;
@@ -21,6 +39,11 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
   function paint() {
     object.style.setProperty('--shift-pitch', `${pitch}deg`);
     object.style.setProperty('--shift-yaw', `${yaw}deg`);
+    const gloss = woodReflection(pitch, yaw);
+    object.style.setProperty('--wood-gloss-x', `${gloss.x.toFixed(2)}%`);
+    object.style.setProperty('--wood-gloss-y', `${gloss.y.toFixed(2)}%`);
+    object.style.setProperty('--wood-gloss-front', gloss.front.toFixed(3));
+    object.style.setProperty('--wood-gloss-back', gloss.back.toFixed(3));
   }
 
   function clear() {
