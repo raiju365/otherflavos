@@ -163,8 +163,11 @@
   border-inline: 1px solid rgb(126 73 46 / .62);
   background:
     linear-gradient(#713b29a6 0 2px, #d4996780 3px 5px, transparent 6px),
-    radial-gradient(ellipse at 25% 45%, #9d4c2ba0 0 1px, transparent 2px) 0 0 / 6px 11px,
-    radial-gradient(ellipse at 80% 40%, #bc75489c 0 1.5px, transparent 2.5px) 0 4px / 11px 15px,
+    radial-gradient(ellipse 34% 20% at 4% 19%, #79391ec4, #b9683599 53%, transparent 100%),
+    radial-gradient(ellipse 29% 24% at 92% 65%, #79391eb5, #c8773b88 47%, transparent 100%),
+    radial-gradient(ellipse 35% 16% at 0 88%, #a4502aa5, transparent 100%),
+    radial-gradient(ellipse 12% 9% at 30% 57%, #a050299c, transparent 100%),
+    radial-gradient(ellipse 14% 8% at 79% 31%, #a0502993, transparent 100%),
     linear-gradient(90deg, #7c4b36a1, #fff0d840 22%, #d5dad610 44% 65%, #8f52358c);
 }
 .conduit-pipe i::after {
@@ -376,7 +379,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .play-game-card, .conduit-pipe { transition: none; }
+  .play-game-card, .conduit-pipe, .conduit-pipe i::after { transition: none; }
   .play-game-card:hover { translate: none; }
   .puzzle-tile[data-filled=true] :is(.conduit-pipe i, .conduit-chamber)::after,
   .conduit-fountain::before, .conduit-fountain::after { animation: none; transition: none; }
