@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPuzzle, neighbors, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
+import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
 import { slideProgress } from '../src/shift-board.js';
 
 // A board turned in perspective can show a local horizontal slide on a diagonal.
@@ -21,6 +21,8 @@ assert.equal(turnCircuit(8), 1);
 assert.equal(turnCircuit(5), 10);
 assert.equal(traceConduit([2, 8, 1, 1], 2, 0).size, 2);
 assert.equal(traceConduit([4, 8, 2, 1], 2, 0).size, 1);
+assert.equal(openConduitPorts([3, 8, 0, 0], 2, 0), 1);
+assert.equal(openConduitPorts([6, 8, 2, 0], 2, 0), 4);
 assert.deepEqual([...traceConduit([2, 12, 2, 9], 2, 0)], [
   [0, { from: null, inlet: 0 }],
   [1, { from: 0, inlet: 8 }],

@@ -138,12 +138,12 @@
 }
 
 .puzzle-tile:focus-visible { outline: 2px solid white; outline-offset: -3px; z-index: 2; }
-.puzzle-board[data-game=conduit] .puzzle-tile { overflow: hidden; }
 .puzzle-board[data-game=conduit] .puzzle-tile:focus-visible { outline-color: var(--fg); }
 @media (hover: hover) {
   .puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 21%, transparent); }
 }
-.conduit-pipe, .conduit-pipe i { position: absolute; inset: 0; pointer-events: none; }
+.conduit-pipe, .conduit-fitting, .conduit-pipe i { position: absolute; inset: 0; pointer-events: none; }
+.conduit-fitting { width: 100%; height: 100%; }
 .conduit-pipe {
   transform: rotate(var(--circuit-angle, 0deg));
   transition: transform 215ms var(--studio-ease);
@@ -157,25 +157,21 @@
   translate: -50% 0;
 }
 .conduit-pipe i::before {
-  inset-block-start: 0;
-  inline-size: clamp(8px, 24%, 30px);
-  block-size: 50%;
-  border-inline: 1px solid rgb(126 73 46 / .62);
+  inset-block-start: 15%;
+  inline-size: 15%;
+  block-size: 13%;
+  border-radius: 2px;
+  border: 1px solid #271c17;
   background:
-    linear-gradient(#713b29a6 0 2px, #d4996780 3px 5px, transparent 6px),
-    radial-gradient(ellipse 34% 20% at 4% 19%, #79391ec4, #b9683599 53%, transparent 100%),
-    radial-gradient(ellipse 29% 24% at 92% 65%, #79391eb5, #c8773b88 47%, transparent 100%),
-    radial-gradient(ellipse 35% 16% at 0 88%, #a4502aa5, transparent 100%),
-    radial-gradient(ellipse 12% 9% at 30% 57%, #a050299c, transparent 100%),
-    radial-gradient(ellipse 14% 8% at 79% 31%, #a0502993, transparent 100%),
-    linear-gradient(90deg, #7c4b36a1, #fff0d840 22%, #d5dad610 44% 65%, #8f52358c);
+    linear-gradient(90deg, #3d382e, #acafb28a 23%, #62717265 43%, #282b27 92%);
+  box-shadow: 0 0 0 1px #c9a57b80, inset 0 1px 2px #110e0bad;
 }
 .conduit-pipe i::after {
-  inset-block-start: 1px;
-  inline-size: clamp(4px, 15%, 19px);
-  block-size: calc(50% - 1px);
-  border-radius: 2px 2px 0 0;
-  background: linear-gradient(90deg, #2289a7aa, #8ae1edbd 36%, #399ab9c9 75%, #277f9caa);
+  inset-block-start: 16%;
+  inline-size: 12%;
+  block-size: 11%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #21677c, #a2e5eec9 31%, #4fa9c0 62%, #244a56);
   opacity: 0;
   transform-origin: center bottom;
   transition: opacity 130ms ease;
@@ -185,36 +181,19 @@
   opacity: 1;
   animation: conduit-fill var(--water-half-pipe, 85ms) linear var(--water-delay, 0ms) both;
 }
-.conduit-chamber {
+.conduit-leak {
   position: absolute;
-  inset: 50% auto auto 50%;
-  translate: -50% -50%;
-  inline-size: clamp(10px, 28%, 34px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 1px solid #9d5d3da1;
-  background:
-    radial-gradient(circle at 24% 22%, #ebbe8cbf 0 7%, transparent 9%),
-    radial-gradient(circle at 74% 76%, #914829a6 0 12%, transparent 14%),
-    radial-gradient(circle, #a18b6f16 45%, #b38253a8 77%, #774027b3);
-  box-shadow: inset 0 0 0 1px #deb18755;
-  pointer-events: none;
-}
-.conduit-chamber::after {
-  content: '';
-  position: absolute;
-  inset: 15%;
-  border-radius: inherit;
-  background: radial-gradient(circle at 36% 29%, #b6f4facb, #3da6c0c9 55%, #227a96bf);
+  inset: -2% auto auto 50%;
+  translate: -50% 0;
+  inline-size: 6%;
+  block-size: 5%;
+  border-radius: 65% 50% 60% 45%;
+  background: #90d9e7;
+  box-shadow: 2px 4px #57a1b5a0, -2px 7px #67b4c77f;
   opacity: 0;
 }
-.puzzle-tile[data-filled=true] .conduit-chamber::after {
-  opacity: 1;
-  animation: conduit-pool 100ms ease-out var(--water-hub-delay, 0ms) both;
-}
-.puzzle-tile[data-source=true] .conduit-chamber {
-  inline-size: clamp(16px, 35%, 40px);
-  border: 2px solid #b2774b;
+.puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak {
+  animation: conduit-drip 1.2s ease-out var(--leak-delay, 0ms) 3 both;
 }
 .conduit-fountain {
   position: absolute;
@@ -238,9 +217,10 @@
   12% { opacity: 1; }
   to { transform: scaleY(1); opacity: 1; }
 }
-@keyframes conduit-pool {
-  from { opacity: 0; scale: .55; }
-  to { opacity: 1; scale: 1; }
+@keyframes conduit-drip {
+  0%, 70%, 100% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  12% { opacity: .95; }
+  42% { opacity: 0; transform: translate(-80%, -380%) scale(.85); }
 }
 @keyframes conduit-splash {
   0%, 66%, 100% { opacity: 0; transform: translate(0, 0) scale(.45); }
@@ -383,8 +363,10 @@
 @media (prefers-reduced-motion: reduce) {
   .play-game-card, .conduit-pipe, .conduit-pipe i::after { transition: none; }
   .play-game-card:hover { translate: none; }
-  .puzzle-tile[data-filled=true] :is(.conduit-pipe i, .conduit-chamber)::after,
+  .puzzle-tile[data-filled=true] .conduit-pipe i::after,
+  .puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak,
   .conduit-fountain::before, .conduit-fountain::after { animation: none; transition: none; }
+  .puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak { opacity: 1; }
   .conduit-fountain { display: none; }
 }
 
@@ -392,6 +374,6 @@
   .puzzle-board { border: 1px solid CanvasText; }
   .puzzle-board .puzzle-tile { border: 1px solid CanvasText; }
   .puzzle-board[data-game=conduit], .puzzle-board[data-game=conduit] .puzzle-tile { border: 0; }
-  .conduit-pipe i::before, .conduit-chamber { border-color: CanvasText; }
-  .conduit-pipe i::after, .conduit-chamber::after { background: Highlight; forced-color-adjust: none; }
+  .conduit-pipe i::before { border-color: CanvasText; }
+  .conduit-pipe i::after, .conduit-leak { background: Highlight; forced-color-adjust: none; }
 }

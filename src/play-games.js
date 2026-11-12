@@ -1,6 +1,7 @@
 import { initUntangle } from './untangle.js';
 import { initShiftBoard } from './shift-board.js';
-import { createPuzzle, neighbors, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
+import { createConduitFitting } from './conduit-fittings.js';
+import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
 
 const games = {
   untangle: { title: 'Untangle', help: 'Drag points apart. Drag the background to orbit.' },
@@ -62,7 +63,7 @@ export function initPlayGames(panel, signal) {
     return state;
   }
 
-  function paintWater(route, turning) {
+  function paintWater(route, tiles, size, turning) {
     const now = performance.now();
     for (const index of fillEnds.keys()) {
       if (route.has(index)) continue;
@@ -71,20 +72,26 @@ export function initPlayGames(panel, signal) {
     }
     // The map follows the flow from the pump, so each inlet can wait for its upstream pipe.
     for (const [index, { from, inlet }] of route) {
-      if (fillEnds.has(index)) continue;
       const button = buttons[index];
       const turn = Number.parseInt(button.style.getPropertyValue('--circuit-angle'), 10) / 90;
-      const start = Math.max(now + (turning ? 175 : 0), fillEnds.get(from) ?? 0);
+      const fresh = !fillEnds.has(index);
+      const start = Math.max(now + (turning ? 215 : 0), fillEnds.get(from) ?? 0);
       const hub = start + (inlet ? pipeFill : 0);
-      button.style.setProperty('--water-hub-delay', `${hub - now}ms`);
-      button.style.setProperty('--water-half-pipe', `${pipeFill}ms`);
+      if (fresh) fillEnds.set(index, hub + pipeFill);
+      const open = openConduitPorts(tiles, size, index);
       for (const arm of button.querySelectorAll('[data-pipe-side]')) {
-        const side = (Number(arm.dataset.pipeSide) + turn) % ports.length;
-        const incoming = Boolean(inlet & (1 << side));
-        arm.dataset.inlet = String(incoming);
-        arm.style.setProperty('--water-delay', `${(incoming ? start : hub) - now}ms`);
+        const port = 1 << ((Number(arm.dataset.pipeSide) + turn) % ports.length);
+        if (fresh) {
+          const incoming = Boolean(inlet & port);
+          arm.dataset.inlet = String(incoming);
+          arm.style.setProperty('--water-delay', `${(incoming ? start : hub) + 18 - now}ms`);
+        }
+        const leaking = Boolean(open & port);
+        if (leaking && (fresh || arm.dataset.leak !== 'true')) {
+          arm.style.setProperty('--leak-delay', `${Math.max(0, turning ? 215 : 0, fillEnds.get(index) - now)}ms`);
+        }
+        arm.dataset.leak = String(leaking);
       }
-      fillEnds.set(index, hub + pipeFill);
       button.dataset.filled = 'true';
     }
   }
@@ -96,7 +103,7 @@ export function initPlayGames(panel, signal) {
     const water = circuit ? traceConduit(tiles, size, source) : null;
     const movable = circuit ? [] : neighbors(tiles.indexOf(0), size);
     if (circuit) {
-      paintWater(water, turning);
+      paintWater(water, tiles, size, turning);
       state.solved = water.size === tiles.length;
     }
     const { solved } = state;
@@ -152,17 +159,18 @@ export function initPlayGames(panel, signal) {
         const pipe = document.createElement('span');
         pipe.className = 'conduit-pipe';
         pipe.setAttribute('aria-hidden', 'true');
+        pipe.append(createConduitFitting(value, index === source, index));
         for (let side = 0; side < ports.length; side++) {
           if (!(value & (1 << side))) continue;
           const arm = document.createElement('i');
           arm.style.setProperty('--port', side);
           arm.dataset.pipeSide = String(side);
+          const leak = document.createElement('span');
+          leak.className = 'conduit-leak';
+          arm.append(leak);
           pipe.append(arm);
         }
-        const chamber = document.createElement('span');
-        chamber.className = 'conduit-chamber';
-        chamber.setAttribute('aria-hidden', 'true');
-        button.append(pipe, chamber);
+        button.append(pipe);
         if (index === source) {
           const fountain = document.createElement('span');
           fountain.className = 'conduit-fountain';

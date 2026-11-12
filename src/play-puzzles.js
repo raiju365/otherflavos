@@ -38,6 +38,14 @@ function portBetween(from, to, size) {
   return delta === -size ? 1 : delta === 1 ? 2 : delta === size ? 4 : 8;
 }
 
+export function openConduitPorts(tiles, size, index) {
+  let open = tiles[index];
+  for (const next of neighbors(index, size)) {
+    if (tiles[next] & portBetween(next, index, size)) open &= ~portBetween(index, next, size);
+  }
+  return open;
+}
+
 export function traceConduit(tiles, size, source) {
   const connected = new Map([[source, { from: null, inlet: 0 }]]);
   for (const index of connected.keys()) {
