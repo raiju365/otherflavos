@@ -79,18 +79,21 @@ export function initPlayGames(panel, signal) {
       const hub = start + (inlet ? pipeFill : 0);
       if (fresh) fillEnds.set(index, hub + pipeFill);
       const open = openConduitPorts(tiles, size, index);
-      for (const arm of button.querySelectorAll('[data-pipe-side]')) {
-        const port = 1 << ((Number(arm.dataset.pipeSide) + turn) % ports.length);
-        if (fresh) {
+      if (fresh) {
+        for (const sightglass of button.querySelectorAll('[data-pipe-side]')) {
+          const port = 1 << ((Number(sightglass.dataset.pipeSide) + turn) % ports.length);
           const incoming = Boolean(inlet & port);
-          arm.dataset.inlet = String(incoming);
-          arm.style.setProperty('--water-delay', `${(incoming ? start : hub) + 18 - now}ms`);
+          sightglass.dataset.inlet = String(incoming);
+          sightglass.style.setProperty('--water-delay', `${(incoming ? start : hub) + 18 - now}ms`);
         }
+      }
+      for (const outlet of button.querySelectorAll('[data-outlet-side]')) {
+        const port = 1 << ((Number(outlet.dataset.outletSide) + turn) % ports.length);
         const leaking = Boolean(open & port);
-        if (leaking && (fresh || arm.dataset.leak !== 'true')) {
-          arm.style.setProperty('--leak-delay', `${Math.max(0, turning ? 215 : 0, fillEnds.get(index) - now)}ms`);
+        if (leaking && (fresh || outlet.dataset.leak !== 'true')) {
+          outlet.style.setProperty('--leak-delay', `${Math.max(0, turning ? 215 : 0, fillEnds.get(index) - now)}ms`);
         }
-        arm.dataset.leak = String(leaking);
+        outlet.dataset.leak = String(leaking);
       }
       button.dataset.filled = 'true';
     }
@@ -156,21 +159,30 @@ export function initPlayGames(panel, signal) {
         button.style.setProperty('--tile-gloss-x', `${index % size / (size - 1) * 100}%`);
         button.style.setProperty('--tile-gloss-y', `${Math.floor(index / size) / (size - 1) * 100}%`);
       } else {
-        const pipe = document.createElement('span');
-        pipe.className = 'conduit-pipe';
-        pipe.setAttribute('aria-hidden', 'true');
-        pipe.append(createConduitFitting(value, index === source, index));
+        const frame = document.createElement('span');
+        frame.className = 'conduit-cell-frame';
+        frame.setAttribute('aria-hidden', 'true');
+        const assembly = document.createElement('span');
+        assembly.className = 'conduit-assembly';
+        assembly.append(createConduitFitting(value, index === source, index));
+        frame.append(assembly);
+        const spray = document.createElement('span');
+        spray.className = 'conduit-spray';
+        spray.setAttribute('aria-hidden', 'true');
         for (let side = 0; side < ports.length; side++) {
           if (!(value & (1 << side))) continue;
-          const arm = document.createElement('i');
-          arm.style.setProperty('--port', side);
-          arm.dataset.pipeSide = String(side);
-          const leak = document.createElement('span');
-          leak.className = 'conduit-leak';
-          arm.append(leak);
-          pipe.append(arm);
+          const sightglass = document.createElement('span');
+          sightglass.className = 'conduit-window';
+          sightglass.style.setProperty('--port', side);
+          sightglass.dataset.pipeSide = String(side);
+          assembly.append(sightglass);
+          const outlet = document.createElement('span');
+          outlet.className = 'conduit-outlet';
+          outlet.style.setProperty('--port', side);
+          outlet.dataset.outletSide = String(side);
+          spray.append(outlet);
         }
-        button.append(pipe);
+        button.append(frame, spray);
         if (index === source) {
           const fountain = document.createElement('span');
           fountain.className = 'conduit-fountain';

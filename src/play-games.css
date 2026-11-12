@@ -142,21 +142,30 @@
 @media (hover: hover) {
   .puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 21%, transparent); }
 }
-.conduit-pipe, .conduit-fitting, .conduit-pipe i { position: absolute; inset: 0; pointer-events: none; }
-.conduit-fitting { width: 100%; height: 100%; }
-.conduit-pipe {
+:is(.conduit-cell-frame, .conduit-assembly, .conduit-fitting, .conduit-window, .conduit-spray, .conduit-outlet) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.conduit-cell-frame {
+  /* Only water spray can cross into an adjacent cell. */
+  overflow: hidden;
+  overflow: clip;
+}
+.conduit-fitting { display: block; width: 100%; height: 100%; }
+.conduit-assembly, .conduit-spray {
   transform: rotate(var(--circuit-angle, 0deg));
   transition: transform 215ms var(--studio-ease);
 }
-.conduit-pipe i { transform: rotate(calc(var(--port) * 90deg)); }
-.conduit-pipe i::before,
-.conduit-pipe i::after {
+.conduit-window, .conduit-outlet { transform: rotate(calc(var(--port) * 90deg)); }
+.conduit-window::before,
+.conduit-window::after {
   content: '';
   position: absolute;
   left: 50%;
   translate: -50% 0;
 }
-.conduit-pipe i::before {
+.conduit-window::before {
   inset-block-start: 15%;
   inline-size: 15%;
   block-size: 13%;
@@ -166,7 +175,7 @@
     linear-gradient(90deg, #3d382e, #acafb28a 23%, #62717265 43%, #282b27 92%);
   box-shadow: 0 0 0 1px #c9a57b80, inset 0 1px 2px #110e0bad;
 }
-.conduit-pipe i::after {
+.conduit-window::after {
   inset-block-start: 16%;
   inline-size: 12%;
   block-size: 11%;
@@ -176,12 +185,13 @@
   transform-origin: center bottom;
   transition: opacity 130ms ease;
 }
-.conduit-pipe i[data-inlet=true]::after { transform-origin: center top; }
-.puzzle-tile[data-filled=true] .conduit-pipe i::after {
+.conduit-window[data-inlet=true]::after { transform-origin: center top; }
+.puzzle-tile[data-filled=true] .conduit-window::after {
   opacity: 1;
   animation: conduit-fill var(--water-half-pipe, 85ms) linear var(--water-delay, 0ms) both;
 }
-.conduit-leak {
+.conduit-outlet::after {
+  content: '';
   position: absolute;
   inset: -2% auto auto 50%;
   translate: -50% 0;
@@ -192,7 +202,7 @@
   box-shadow: 2px 4px #57a1b5a0, -2px 7px #67b4c77f;
   opacity: 0;
 }
-.puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak {
+.puzzle-tile[data-filled=true] .conduit-outlet[data-leak=true]::after {
   animation: conduit-drip 1.2s ease-out var(--leak-delay, 0ms) 3 both;
 }
 .conduit-fountain {
@@ -361,12 +371,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .play-game-card, .conduit-pipe, .conduit-pipe i::after { transition: none; }
+  .play-game-card, .conduit-assembly, .conduit-spray, .conduit-window::after { transition: none; }
   .play-game-card:hover { translate: none; }
-  .puzzle-tile[data-filled=true] .conduit-pipe i::after,
-  .puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak,
+  .puzzle-tile[data-filled=true] .conduit-window::after,
+  .puzzle-tile[data-filled=true] .conduit-outlet[data-leak=true]::after,
   .conduit-fountain::before, .conduit-fountain::after { animation: none; transition: none; }
-  .puzzle-tile[data-filled=true] i[data-leak=true] .conduit-leak { opacity: 1; }
+  .puzzle-tile[data-filled=true] .conduit-outlet[data-leak=true]::after { opacity: 1; }
   .conduit-fountain { display: none; }
 }
 
@@ -374,6 +384,6 @@
   .puzzle-board { border: 1px solid CanvasText; }
   .puzzle-board .puzzle-tile { border: 1px solid CanvasText; }
   .puzzle-board[data-game=conduit], .puzzle-board[data-game=conduit] .puzzle-tile { border: 0; }
-  .conduit-pipe i::before { border-color: CanvasText; }
-  .conduit-pipe i::after, .conduit-leak { background: Highlight; forced-color-adjust: none; }
+  .conduit-window::before { border-color: CanvasText; }
+  .conduit-window::after, .conduit-outlet::after { background: Highlight; forced-color-adjust: none; }
 }
