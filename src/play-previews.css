@@ -45,24 +45,13 @@
 .conduit-preview, .shift-preview {
   display: grid;
   grid-template: repeat(3, minmax(0, 1fr)) / repeat(3, minmax(0, 1fr));
-  border-radius: clamp(3px, 3.4cqw, 10px);
 }
 
 .conduit-preview {
-  padding: 5%;
-  background:
-    linear-gradient(140deg, #a2b4ae33, #1b262771 56%),
-    url('/textures/conduit-iron.webp') center / cover #3c4c4d;
-  box-shadow: inset 0 0 0 1px #c4c7ae82, inset 0 0 0 3px #2e3837,
-    0 4px 0 #202929, 4px 11px 16px #091317a3;
   transform: perspective(650px) rotateX(16deg) rotateZ(9deg);
+  filter: drop-shadow(2px 5px 4px #091317a3);
 }
-.conduit-preview-cell {
-  position: relative;
-  background: radial-gradient(ellipse at 42% 28%, #303f41, #182425 82%);
-  box-shadow: inset 0 0 0 1px #181e20;
-  border-radius: 4%;
-}
+.conduit-preview-cell { position: relative; }
 .conduit-preview-fitting { position: absolute; inset: 0; }
 .conduit-preview-turn {
   rotate: calc(var(--preview-on) * 90deg);
@@ -81,6 +70,7 @@
 
 .shift-preview {
   --preview-tile-gap: clamp(1px, 1.15cqw, 4px);
+  border-radius: clamp(3px, 3.4cqw, 10px);
   gap: var(--preview-tile-gap);
   padding: 6%;
   background:
