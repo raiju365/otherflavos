@@ -438,6 +438,17 @@
   .play-menu { padding-block-end: calc(var(--mobile-bottom) + 64px); }
 }
 
+@media (max-width: 480px) and (max-height: 650px) {
+  .puzzle-layout:has(.puzzle-space[data-game=shift]) {
+    overflow-y: auto;
+    grid-template-rows: minmax(min(66vw, 255px), 1fr) auto;
+  }
+  .puzzle-space[data-game=shift] .puzzle-object {
+    --shift-size: min(88cqw, 94cqh, 440px);
+    --shift-rim-width: 9px;
+  }
+}
+
 @media (max-width: 620px) and (min-height: 481px) {
   .play-game-list { grid-template-columns: 1fr; block-size: clamp(260px, 49svh, 420px); }
   .play-card-surface { grid-template: minmax(0, 1fr) / minmax(58px, 38%) minmax(0, 1fr); padding: 3px; }

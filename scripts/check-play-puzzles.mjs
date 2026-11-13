@@ -74,6 +74,8 @@ for (let level = 0; level < puzzleLevels; level++) {
     circuitLayouts.add(circuit.tiles.join(','));
     const shift = createPuzzle('shift', level, rng(seed));
     const { size, tiles } = shift;
+    assert.equal(size, [3, 4, 5, 6, 7][level]);
+    assert.deepEqual(tiles.slice().sort((a, b) => a - b), Array.from({ length: size ** 2 }, (_, index) => index));
     const numbered = tiles.filter(Boolean);
     const gap = tiles.indexOf(0);
     const inversions = numbered.reduce((total, value, index) =>

@@ -27,7 +27,7 @@ export function shiftDistance(tiles, size) {
 }
 
 const circuitStages = [[3, 4], [4, 8], [4, 13], [5, 20], [6, 31]];
-const shiftStages = [[3, 10, 4], [3, 24, 9], [4, 44, 16], [4, 76, 24], [5, 128, 38]];
+const shiftStages = [[3, 10, 4], [4, 24, 9], [5, 44, 16], [6, 76, 24], [7, 128, 38]];
 
 export function turnCircuit(mask) {
   return ((mask << 1) | (mask >> 3)) & 15;
