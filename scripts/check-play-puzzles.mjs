@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
-import { slideProgress } from '../src/shift-board.js';
+import { slideProgress, slideRelease } from '../src/shift-board.js';
 
 // A board turned in perspective can show a local horizontal slide on a diagonal.
 assert.equal(slideProgress({ x: 50, y: 80 }, { x: 20, y: 120 }, -15, 20), .5);
@@ -8,6 +8,19 @@ assert.equal(slideProgress({ x: 50, y: 80 }, { x: 20, y: 120 }, 40, 30), 0);
 assert.equal(slideProgress({ x: 50, y: 80 }, { x: 20, y: 120 }, 15, -20), 0);
 assert.equal(slideProgress({ x: 50, y: 80 }, { x: 20, y: 120 }, -60, 80), 1);
 assert.equal(slideProgress({ x: 50, y: 80 }, { x: 50, y: 80 }, -60, 80), 0);
+
+for (const offset of [0, -.01, -.6, -1, .27]) {
+  for (const speed of [-.01, 0, .01]) {
+    const { duration, frames } = slideRelease(offset, speed);
+    assert(duration >= 140 && duration <= 360);
+    assert.equal(frames[0], offset);
+    assert.equal(frames.at(-1), 0);
+    frames.slice(1).forEach((position, index) => {
+      assert(position * offset >= 0 && Math.abs(position) <= Math.abs(frames[index]));
+    });
+  }
+}
+assert(Math.abs(slideRelease(-.6, .004).frames[1]) < Math.abs(slideRelease(-.6, 0).frames[1]));
 
 function rng(seed) {
   seed = Math.imul(seed, 0x9e3779b1);

@@ -73,7 +73,6 @@ export function initPlayGames(panel, signal) {
   const sessions = new Map();
   const on = (target, event, listener) => target.addEventListener(event, listener, { signal });
   let currentGame, opener, untangleControls, buttons = [], focused = 0;
-  let tileMotion = null;
   const fillEnds = new Map();
 
   const available = () => !panel.hidden && !panel.inert
@@ -83,7 +82,6 @@ export function initPlayGames(panel, signal) {
     signal, reduced, move: moveShift,
     available: () => currentGame === 'shift' && !screen.hidden && available(),
     findGap(tile) {
-      tileMotion?.cancel();
       const { size, tiles, solved } = current();
       const gap = tiles.indexOf(0);
       return !solved && neighbors(gap, size).includes(Number(tile.dataset.cell)) ? buttons[gap] : null;
@@ -163,7 +161,6 @@ export function initPlayGames(panel, signal) {
         button.setAttribute('aria-disabled', String(solved));
       } else {
         const canMove = movable.includes(index) && !solved;
-        button.textContent = value || '';
         button.setAttribute('aria-label', value ? `Tile ${value}` : 'Empty space');
         button.setAttribute('aria-disabled', String(!canMove));
         button.style.setProperty('--tile-grain-x', `${(value * 37) % 101}%`);
@@ -182,7 +179,6 @@ export function initPlayGames(panel, signal) {
   function buildBoard(focus = false) {
     fillEnds.clear();
     shiftBoard.clear();
-    tileMotion?.cancel();
     const { size, tiles, source } = current();
     board.dataset.game = currentGame;
     space.dataset.game = currentGame;
@@ -195,8 +191,20 @@ export function initPlayGames(panel, signal) {
       button.className = 'puzzle-tile';
       button.dataset.cell = String(index);
       if (currentGame === 'shift') {
-        button.style.setProperty('--tile-gloss-x', `${index % size / (size - 1) * 100}%`);
-        button.style.setProperty('--tile-gloss-y', `${Math.floor(index / size) / (size - 1) * 100}%`);
+        const face = document.createElement('span');
+        face.className = 'shift-tile-face';
+        face.setAttribute('aria-hidden', 'true');
+        const number = document.createElement('span');
+        number.className = 'shift-tile-number';
+        number.dataset.number = value || '';
+        face.append(number);
+        button.append(face);
+        for (const side of ports) {
+          const edge = document.createElement('span');
+          edge.className = `shift-tile-edge shift-tile-edge--${side}`;
+          edge.setAttribute('aria-hidden', 'true');
+          button.append(edge);
+        }
       } else {
         const frame = document.createElement('span');
         frame.className = 'conduit-cell-frame';
@@ -263,7 +271,6 @@ export function initPlayGames(panel, signal) {
   function closeGame() {
     untangleControls?.pause?.();
     shiftBoard.clear();
-    tileMotion?.cancel();
     screen.hidden = true;
     untangle.hidden = true;
     puzzle.hidden = true;
@@ -294,27 +301,26 @@ export function initPlayGames(panel, signal) {
     if (neighbors(index, size).includes(destination)) buttons[destination].focus({ preventScroll: true });
   });
 
-  function moveShift(index, progress = 0) {
+  function moveShift(index, progress = 0, speed = 0) {
     const state = current();
-    if (state.solved) return;
+    if (state.solved || shiftBoard.settling()) return;
     const { size, tiles } = state;
     const destination = shiftTile(tiles, size, index);
     if (destination < 0) return;
-    tileMotion?.cancel();
+    const tile = buttons[index], gap = buttons[destination];
+    const direction = shiftBoard.direction(tile, gap);
+    const afterTile = tile.nextSibling;
+    board.insertBefore(tile, gap);
+    board.insertBefore(gap, afterTile === gap ? tile : afterTile);
+    [buttons[index], buttons[destination]] = [gap, tile];
+    tile.dataset.cell = String(destination);
+    gap.dataset.cell = String(index);
     state.solved = shiftDistance(tiles, size) === 0;
     focused = destination;
     paintPuzzle();
-    const from = buttons[index], to = buttons[destination];
-    if (!reduced.matches && progress < 1 && typeof to.animate === 'function') {
-      const dx = (from.offsetLeft - to.offsetLeft) * (1 - progress);
-      const dy = (from.offsetTop - to.offsetTop) * (1 - progress);
-      tileMotion = to.animate(
-        [{ translate: `${dx}px ${dy}px`, zIndex: 2 }, { translate: '0px 0px', zIndex: 2 }],
-        { duration: 150 + 100 * (1 - progress), easing: 'cubic-bezier(.22, 1, .36, 1)' },
-      );
-    }
+    shiftBoard.settle(tile, direction, progress - 1, speed);
     if (state.solved) next.focus({ preventScroll: true });
-    else to.focus({ preventScroll: true });
+    else tile.focus({ preventScroll: true });
   }
 
   on(board, 'click', event => {

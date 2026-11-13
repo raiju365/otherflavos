@@ -183,7 +183,7 @@
 .shift-woodwork { display: none; }
 .puzzle-space[data-game=shift] {
   position: relative;
-  perspective: 900px;
+  perspective: 1120px;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
@@ -207,41 +207,93 @@
   --shift-maple: url('/textures/shift-maple.webp');
 }
 .puzzle-space[data-game=shift] .puzzle-object {
-  --shift-size: min(86cqw, 82cqh, 408px);
-  --shift-depth: clamp(10px, 4.8cqh, 22px);
+  --shift-size: min(88cqw, 84cqh, 440px);
+  --shift-depth: clamp(11px, 4.6cqh, 25px);
   --shift-half-depth: calc(var(--shift-depth) / 2);
+  --shift-rim-width: clamp(9px, 4.6cqw, 23px);
+  --shift-rim-height: calc(var(--shift-depth) * .51);
+  --shift-corner: clamp(5px, 1.9cqh, 12px);
+  --shift-tile-depth: calc(var(--shift-rim-height) * .79);
   inline-size: var(--shift-size);
   transform-style: preserve-3d;
-  transform: rotateX(var(--shift-pitch, 13deg)) rotateY(var(--shift-yaw, -17deg));
+  transform: rotateX(var(--shift-pitch, 17deg)) rotateY(var(--shift-yaw, -21deg));
 }
 .puzzle-space[data-game=shift] .shift-woodwork { display: contents; }
-.puzzle-space[data-game=shift] :is(.puzzle-board, .shift-face, .puzzle-tile) {
+.puzzle-space[data-game=shift] :is(.shift-rim, .shift-face, .shift-tile-face) {
   --wood-sheen: radial-gradient(ellipse 35% 21% at var(--wood-sheen-x, var(--wood-gloss-x)) var(--wood-gloss-y),
     rgb(255 250 234 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .37)),
     rgb(255 234 204 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .12)) 53%, transparent 100%);
 }
-.shift-face, .puzzle-board[data-game=shift] {
+.shift-face, .shift-rim {
   backface-visibility: hidden;
-  background: var(--wood-sheen), linear-gradient(155deg, #2e1b0f08, #2e180e44), var(--shift-walnut) center / cover #74533b;
+  background: var(--wood-sheen), linear-gradient(155deg, #70482319, #230f0794), var(--shift-walnut) center / cover #74533b;
 }
 .puzzle-board[data-game=shift] {
+  transform: translateZ(calc(var(--shift-half-depth) - var(--shift-rim-height)));
+  transform-style: preserve-3d;
+  isolation: auto;
+  backface-visibility: hidden;
+  gap: clamp(1px, .4cqh, 3px);
+  padding: calc(var(--shift-rim-width) + 2px);
+  border-radius: var(--shift-corner);
+  background: linear-gradient(145deg, #462a1b9c, #1f1009b5), var(--shift-walnut) center / cover #4d3324;
+  box-shadow: inset 0 0 18px 5px #1d0e07ad;
+}
+.shift-rim {
+  position: absolute;
+  inset: 0;
+  padding: var(--shift-rim-width);
+  border-radius: var(--shift-corner);
   transform: translateZ(var(--shift-half-depth));
-  border: 1px solid #513321;
-  border-radius: 6px;
-  box-shadow: inset 0 1px 1px #e1b48e9c, inset 1px 0 1px #f1c79650, inset 0 -3px 4px #3a2118a6;
-  gap: clamp(2px, .8cqh, 5px);
-  padding: clamp(5px, 2.5cqh, 14px);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  box-shadow: inset 0 2px 2px #f5cfa19e, inset 2px 0 2px #e3b99159, inset 0 -3px 3px #24120bd1;
+  pointer-events: none;
+}
+.shift-rim::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  border: 1px solid #3e2417c9;
+  box-shadow: 0 1px #e6b9806b, inset 0 1px #edbd8861;
+}
+.shift-rim::after {
+  --stud: radial-gradient(circle, #4a2c19 0 10%, #d5a873 13% 23%, #9e6e43 26% 42%, #4c301c 46% 55%, transparent 59%);
+  --stud-size: calc(var(--shift-rim-width) * .65);
+  content: '';
+  position: absolute;
+  inset: calc(var(--shift-rim-width) * .175);
+  background:
+    var(--stud) left top / var(--stud-size) var(--stud-size) no-repeat,
+    var(--stud) right top / var(--stud-size) var(--stud-size) no-repeat,
+    var(--stud) left bottom / var(--stud-size) var(--stud-size) no-repeat,
+    var(--stud) right bottom / var(--stud-size) var(--stud-size) no-repeat;
 }
 .shift-face { position: absolute; border: 1px solid #734627; }
 .shift-back {
   --wood-sheen-x: calc(100% - var(--wood-gloss-x));
   --wood-sheen-strength: var(--wood-gloss-back);
   inset: 0;
-  border-radius: 5px;
+  border-radius: var(--shift-corner);
   transform: rotateY(180deg) translateZ(var(--shift-half-depth));
   background-position: center, center, 42% 64%;
   background-size: 100% 100%, 100% 100%, 135%;
   box-shadow: inset 0 1px 1px #e0b38a75, inset 0 0 0 5px #4a2c1b48, inset 0 0 0 6px #c58f6b4a;
+}
+.shift-back::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 24%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid #3d2419;
+  background:
+    radial-gradient(circle, transparent 56%, #4a2c19 57% 58%, #d0a3749c 59% 60%, transparent 62%),
+    repeating-conic-gradient(from 22.5deg, #3b231ca1 0 22.5deg, #c3906047 22.5deg 45deg),
+    var(--shift-walnut) center / cover;
+  box-shadow: 0 1px #dcaf7b85, inset 0 0 0 4px #472a2269;
 }
 .shift-top, .shift-bottom {
   left: 0;
@@ -263,33 +315,80 @@
   --wood-sheen-strength: .11;
   background-image: var(--wood-sheen), linear-gradient(180deg, #2b180e46, #2b180e9a), var(--shift-walnut);
   background-size: 100% 100%, 100% 100%, auto;
+  box-shadow: inset 0 1px #b48050ad, inset 0 -2px #30190ee0;
 }
 .shift-face:is(.shift-top, .shift-bottom) { background-size: 100% 100%, 100% 100%, 100% auto; }
 .shift-face.shift-left, .shift-face.shift-right { background-position: center, center, 32% 59%; }
 .puzzle-board[data-game=shift] .puzzle-tile {
+  transform: translateZ(var(--shift-tile-depth));
+  transform-style: preserve-3d;
+  border-radius: 4px;
+  touch-action: none;
+}
+.shift-tile-face, .shift-tile-edge { position: absolute; pointer-events: none; backface-visibility: hidden; }
+.shift-tile-face {
+  inset: 0;
   display: grid;
   place-items: center;
-  color: #322216;
-  font-size: clamp(9px, 4.8cqh, 25px);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  border-radius: clamp(2px, 1.2cqh, 6px);
-  touch-action: none;
-  text-shadow: 0 1px #f9e0b580;
-  background: var(--wood-sheen), linear-gradient(153deg, rgb(92 51 25 / var(--tile-stain)), #754c2d18),
-    var(--shift-maple) #d4b58f;
-  background-size: calc(var(--side) * 100%) calc(var(--side) * 100%), 100% 100%, 195% 195%;
-  background-position: var(--tile-gloss-x) var(--tile-gloss-y), center, var(--tile-grain-x) var(--tile-grain-y);
-  background-repeat: no-repeat;
-  box-shadow: inset 0 1px 1px #fff6, inset 1px 0 1px #ffe8c680,
-    inset 0 -3px 1px #5b38265c, 0 2px 2px #23160f85;
+  border-radius: clamp(2px, .9cqh, 6px);
+  color: #704527;
+  font: 400 clamp(16px, calc(var(--shift-size) / var(--side) * .41), 50px)/1 'Instrument Serif', Georgia, serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  background: var(--wood-sheen), linear-gradient(145deg, #f9d7a041, rgb(98 50 20 / calc(.19 + var(--tile-stain)))),
+    var(--shift-maple) var(--tile-grain-x) var(--tile-grain-y) / 195% 195% #d4b58f;
+  box-shadow: inset 0 2px 2px #fff1cebd, inset 2px 0 2px #fff1ce72,
+    inset 0 -2px 1px #623b238f, inset -2px 0 2px #653e255c;
+}
+.shift-tile-face::before {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px solid #7f4e2c6b;
+  border-radius: inherit;
+  box-shadow: 0 1px #fff4c98f, inset 0 1px #6c3b2526;
+}
+.shift-tile-face::after {
+  content: '';
+  position: absolute;
+  bottom: 15%;
+  width: clamp(2px, .8cqh, 5px);
+  aspect-ratio: 1;
+  background: #a77143;
+  box-shadow: inset 1px 1px #f5cf9d, 1px 1px #78482d8f;
+  rotate: 45deg;
+}
+.shift-tile-number::before {
+  content: attr(data-number);
+  text-shadow: 0 1px #553015, 0 2px #8b5a34, 0 3px 3px #55271180, -1px -1px #ffdb9a;
+}
+.shift-tile-edge {
+  border-radius: 1px;
+  translate: 0 0 calc(-1 * var(--shift-tile-depth));
+  background: linear-gradient(#c5965f7f, #43241385), var(--shift-maple) center / 170% auto #96643d;
+}
+.shift-tile-edge--up, .shift-tile-edge--down {
+  left: 0;
+  width: 100%;
+  height: var(--shift-tile-depth);
+}
+.shift-tile-edge--left, .shift-tile-edge--right {
+  top: 0;
+  width: var(--shift-tile-depth);
+  height: 100%;
+  background-image: linear-gradient(90deg, #c5965f7f, #43241385), var(--shift-maple);
+}
+.shift-tile-edge--up { top: 0; transform-origin: top; transform: rotateX(90deg); }
+.shift-tile-edge--down { bottom: 0; transform-origin: bottom; transform: rotateX(-90deg); }
+.shift-tile-edge--left { left: 0; transform-origin: left; transform: rotateY(-90deg); }
+.shift-tile-edge--right { right: 0; transform-origin: right; transform: rotateY(90deg); }
+.puzzle-board[data-game=shift] .puzzle-tile:focus-visible { outline: 0; }
+.puzzle-board[data-game=shift] .puzzle-tile:focus-visible .shift-tile-face::before {
+  outline: 2px solid #462412;
+  outline-offset: 1px;
 }
 .puzzle-board[data-game=shift] .puzzle-tile[aria-disabled=true] { cursor: grab; }
-.puzzle-board[data-game=shift] .puzzle-tile[data-sliding=true] { cursor: grabbing; z-index: 2; }
-.puzzle-board[data-game=shift] .puzzle-tile[data-value='0'] {
-  background: linear-gradient(#26180f9c, #1b1009a8), var(--shift-walnut) center / cover #493123;
-  box-shadow: inset 0 4px 10px #190d07cf, 0 1px #b781555c;
-}
+.puzzle-board[data-game=shift] .puzzle-tile[data-sliding=true] { cursor: grabbing; }
+.puzzle-board[data-game=shift] .puzzle-tile[data-value='0'] > span { display: none; }
 .puzzle-board[data-solved=true] .puzzle-tile { cursor: default; }
 .puzzle-layout .play-reset:hover { background: var(--theme-selection-start); }
 
@@ -331,6 +430,7 @@
   .puzzle-board { border: 1px solid CanvasText; }
   .puzzle-board .puzzle-tile { border: 1px solid CanvasText; }
   .puzzle-board[data-game=conduit], .puzzle-board[data-game=conduit] .puzzle-tile { border: 0; }
+  .puzzle-board[data-game=shift] .puzzle-tile:focus-visible .shift-tile-face::before { outline-color: Highlight; }
   .conduit-window::before { border-color: CanvasText; }
   .conduit-window::after, .conduit-outlet::after { background: Highlight; forced-color-adjust: none; }
 }

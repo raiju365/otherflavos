@@ -31,10 +31,24 @@ function center(element) {
   return { x: x + width / 2, y: y + height / 2 };
 }
 
+export function slideRelease(offset, speed) {
+  const distance = Math.abs(offset);
+  const duration = 140 + distance * 220;
+  const momentum = distance ? Math.sign(-offset) * speed * duration / distance : 0;
+  const tangent = 1.45 + 1.45 * clamp(momentum);
+  const frames = Array.from({ length: 25 }, (_, index) => {
+    const t = index / 24;
+    return offset * (1 - t) ** 2 * (1 + (2 - tangent) * t) || 0;
+  });
+  return { duration, frames };
+}
+
 export function initShiftBoard(space, object, front, { signal, available, findGap, move, reduced }) {
-  let pitch = 13, yaw = -17;
-  let gesture = null, ignoreClick = false;
+  let pitch = 17, yaw = -21;
+  let gesture = null, motion = null, ignoreClick = false;
   const on = (target, type, listener, options) => target.addEventListener(type, listener, { ...options, signal });
+  const direction = (tile, gap) => ({ x: gap.offsetLeft - tile.offsetLeft, y: gap.offsetTop - tile.offsetTop });
+  const translation = ({ x, y }, offset) => `${x * offset}px ${y * offset}px`;
 
   function paint() {
     object.style.setProperty('--shift-pitch', `${pitch}deg`);
@@ -46,7 +60,7 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
     object.style.setProperty('--wood-gloss-back', gloss.back.toFixed(3));
   }
 
-  function clear() {
+  function releasePointer() {
     const current = gesture;
     if (!current) return;
     gesture = null;
@@ -58,6 +72,20 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
     if (space.hasPointerCapture(current.id)) space.releasePointerCapture(current.id);
   }
 
+  function clear() {
+    releasePointer();
+    motion?.cancel();
+    motion = null;
+  }
+
+  function settle(tile, track, offset, speed) {
+    if (!offset || reduced.matches || typeof tile.animate !== 'function') return;
+    const { duration, frames } = slideRelease(offset, speed);
+    const animation = tile.animate(frames.map(position => ({ translate: translation(track, position) })), { duration });
+    motion = animation;
+    animation.finished.then(() => { if (motion === animation) motion = null; }, () => {});
+  }
+
   function resetView() {
     clear();
     pitch = yaw = 0;
@@ -65,7 +93,7 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
   }
 
   on(space, 'pointerdown', event => {
-    if (!available() || event.button !== 0 || event.isPrimary === false || gesture) return;
+    if (!available() || event.button !== 0 || event.isPrimary === false || gesture || motion) return;
     ignoreClick = false;
     const tile = event.target.closest('[data-cell]');
     const gap = tile && findGap(tile);
@@ -74,9 +102,10 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
       gesture.tile = tile;
       gesture.from = center(tile);
       gesture.to = center(gap);
-      gesture.dx = gap.offsetLeft - tile.offsetLeft;
-      gesture.dy = gap.offsetTop - tile.offsetTop;
+      gesture.track = direction(tile, gap);
       gesture.progress = 0;
+      gesture.speed = 0;
+      gesture.time = event.timeStamp;
     }
   });
 
@@ -85,15 +114,19 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
     if (!available()) { clear(); return; }
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved) {
-      if (Math.hypot(dx, dy) < 6) return;
+      if (Math.hypot(dx, dy) < (gesture.tile ? 3 : 6)) return;
       gesture.moved = ignoreClick = true;
       space.dataset.holding = 'true';
       try { space.setPointerCapture(event.pointerId); } catch { /* Window input still tracks the gesture. */ }
     }
     if (gesture.tile) {
-      gesture.progress = slideProgress(gesture.from, gesture.to, dx, dy);
+      const progress = slideProgress(gesture.from, gesture.to, dx, dy);
+      const elapsed = Math.max(1, event.timeStamp - gesture.time);
+      gesture.speed = elapsed < 85 ? (progress - gesture.progress) / elapsed : 0;
+      gesture.progress = progress;
+      gesture.time = event.timeStamp;
       gesture.tile.dataset.sliding = 'true';
-      gesture.tile.style.translate = `${gesture.dx * gesture.progress}px ${gesture.dy * gesture.progress}px`;
+      gesture.tile.style.translate = translation(gesture.track, progress);
     } else {
       yaw = (gesture.yaw + dx * .72) % turn;
       pitch = (gesture.pitch - dy * .72) % turn;
@@ -103,16 +136,12 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
 
   on(window, 'pointerup', event => {
     if (gesture?.id !== event.pointerId) return;
-    const { tile, progress, dx, dy, moved } = gesture;
-    clear();
+    const { tile, progress, track, moved, speed, time } = gesture;
+    releasePointer();
     if (!tile || !moved || !available()) return;
-    if (progress >= .28) move(Number(tile.dataset.cell), progress);
-    else if (progress && !reduced.matches) {
-      tile.animate?.([
-        { translate: `${dx * progress}px ${dy * progress}px`, zIndex: 2 },
-        { translate: '0px 0px', zIndex: 2 },
-      ], { duration: 160, easing: 'ease-out' });
-    }
+    const releaseSpeed = event.timeStamp - time < 65 ? speed : 0;
+    if (progress >= .28) move(Number(tile.dataset.cell), progress, releaseSpeed);
+    else settle(tile, track, progress, releaseSpeed);
   });
 
   on(space, 'click', event => {
@@ -140,9 +169,10 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
   on(window, 'blur', clear);
   on(window, 'resize', clear);
   on(window, 'pagehide', clear);
+  on(reduced, 'change', clear);
   on(document, 'visibilitychange', () => { if (document.hidden) clear(); });
   on(document, 'portfolio:sectionstart', clear);
   signal.addEventListener('abort', clear, { once: true });
   paint();
-  return { clear };
+  return { clear, direction, settle, settling: () => Boolean(motion) };
 }
