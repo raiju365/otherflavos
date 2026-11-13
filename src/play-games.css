@@ -37,8 +37,8 @@
   perspective: 950px;
   outline-offset: 6px;
 }
-.play-game-card[data-open-game=conduit] { --card-tint: #81a9aa; }
-.play-game-card[data-open-game=shift] { --card-tint: #c69e78; }
+.play-game-card[data-open-game=conduit] { --card-tint: #949d9b; }
+.play-game-card[data-open-game=shift] { --card-tint: #a39684; }
 .play-card-surface {
   position: relative;
   display: grid;

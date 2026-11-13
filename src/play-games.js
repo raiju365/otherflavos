@@ -28,7 +28,12 @@ function buildConduitPreview(board) {
     cell.className = 'conduit-preview-cell';
     const fitting = document.createElement('span');
     fitting.className = 'conduit-preview-fitting';
-    fitting.append(createConduitFitting(mask, index === source, index));
+    const image = new Image();
+    image.alt = '';
+    image.className = 'conduit-fitting';
+    image.decoding = 'async';
+    image.src = `/play/conduit-${index === source ? 'pump' : mask}.webp`;
+    fitting.append(image);
     if (index === elbow) fitting.classList.add('conduit-preview-turn');
 
     const connection = route.get(index);
