@@ -17,11 +17,18 @@ export function initSpectrumPlay(signal) {
   root.dataset.renderer = renderer?.kind || 'css';
   const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 }, pulse: null };
   let frame = 0, disposed = false, visible = true, page = true, playing = false, trackRevision = 0, load = null;
-  let screen = null, palette = null, ratio = 1, lastPaint = 0, providerTime = null, displayedProgress = 0;
+  let screen = null, palette = null, ratio = 1, lastPaint = 0, providerTime = null, renderPositionMs = 0;
   let morphTick = null, choreographyTime = 0;
   let providerPositionMs = 0;
   let providerCadenceMs = 750;
+  let clockLeadMs = 0;
+  let awaitingPlayback = false;
   const predictionLimit = () => Math.min(1000, Math.max(250, providerCadenceMs * 1.2));
+  const playbackPosition = elapsed => {
+    const predictedTime = Math.min(predictionLimit(), elapsed);
+    const correction = Math.max(0, clockLeadMs - predictedTime * .2);
+    return providerPositionMs + Math.min(predictionLimit(), predictedTime + correction);
+  };
   const allowed = () => !disposed && !signal.aborted && renderer && !graphicsLost && !root.hidden && !panel?.hidden && visible && page
     && !document.hidden && !dialog?.open && document.documentElement.dataset.entry !== 'loading';
   function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = 0; morphTick = null; root.dataset.active = 'false'; }
@@ -53,22 +60,24 @@ export function initSpectrumPlay(signal) {
     if (!allowed() || forced.matches || !screen) { stop(); return; }
     if (lastPaint && time - lastPaint < 1000 / 60 - .2 && !reduced.matches) { schedule(); return; }
     lastPaint = time;
-    // The provider owns audio timing. Decorative motion never adds a beat.
-    if (freshPlayback(time)) displayedProgress = Math.min(1,
-      (providerPositionMs + Math.max(0, Math.min(predictionLimit(), time - providerTime))) / Math.max(1, field.duration));
+    const fresh = freshPlayback(time);
+    const age = fresh ? Math.max(0, time - providerTime) : 0;
+    if (fresh) renderPositionMs = Math.min(field.duration, Math.max(renderPositionMs, playbackPosition(age)));
+    const displayedProgress = renderPositionMs / Math.max(1, field.duration);
     const elapsed = reduced.matches || morphTick === null ? 0 : Math.max(0, time - morphTick);
     choreographyTime += elapsed / 1000;
-    const reaction = freshPlayback(time) && !reduced.matches
+    const reaction = fresh && age < predictionLimit() && !reduced.matches
       ? sampleWaveformPulse(field.pulse, displayedProgress) : { impact: 0, body: 0, detail: 0 };
     const motion = pointillistMotion(choreographyTime);
     renderer.paint(screen, { ...motion, ...reaction }, palette, ratio);
     morphTick = reduced.matches ? null : time;
     root.dataset.impact = reaction.impact.toFixed(3); root.dataset.body = reaction.body.toFixed(3); root.dataset.detail = reaction.detail.toFixed(3);
-    root.dataset.energy = (freshPlayback(time) ? particleEnergy(field.samples, displayedProgress, field.duration, field.range).level : 0).toFixed(3);
+    root.dataset.energy = (fresh && age < predictionLimit()
+      ? particleEnergy(field.samples, displayedProgress, field.duration, field.range).level : 0).toFixed(3);
     root.dataset.formation = POINTILLIST_FORMS[motion.from];
     root.dataset.formationMorph = motion.morph.toFixed(3);
     root.dataset.flowTime = motion.flow.toFixed(3);
-    root.dataset.renderPositionMs = (displayedProgress * field.duration).toFixed(1);
+    root.dataset.renderPositionMs = renderPositionMs.toFixed(1);
     root.dataset.motionTime = choreographyTime.toFixed(3);
     if (!reduced.matches) schedule();
     else root.dataset.active = 'false';
@@ -91,25 +100,33 @@ export function initSpectrumPlay(signal) {
   cleanup.setPlaying = value => {
     if (disposed) return;
     playing = value === true; root.dataset.playing = String(playing);
-    if (!playing) providerTime = null;
+    if (!playing) { providerTime = null; clockLeadMs = 0; awaitingPlayback = false; }
     schedule();
   };
   cleanup.setProgress = (value, timing = {}) => {
     if (disposed || !Number.isFinite(value)) return;
-    const received = performance.now(), previousPosition = providerPositionMs;
+    const received = performance.now();
     if (Number.isFinite(timing.durationMs) && timing.durationMs > 0 && Math.abs(timing.durationMs - field.duration) > 1) {
       field.duration = timing.durationMs;
       field.pulse = createWaveformPulse(field.samples, field.duration);
     }
     const absolute = Number.isFinite(timing.positionMs) && timing.positionMs >= 0;
-    providerPositionMs = absolute ? Math.min(field.duration, timing.positionMs)
+    const position = absolute ? Math.min(field.duration, timing.positionMs)
       : Math.max(0, Math.min(1, value)) * field.duration;
+    let seek = timing.seek === true;
+    if (awaitingPlayback && !seek && position === providerPositionMs) return;
     if (providerTime !== null) {
-      const gap = received - providerTime, travel = providerPositionMs - previousPosition;
-      // Learn normal 1x playback cadence, excluding seeks, bursts and stalls.
-      if (gap >= 40 && gap <= 1500 && travel > 0 && Math.abs(travel - gap) < Math.max(80, gap * .35))
+      const gap = received - providerTime, travel = position - providerPositionMs;
+      seek ||= travel < -120 || travel - gap > 500;
+      // Duplicate or slightly reordered positions do not keep a stalled clock alive.
+      if (!seek && travel <= 0) return;
+      if (!seek && gap >= 10 && gap <= 1500 && Math.abs(travel - gap) < Math.max(24, gap * .35))
         providerCadenceMs = providerCadenceMs * .5 + gap * .5;
+      // Absorb small backward corrections by temporarily slowing the prediction.
+      // Rendering the preceding samples again can double-trigger a visible pulse.
+      clockLeadMs = !seek && gap < predictionLimit() ? Math.max(0, renderPositionMs - position) : 0;
     }
+    providerPositionMs = position;
     field.progress = field.duration > 0 ? providerPositionMs / field.duration : Math.max(0, Math.min(1, value));
     root.dataset.progress = field.progress.toFixed(5);
     root.dataset.clockSource = absolute ? 'milliseconds' : 'relative';
@@ -117,8 +134,11 @@ export function initSpectrumPlay(signal) {
     root.dataset.durationMs = String(field.duration);
     root.dataset.clockCadenceMs = providerCadenceMs.toFixed(1);
     root.dataset.predictionLimitMs = predictionLimit().toFixed(1);
-    providerTime = received;
-    if (!playing) displayedProgress = field.progress;
+    if (!playing || seek || providerTime === null) renderPositionMs = providerPositionMs;
+    // A seek or initial zero can arrive while the embed is still buffering.
+    // Hold at the reported position until an advancing playback update arrives.
+    awaitingPlayback = seek || (providerTime === null && position === 0);
+    providerTime = awaitingPlayback ? null : received;
     // Reduced motion keeps the particle composition still.
     if (!reduced.matches) schedule();
   };
@@ -126,7 +146,8 @@ export function initSpectrumPlay(signal) {
     if (disposed || signal.aborted) return;
     const revision = ++trackRevision; load?.abort(); load = new AbortController();
     // Keep the visible flow and rhythm phase intact across songs and loading.
-    providerTime = null; displayedProgress = 0; providerPositionMs = 0; providerCadenceMs = 750;
+    providerTime = null; renderPositionMs = 0; providerPositionMs = 0; providerCadenceMs = 750; clockLeadMs = 0;
+    awaitingPlayback = false;
     field.samples = []; field.image = null; field.pulse = null; field.progress = 0; field.duration = track.duration || 0;
     field.range = { floor: 0, span: 1 };
     root.dataset.waveform = 'loading'; schedule();

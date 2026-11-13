@@ -4,6 +4,7 @@ const MAX_SAMPLES = 100000;
 const IMPACT_RELEASE_MS = 120;
 const DETAIL_RELEASE_MS = 70;
 const BODY_RELEASE_MS = 320;
+const ONSET_GROUP_MS = 160;
 const bound = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 const quiet = () => ({ impact: 0, body: 0, detail: 0 });
 
@@ -21,6 +22,7 @@ export function createWaveformPulse(samples, durationMs) {
   const impactDecay = Math.exp(-stepMs / IMPACT_RELEASE_MS);
   const detailDecay = Math.exp(-stepMs / DETAIL_RELEASE_MS);
   body[0] = amplitude[0];
+  let lastOnset = -Infinity;
   for (let i = 1; i < count; i++) {
     // Integrate only the preceding known amplitude so the broad envelope is
     // continuous at a bin boundary and never anticipates a future sample.
@@ -30,9 +32,11 @@ export function createWaveformPulse(samples, durationMs) {
     // Gate small fluctuations relative to the local envelope. Only a distinct
     // measured onset expands the motifs; the decorative clock never does.
     const excess = Math.max(0, rise - (.025 + body[i] * .04));
-    const attack = novelty > .035 ? bound(excess * 10 + (excess > 0 ? Math.min(rise, novelty) * 1.5 : 0)) : 0;
+    const onset = novelty > .035 && excess > 0 && (i - lastOnset) * stepMs >= ONSET_GROUP_MS;
+    if (onset) lastOnset = i;
+    const attack = onset ? bound(excess * 10 + Math.min(rise, novelty) * 1.5) : 0;
     impact[i] = Math.max(attack, impact[i - 1] * impactDecay);
-    detail[i] = Math.max(excess > 0 ? bound(excess * 4) : 0, detail[i - 1] * detailDecay);
+    detail[i] = Math.max(onset ? bound(excess * 4) : 0, detail[i - 1] * detailDecay);
   }
   return Object.freeze({ kind: 'recorded-amplitude-pulse', durationMs, stepMs, amplitude, body, impact, detail });
 }

@@ -102,6 +102,10 @@ check('exact provider milliseconds override a conflicting relative position', ()
   assert.equal(progress.at(-1),.25); assert.deepEqual(timings.at(-1),{positionMs:45000,durationMs:180000});
   assert.equal(player.durationCalls,1);
 });
+player.fire('seek', { currentPosition: 44960 });
+check('provider seeks explicitly reset the visual clock', () => {
+  assert.deepEqual(timings.at(-1), { positionMs: 44960, durationMs: 180000, seek: true });
+});
 player.fire('pause'); player.fire('finish'); player.fire('play');
 check('track completion automatically advances the allowed queue and retains mute', () => {
   assert.equal(player.index, 3); assert.equal(title.textContent, 'Fixture B'); assert.equal(player.volume, 0); assert.equal(player.seek, 0);
@@ -221,7 +225,7 @@ clockAbort.abort();
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/soundcloud-player.css', import.meta.url), 'utf8');
 check('the music dock exposes exactly Play/Pause and Mute/Unmute with 44px targets', () => {
-  const surface = html.slice(html.indexOf('<section class="music-player"'), html.indexOf('<div class="theme-picker"'));
+  const surface = html.match(/<section\b[^>]*\bdata-music-player\b[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.equal((surface.match(/<button/g)||[]).length, 2); assert.doesNotMatch(surface, /data-music-(next|previous)/);
   assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/); assert.match(css, /width: 44px; height: 44px/);
   assert.doesNotMatch(css, /data-native-player/); assert.equal(timers.size, 0);

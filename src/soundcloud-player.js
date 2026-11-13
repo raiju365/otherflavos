@@ -216,16 +216,18 @@ export function initSoundCloudPlayer({ signal, onPlaybackChange = () => {}, onTr
         if (!ready) return;
         if (!advancing) { wanted = false; clearTimeout(playTimer); render(ready ? 'paused' : 'loading'); }
       });
-      const progress = data => {
+      const progress = (data, seek = false) => {
         if (!currentSession() || !ready || advancing || !playing) return;
         const durationMs = trackClock.duration || queue[current]?.duration || 0;
         const positionMs = Number.isFinite(data?.currentPosition) && data.currentPosition >= 0 ? data.currentPosition : null;
         const value = positionMs !== null && durationMs > 0
           ? Math.min(1, positionMs / durationMs) : data?.relativePosition;
-        if (Number.isFinite(value) && value >= 0 && value <= 1) onProgress(value, { positionMs, durationMs });
+        if (Number.isFinite(value) && value >= 0 && value <= 1) {
+          onProgress(value, seek ? { positionMs, durationMs, seek } : { positionMs, durationMs });
+        }
       };
       if (events.PLAY_PROGRESS) widget.bind(events.PLAY_PROGRESS, progress);
-      if (events.SEEK) widget.bind(events.SEEK, progress);
+      if (events.SEEK) widget.bind(events.SEEK, data => progress(data, true));
       widget.bind(events.FINISH, () => { if (currentSession() && !advancing && (wanted || finishEligible)) advance(); });
       widget.bind(events.ERROR, () => {
         if (!currentSession()) return;

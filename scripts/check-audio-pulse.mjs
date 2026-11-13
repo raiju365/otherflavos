@@ -74,6 +74,14 @@ check('seeking is deterministic and does not depend on preceding sample calls', 
   assert.deepEqual(sampleWaveformPulse(cache, .45), expected);
   assert.deepEqual(sampleWaveformPulse(createWaveformPulse(samples, 180000), .45), expected);
 });
+check('several rising bins within one transient trigger a single pulse', () => {
+  const samples = Array.from({ length: 101 }, () => .1);
+  samples[20] = .6; samples[22] = 1; samples[34] = 1;
+  const cache = createWaveformPulse(samples, 2000);
+  assert.ok(atMs(cache, 400).impact > .9);
+  assert.ok(atMs(cache, 440).impact < atMs(cache, 420).impact);
+  assert.ok(atMs(cache, 680).impact > .9);
+});
 check('coarse waveform metadata still gives one causal impulse with a short decay', () => {
   const cache = createWaveformPulse([0, 1, 1, 0], 3000);
   assert.equal(atMs(cache, 999).impact, 0); assert.equal(atMs(cache, 1000).impact, 1);

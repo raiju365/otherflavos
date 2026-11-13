@@ -212,6 +212,11 @@ controller.setPlaying(true); emit(board, 'pointermove'); emit(board, 'click'); s
 check('Play and pointer input keep one decorative owner without inventing energy', () => { assert.equal(frames.size, 1); assert.equal(root.dataset.energy, '0.000'); });
 controller.setTrack({waveform:'https://wave.sndcdn.com/first.json', duration:180000}); answer(requests.at(-1)); await flush(); step();
 check('waveform loading retains one flowing owner before audio progress', () => { assert.equal(root.dataset.waveform, 'ready'); assert.ok(paintedPoints() > 20); assert.equal(frames.size, 1); });
+controller.setProgress(0,{positionMs:0,durationMs:180000,seek:true});
+controller.setProgress(0,{positionMs:0,durationMs:180000}); step(200);
+check('a seek to zero followed by buffering never starts an early pulse',()=>{
+  assert.equal(root.dataset.renderPositionMs,'0.0'); assert.equal(root.dataset.impact,'0.000');
+});
 controller.setProgress(.1,{positionMs:500/999*200000,durationMs:200000}); step(34);
 check('runtime duration and exact milliseconds replace conflicting metadata and relative progress',()=>{
   assert.equal(root.dataset.durationMs,'200000'); assert.equal(root.dataset.clockSource,'milliseconds');
@@ -230,10 +235,25 @@ const visibleMotion = Number(root.dataset.motionTime); step(240);
 check('a delayed visible frame advances the analytic pattern by real elapsed time',()=>{
   assert.ok(Math.abs(Number(root.dataset.motionTime)-visibleMotion-.24)<.002);
 });
-controller.setProgress(.25,{positionMs:45000,durationMs:180000});
+controller.setProgress(.25,{positionMs:45000,durationMs:180000,seek:true});
+controller.setProgress(.25,{positionMs:45001,durationMs:180000});
 clock+=100; const delayedFrames=[...frames.values()]; frames.clear(); delayedFrames.forEach(fn=>fn(clock-300));
 check('audio sampling uses current execution time even if the RAF timestamp is stale',()=>{
-  assert.ok(Math.abs(Number(root.dataset.renderPositionMs)-45100)<.2);
+  assert.ok(Math.abs(Number(root.dataset.renderPositionMs)-45101)<.2);
+});
+controller.setProgress(.25,{positionMs:45070,durationMs:180000}); step(20);
+check('a late progress update slows down instead of replaying an onset',()=>{
+  assert.ok(Number(root.dataset.renderPositionMs)>=45101);
+  assert.ok(Number(root.dataset.renderPositionMs)<45121);
+});
+controller.setProgress(.25,{positionMs:45070,durationMs:180000}); step(1100);
+check('a repeated provider position cannot hold a pulse at the prediction limit',()=>{
+  assert.equal(root.dataset.impact,'0.000'); assert.equal(root.dataset.energy,'0.000');
+});
+controller.setProgress(.25,{positionMs:45020,durationMs:180000,seek:true}); step(20);
+check('an explicit backward seek resets the clock even within the correction window',()=>{
+  assert.equal(Number(root.dataset.renderPositionMs),45020);
+  assert.equal(root.dataset.impact,'0.000');
 });
 controller.setProgress(.3,{positionMs:60000,durationMs:180000}); step(300);
 controller.setProgress(.3,{positionMs:60300,durationMs:180000}); step(300);
@@ -246,7 +266,8 @@ check('clock cadence adapts to normal playback updates and ignores a seek jump',
 });
 const before = structuredClone(geometry); for (let i = 0; i < 200; i++) controller.setProgress(.75); step(34); step(34);
 check('provider updates wake one particle owner with actual recorded energy', () => { assert.ok(JSON.stringify(geometry) !== JSON.stringify(before)); assert.equal(frames.size, 1); assert.equal(root.dataset.progress, '0.75000'); });
-controller.setProgress(500 / 999); step(34);
+controller.setProgress(500 / 999, {seek:true});
+controller.setProgress(500 / 999 + .00001); step(34);
 check('a genuine recorded amplitude attack reaches the controller as a strong impact', () => {
   assert.ok(Number(root.dataset.impact) > .5); assert.ok(Number(root.dataset.body) > 0);
 });
