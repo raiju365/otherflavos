@@ -109,13 +109,17 @@
               <p class="profile-role" id="profile-role"></p>
             </div>
           </header>
-          <section class="music-player" data-music-player data-state="idle" aria-label="Blockcore music player">
+          <section class="music-player glass-material" data-music-player data-state="idle" aria-label="Blockcore music player">
             <div class="music-actions">
-              <button type="button" class="music-action" data-music-toggle aria-label="Play music" title="Play / Pause" aria-pressed="false" aria-busy="false">
+              <button type="button" class="music-action glass-surface" data-music-toggle aria-label="Play music" title="Play / Pause" aria-pressed="false" aria-busy="false">
+                <span class="music-action-rim glass-rim" aria-hidden="true"></span>
                 <svg class="music-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
                 <svg class="music-pause-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
               </button>
-              <button type="button" class="music-action music-volume" data-music-mute aria-label="Mute music" aria-pressed="false" title="Mute / Unmute"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z"/><path class="music-volume-on" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="music-volume-off" d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+              <button type="button" class="music-action glass-surface" data-music-mute aria-label="Mute music" aria-pressed="false" title="Mute / Unmute">
+                <span class="music-action-rim glass-rim" aria-hidden="true"></span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z"/><path class="music-volume-on" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="music-volume-off" d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
             </div>
             <div class="music-meta sr-only">
               <span class="music-track" data-music-track></span>

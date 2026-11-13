@@ -224,10 +224,12 @@ check('runtime duration belongs to its current song and is queried only once per
 clockAbort.abort();
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/soundcloud-player.css', import.meta.url), 'utf8');
-check('the music dock exposes exactly Play/Pause and Mute/Unmute with 44px targets', () => {
+check('the music dock exposes exactly two controls that share the theme button glass and size', () => {
   const surface = html.match(/<section\b[^>]*\bdata-music-player\b[\s\S]*?<\/section>/)?.[0] ?? '';
   assert.equal((surface.match(/<button/g)||[]).length, 2); assert.doesNotMatch(surface, /data-music-(next|previous)/);
-  assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/); assert.match(css, /width: 44px; height: 44px/);
+  assert.match(surface, /data-music-mute/); assert.match(surface, /music-meta sr-only/);
+  assert.equal((surface.match(/class="music-action glass-surface"/g)||[]).length, 2);
+  assert.match(css, /width: var\(--glass-dock-button-size\); height: var\(--glass-dock-button-size\)/);
   assert.doesNotMatch(css, /data-native-player/); assert.equal(timers.size, 0);
 });
 console.log(JSON.stringify({mode:'Widget lifecycle and automatic playback fixtures; no audible browser claim',passed:checks.length,checks},null,2));
