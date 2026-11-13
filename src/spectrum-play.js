@@ -17,7 +17,7 @@ export function initSpectrumPlay(signal) {
   root.dataset.renderer = renderer?.kind || 'css';
   const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 }, pulse: null };
   let frame = 0, disposed = false, visible = true, page = true, playing = false, trackRevision = 0, load = null;
-  let screen = null, palette = null, ratio = 1, lastPaint = 0, providerTime = null, renderPositionMs = 0;
+  let screen = null, palette = null, ratio = 1, lastPaint = null, providerTime = null, renderPositionMs = 0;
   let morphTick = null, choreographyTime = 0;
   let providerPositionMs = 0;
   let providerCadenceMs = 750;
@@ -31,14 +31,14 @@ export function initSpectrumPlay(signal) {
   };
   const allowed = () => !disposed && !signal.aborted && renderer && !graphicsLost && !root.hidden && !panel?.hidden && visible && page
     && !document.hidden && !dialog?.open && document.documentElement.dataset.entry !== 'loading';
-  function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = 0; morphTick = null; root.dataset.active = 'false'; }
+  function stop() { if (frame) cancelAnimationFrame(frame); frame = 0; lastPaint = null; morphTick = null; root.dataset.active = 'false'; }
   function readPalette() {
     const css = getComputedStyle(root);
     palette = css.color;
   }
   function measure(force = false) {
     if (!renderer || root.hidden || panel?.hidden) return;
-    const box = board.getBoundingClientRect(), nextRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    const box = board.getBoundingClientRect(), nextRatio = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
     if (!force && field.width === box.width && field.height === box.height && ratio === nextRatio) return;
     ratio = nextRatio;
     field.width = box.width; field.height = box.height;
@@ -52,14 +52,18 @@ export function initSpectrumPlay(signal) {
     return playing && field.samples.length > 1 && field.duration > 0
       && providerTime !== null && time - providerTime < Math.min(1800, Math.max(800, providerCadenceMs * 1.75));
   }
-  function paint() {
+  function paint(timestamp) {
     // Read execution time, not a potentially stale RAF timestamp after a
     // delayed frame. Analytic motifs need no legacy spring timestep clamp.
     const time = performance.now();
     frame = 0;
     if (!allowed() || forced.matches || !screen) { stop(); return; }
-    if (lastPaint && time - lastPaint < 1000 / 60 - .2 && !reduced.matches) { schedule(); return; }
-    lastPaint = time;
+    const interval = 1000 / 60;
+    // A delayed callback can carry a timestamp older than the last paint.
+    const paintTime = Math.max(timestamp, time - interval);
+    const sincePaint = lastPaint === null ? interval : paintTime - lastPaint;
+    if (sincePaint < interval - .5 && !reduced.matches) { schedule(); return; }
+    lastPaint = paintTime - Math.max(0, sincePaint - interval) % interval;
     const fresh = freshPlayback(time);
     const age = fresh ? Math.max(0, time - providerTime) : 0;
     if (fresh) renderPositionMs = Math.min(field.duration, Math.max(renderPositionMs, playbackPosition(age)));
@@ -84,7 +88,8 @@ export function initSpectrumPlay(signal) {
   }
   function schedule() {
     if (!allowed() || forced.matches || frame) return;
-    frame = requestAnimationFrame(paint); root.dataset.active = 'true';
+    frame = requestAnimationFrame(paint);
+    if (root.dataset.active !== 'true') root.dataset.active = 'true';
   }
   function reconcile() {
     if (disposed || signal.aborted) return;

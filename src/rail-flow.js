@@ -40,7 +40,8 @@ export function paintRailFlow(data,width,height,time,{curved=true}={}) {
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     const u=(x+.5)/width,v=(y+.5)/height;
     let px=(u+rowBend[y]-.5)/scale+.5, py=(v+columnBend[x]-.5)/scale+.5;
-    const radius=smooth(Math.hypot(px-.5,py-.5)),falloff=1-radius;
+    const rx=px-.5,ry=py-.5;
+    const radius=smooth(Math.sqrt(rx*rx+ry*ry)),falloff=1-radius;
     for(let octave=1;octave<=2;octave++){
       px+=distortion*falloff/octave*Math.sin(time+octave*.4*smooth(py))*Math.cos(.2*time+octave*2.4*smooth(py));
       py+=distortion*falloff/octave*Math.cos(time+octave*2*smooth(px));
@@ -72,7 +73,10 @@ export function createRailFlow(canvas) {
     frame=0;if(!running||destroyed)return;
     if(previous!==null)time+=preset.speed/100*1.2*Math.min(.05,(now-previous)/1000);
     previous=now;
-    if(lastPaint===null||now-lastPaint>=1000/24){draw();lastPaint=now;}
+    const interval=1000/24;
+    if(lastPaint===null||now-lastPaint>=interval){
+      draw();lastPaint=lastPaint===null?now:now-(now-lastPaint)%interval;
+    }
     frame=requestAnimationFrame(tick);
   }
   try {draw();} catch {return null;}

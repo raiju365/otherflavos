@@ -38,6 +38,7 @@ export function initUntangle(root, signal, random = Math.random) {
   let yaw = .23, pitch = -.24, orbit = null, orbitMoved = false;
   const vibrations = new Map();
   let points = [], contacts = [];
+  let contactsDirty = false;
   let solved = false, selected = -1, drag = null;
   let activeAction = null;
   let hint = null, restoreHints = false;
@@ -73,27 +74,30 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function syncCrossings() {
+    contactsDirty = false;
     contacts = findContacts(points, knot.edges);
     const label = contactLabel();
     if (status.textContent !== label) status.textContent = label;
   }
 
-  function place(index, target) {
+  function place(index, target, duringDrag = false) {
     const previous = points[index];
     if (!movePoint(points, index, target)) return false;
     if (!reduced.matches && !forced.matches) {
       const point = points[index];
       const dx = previous.x - point.x, dy = previous.y - point.y, dz = previous.z - point.z;
-      const amplitude = Math.min(.12, Math.hypot(dx, dy, dz) * 2.3);
       const length = Math.hypot(dx, dy, dz);
+      const amplitude = Math.min(.12, length * 2.3);
       vibrations.set(index, { x: dx / length * amplitude, y: dy / length * amplitude, z: dz / length * amplitude, start: null });
     }
-    syncCrossings();
+    if (duringDrag) contactsDirty = true;
+    else syncCrossings();
     schedule();
     return true;
   }
 
   function finishMove(index) {
+    if (contactsDirty) syncCrossings();
     clearHint();
     const projection = camera();
     if (points.some(point => {
@@ -137,6 +141,7 @@ export function initUntangle(root, signal, random = Math.random) {
     field.dataset.dense = String(points.length > 16);
     vibrations.clear();
     contacts = findContacts(points, knot.edges);
+    contactsDirty = false;
     pulse = null;
     solved = false;
     selected = -1;
@@ -245,6 +250,7 @@ export function initUntangle(root, signal, random = Math.random) {
   function paint(now) {
     frame = 0;
     if (!visible() || !layout) return;
+    if (contactsDirty) syncCrossings();
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, layout.width, layout.height);
     ctx.lineCap = 'round';
@@ -492,7 +498,7 @@ export function initUntangle(root, signal, random = Math.random) {
       }
     }
     const target = drag.projection.move(drag.origin, event.clientX - drag.x, event.clientY - drag.y);
-    place(drag.index, target);
+    place(drag.index, target, true);
   }
 
   on(window, 'pointermove', trackDrag);

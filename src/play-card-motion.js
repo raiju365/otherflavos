@@ -5,8 +5,23 @@ export function initPlayCardMotion(menu, screen, { signal, available, open }) {
   const cards = menu.querySelectorAll('[data-open-game]');
   const easing = 'cubic-bezier(.22, .68, .28, 1)';
   let pending, entrance, returnMotion;
+  let tiltFrame = 0, tiltInput;
+
+  function paintTilt() {
+    tiltFrame = 0;
+    const { card, x, y } = tiltInput;
+    tiltInput = undefined;
+    card.style.setProperty('--card-x', Math.max(-1, Math.min(1, x)));
+    card.style.setProperty('--card-y', Math.max(-1, Math.min(1, y)));
+    if (!card.hasAttribute('data-tilting')) card.dataset.tilting = '';
+  }
 
   function resetTilt(card) {
+    if (tiltInput?.card === card) {
+      cancelAnimationFrame(tiltFrame);
+      tiltFrame = 0;
+      tiltInput = undefined;
+    }
     delete card.dataset.tilting;
     card.style.removeProperty('--card-x');
     card.style.removeProperty('--card-y');
@@ -36,14 +51,15 @@ export function initPlayCardMotion(menu, screen, { signal, available, open }) {
 
   for (const card of cards) {
     const surface = card.querySelector('.play-card-surface');
+    let bounds;
+    on(card, 'pointerenter', () => { bounds = undefined; });
     on(card, 'pointermove', event => {
       if (!fine.matches || still.matches || pending || !available() || event.pointerType === 'touch') return;
-      const bounds = card.getBoundingClientRect();
+      if (!bounds || !card.hasAttribute('data-tilting') && tiltInput?.card !== card) bounds = card.getBoundingClientRect();
       const x = (event.clientX - bounds.left) / bounds.width * 2 - 1;
       const y = (event.clientY - bounds.top) / bounds.height * 2 - 1;
-      card.style.setProperty('--card-x', Math.max(-1, Math.min(1, x)));
-      card.style.setProperty('--card-y', Math.max(-1, Math.min(1, y)));
-      card.dataset.tilting = '';
+      tiltInput = { card, x, y };
+      if (!tiltFrame) tiltFrame = requestAnimationFrame(paintTilt);
     });
     on(card, 'pointerleave', () => resetTilt(card));
     on(card, 'pointercancel', () => resetTilt(card));

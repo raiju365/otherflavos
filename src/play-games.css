@@ -244,10 +244,15 @@
   background: radial-gradient(ellipse, rgb(18 9 6 / .24), transparent 70%);
   pointer-events: none;
 }
-.shift-preview, .puzzle-space[data-game=shift] .puzzle-object {
+.puzzle-space[data-game=shift] .puzzle-object {
   /* Poly Haven CC0 diffuse maps: walnut_veneer_02 and white_maple_veneer. */
   --shift-walnut: url('/textures/shift-walnut.webp');
   --shift-maple: url('/textures/shift-maple.webp');
+}
+@property --shift-orientation {
+  syntax: '<transform-list>';
+  inherits: false;
+  initial-value: rotateX(17deg) rotateY(-21deg);
 }
 .puzzle-space[data-game=shift] .puzzle-object {
   --shift-size: min(88cqw, 84cqh, 440px);
@@ -259,17 +264,22 @@
   --shift-tile-depth: calc(var(--shift-rim-height) * .79);
   inline-size: var(--shift-size);
   transform-style: preserve-3d;
-  transform: rotateX(var(--shift-pitch, 17deg)) rotateY(var(--shift-yaw, -21deg));
+  transform: var(--shift-orientation, rotateX(17deg) rotateY(-21deg));
 }
 .puzzle-space[data-game=shift] .shift-woodwork { display: contents; }
-.puzzle-space[data-game=shift] :is(.shift-rim, .shift-face, .shift-tile-face) {
-  --wood-sheen: radial-gradient(ellipse 35% 21% at var(--wood-sheen-x, var(--wood-gloss-x)) var(--wood-gloss-y),
-    rgb(255 250 234 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .37)),
-    rgb(255 234 204 / calc(var(--wood-sheen-strength, var(--wood-gloss-front)) * .12)) 53%, transparent 100%);
+.shift-reflection {
+  position: absolute;
+  inset: 21%;
+  border-radius: 50%;
+  pointer-events: none;
+  backface-visibility: hidden;
+  background: radial-gradient(ellipse closest-side, #fff6e32e, #ffeacc12 53%, transparent);
 }
+.shift-reflection--front { transform: translateZ(calc(var(--shift-half-depth) + 1px)); }
+.shift-reflection--back { transform: rotateY(180deg) translateZ(calc(var(--shift-half-depth) + 1px)); }
 .shift-face, .shift-rim {
   backface-visibility: hidden;
-  background: var(--wood-sheen), linear-gradient(155deg, #70482319, #230f0794), var(--shift-walnut) center / cover #74533b;
+  background: linear-gradient(155deg, #70482319, #230f0794), var(--shift-walnut) center / cover #74533b;
 }
 .puzzle-board[data-game=shift] {
   transform: translateZ(calc(var(--shift-half-depth) - var(--shift-rim-height)));
@@ -314,13 +324,11 @@
 }
 .shift-face { position: absolute; border: 1px solid #734627; }
 .shift-back {
-  --wood-sheen-x: calc(100% - var(--wood-gloss-x));
-  --wood-sheen-strength: var(--wood-gloss-back);
   inset: 0;
   border-radius: var(--shift-corner);
   transform: rotateY(180deg) translateZ(var(--shift-half-depth));
-  background-position: center, center, 42% 64%;
-  background-size: 100% 100%, 100% 100%, 135%;
+  background-position: center, 42% 64%;
+  background-size: 100% 100%, 135%;
   box-shadow: inset 0 1px 1px #e0b38a75, inset 0 0 0 5px #4a2c1b48, inset 0 0 0 6px #c58f6b4a;
 }
 .shift-back::after {
@@ -355,13 +363,12 @@
 .shift-left { transform: rotateY(-90deg) translateZ(calc(var(--shift-size) / 2)); }
 .shift-right { transform: rotateY(90deg) translateZ(calc(var(--shift-size) / 2)); }
 .shift-face:not(.shift-back) {
-  --wood-sheen-strength: .11;
-  background-image: var(--wood-sheen), linear-gradient(180deg, #2b180e46, #2b180e9a), var(--shift-walnut);
-  background-size: 100% 100%, 100% 100%, auto;
+  background-image: linear-gradient(180deg, #2b180e46, #2b180e9a), var(--shift-walnut);
+  background-size: 100% 100%, auto;
   box-shadow: inset 0 1px #b48050ad, inset 0 -2px #30190ee0;
 }
-.shift-face:is(.shift-top, .shift-bottom) { background-size: 100% 100%, 100% 100%, 100% auto; }
-.shift-face.shift-left, .shift-face.shift-right { background-position: center, center, 32% 59%; }
+.shift-face:is(.shift-top, .shift-bottom) { background-size: 100% 100%, 100% auto; }
+.shift-face.shift-left, .shift-face.shift-right { background-position: center, 32% 59%; }
 .puzzle-board[data-game=shift] .puzzle-tile {
   transform: translateZ(var(--shift-tile-depth));
   transform-style: preserve-3d;
@@ -377,7 +384,7 @@
   color: #704527;
   font: 400 clamp(16px, calc(var(--shift-size) / var(--side) * .41), 50px)/1 'Instrument Serif', Georgia, serif;
   font-variant-numeric: lining-nums tabular-nums;
-  background: var(--wood-sheen), linear-gradient(145deg, #f9d7a041, rgb(98 50 20 / calc(.19 + var(--tile-stain)))),
+  background: linear-gradient(145deg, #f9d7a041, rgb(98 50 20 / calc(.19 + var(--tile-stain)))),
     var(--shift-maple) var(--tile-grain-x) var(--tile-grain-y) / 195% 195% #d4b58f;
   box-shadow: inset 0 2px 2px #fff1cebd, inset 2px 0 2px #fff1ce72,
     inset 0 -2px 1px #623b238f, inset -2px 0 2px #653e255c;

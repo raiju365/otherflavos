@@ -13,8 +13,8 @@ function woodReflection(pitch, yaw) {
   const horizontal = light.x * cosY - depth * sinY;
   const facing = light.x * sinY + depth * cosY;
   return {
-    x: 50 + 84 * horizontal,
-    y: 50 + 84 * vertical,
+    x: 36 * horizontal,
+    y: 36 * vertical,
     front: clamp(facing) ** 8,
     back: clamp(-facing) ** 8,
   };
@@ -46,23 +46,33 @@ export function slideRelease(offset, speed) {
 export function initShiftBoard(space, object, front, { signal, available, findGap, move, reduced }) {
   let pitch = 17, yaw = -21;
   let gesture = null, motion = null, ignoreClick = false;
+  let frame = 0;
+  const [frontReflection, backReflection] = object.querySelectorAll('.shift-reflection');
   const on = (target, type, listener, options) => target.addEventListener(type, listener, { ...options, signal });
   const direction = (tile, gap) => ({ x: gap.offsetLeft - tile.offsetLeft, y: gap.offsetTop - tile.offsetTop });
   const translation = ({ x, y }, offset) => `${x * offset}px ${y * offset}px`;
 
   function paint() {
-    object.style.setProperty('--shift-pitch', `${pitch}deg`);
-    object.style.setProperty('--shift-yaw', `${yaw}deg`);
+    object.style.setProperty('--shift-orientation', `rotateX(${pitch}deg) rotateY(${yaw}deg)`);
     const gloss = woodReflection(pitch, yaw);
-    object.style.setProperty('--wood-gloss-x', `${gloss.x.toFixed(2)}%`);
-    object.style.setProperty('--wood-gloss-y', `${gloss.y.toFixed(2)}%`);
-    object.style.setProperty('--wood-gloss-front', gloss.front.toFixed(3));
-    object.style.setProperty('--wood-gloss-back', gloss.back.toFixed(3));
+    frontReflection.style.translate = `${gloss.x}% ${gloss.y}%`;
+    frontReflection.style.opacity = gloss.front;
+    backReflection.style.translate = `${-gloss.x}% ${gloss.y}%`;
+    backReflection.style.opacity = gloss.back;
+  }
+
+  function paintDrag() {
+    frame = 0;
+    if (gesture.tile) gesture.tile.style.translate = translation(gesture.track, gesture.progress);
+    else paint();
   }
 
   function releasePointer() {
     const current = gesture;
     if (!current) return;
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    if (current.moved && !current.tile) paint();
     gesture = null;
     delete space.dataset.holding;
     if (current.tile) {
@@ -117,6 +127,7 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
       if (Math.hypot(dx, dy) < (gesture.tile ? 3 : 6)) return;
       gesture.moved = ignoreClick = true;
       space.dataset.holding = 'true';
+      if (gesture.tile) gesture.tile.dataset.sliding = 'true';
       try { space.setPointerCapture(event.pointerId); } catch { /* Window input still tracks the gesture. */ }
     }
     if (gesture.tile) {
@@ -125,13 +136,11 @@ export function initShiftBoard(space, object, front, { signal, available, findGa
       gesture.speed = elapsed < 85 ? (progress - gesture.progress) / elapsed : 0;
       gesture.progress = progress;
       gesture.time = event.timeStamp;
-      gesture.tile.dataset.sliding = 'true';
-      gesture.tile.style.translate = translation(gesture.track, progress);
     } else {
       yaw = (gesture.yaw + dx * .72) % turn;
       pitch = (gesture.pitch - dy * .72) % turn;
-      paint();
     }
+    if (!frame) frame = requestAnimationFrame(paintDrag);
   });
 
   on(window, 'pointerup', event => {

@@ -198,7 +198,7 @@ const abort = new AbortController(); setMaxListeners(0, abort.signal); const con
 check('entry starts no animation and requests no waveform before a track exists', () => { assert.equal(frames.size, 0); assert.equal(requests.length, 0); });
 document.documentElement.dataset.entry = 'ready'; emit(document, 'portfolio:entryready'); step();
 check('the visible About field runs one decorative owner before music, with capped DPR', () => {
-  assert.equal(draws, 1); assert.equal(canvas.width, 600); assert.equal(frames.size, 1);
+  assert.equal(draws, 1); assert.equal(canvas.width, 450); assert.equal(frames.size, 1);
   assert.deepEqual(new Set(corePaths().map(([, , color]) => color)), new Set([fixtureInk]), 'first paint must read the theme ink after unhiding the artwork');
   assert.ok(clipRect[0]>0&&clipRect[1]>0&&clipRect[0]+clipRect[2]<board.rect.width&&clipRect[1]+clipRect[3]<board.rect.height);
 });
@@ -315,11 +315,11 @@ check('a reduced-motion theme change repaints once in the new ink without resumi
 });
 reduced.matches = false; emit(reduced, 'change'); step();
 board.rect = { width: 276, height: 200 }; emit(window, 'resize'); step();
-check('compact About retains visible particles with its own responsive canvas', () => { assert.equal(root.hidden, false); assert.equal(canvas.width, 552); });
+check('compact About retains visible particles with its own responsive canvas', () => { assert.equal(root.hidden, false); assert.equal(canvas.width, 414); });
 aboutPanel.hidden = true; emit(document, 'portfolio:sectionstart'); controller.setProgress(.8);
 check('leaving About stops its particle owner even if playback continues', () => assert.equal(frames.size, 0));
 aboutPanel.hidden = false; board.rect = { width: 1000, height: 240 }; emit(document, 'portfolio:sectionsettled'); step();
-check('returning to About measures the wide surface and resumes one owner', () => { assert.equal(canvas.width, 2000); assert.equal(frames.size, 1); });
+check('returning to About measures the wide surface and resumes one owner', () => { assert.equal(canvas.width, 1500); assert.equal(frames.size, 1); });
 const uninterrupted = root.dataset.motionTime;
 controller.setTrack({waveform:'https://wave.sndcdn.com/transition.json'}); step();
 check('a new song preserves the visible flow phase and never resets the rhythm', () => {

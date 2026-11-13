@@ -171,9 +171,6 @@ export function initPlayGames(panel, signal) {
         const canMove = movable.includes(index) && !solved;
         button.setAttribute('aria-label', value ? `Tile ${value}` : 'Empty space');
         button.setAttribute('aria-disabled', String(!canMove));
-        button.style.setProperty('--tile-grain-x', `${(value * 37) % 101}%`);
-        button.style.setProperty('--tile-grain-y', `${(value * 61) % 101}%`);
-        button.style.setProperty('--tile-stain', (value * 5 % 7) * .017);
       }
     });
     stage.textContent = `Stage ${level + 1} / ${puzzleLevels}`;
@@ -206,6 +203,9 @@ export function initPlayGames(panel, signal) {
       button.className = 'puzzle-tile';
       button.dataset.cell = String(index);
       if (currentGame === 'shift') {
+        button.style.setProperty('--tile-grain-x', `${(value * 37) % 101}%`);
+        button.style.setProperty('--tile-grain-y', `${(value * 61) % 101}%`);
+        button.style.setProperty('--tile-stain', (value * 5 % 7) * .017);
         const face = document.createElement('span');
         face.className = 'shift-tile-face';
         face.setAttribute('aria-hidden', 'true');
@@ -214,11 +214,13 @@ export function initPlayGames(panel, signal) {
         number.dataset.number = value || '';
         face.append(number);
         button.append(face);
-        for (const side of ports) {
-          const edge = document.createElement('span');
-          edge.className = `shift-tile-edge shift-tile-edge--${side}`;
-          edge.setAttribute('aria-hidden', 'true');
-          button.append(edge);
+        if (size < 6) {
+          for (const side of ports) {
+            const edge = document.createElement('span');
+            edge.className = `shift-tile-edge shift-tile-edge--${side}`;
+            edge.setAttribute('aria-hidden', 'true');
+            button.append(edge);
+          }
         }
       } else {
         const frame = document.createElement('span');

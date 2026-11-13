@@ -54,7 +54,8 @@ void main(){
   float opened=uPassage.x;
   float envelope=4.*opened*(1.-opened);
   float across=uPassage.y>0.?vUV.x:1.-vUV.x;
-  float arch=(pow(abs(vUV.y*2.-1.),2.)-.35)*.08*envelope;
+  float rise=vUV.y*2.-1.;
+  float arch=(rise*rise-.35)*.08*envelope;
   float frontier=mix(-.07,1.07,opened)-arch;
   float softness=.016+.012*uPassage.z;
   float aperture=1.-smoothstep(frontier-softness,frontier+softness,across);
@@ -77,10 +78,12 @@ void main(){
   sampleUV.x+=(uPassage.y*(1.-opened)*.008+drive*(glass*.022+lens*.014))*uUVScale.x;
   sampleUV.y+=(vUV.y-.5)*drive*glass*.010*uUVScale.y;
   // Tracking distortion moves all color channels together; no RGB fringe.
-  float row=floor(vUV.y*uSize.y/4.);
-  float signal=sin(row*1.913+opened*23.)*sin(row*.37-opened*11.);
-  float tear=smoothstep(.82,.98,abs(signal))*sign(signal)*glass*energy*.0025;
-  sampleUV.x+=tear*uUVScale.x;
+  if(glass>.001 && energy>.001){
+    float row=floor(vUV.y*uSize.y/4.);
+    float signal=sin(row*1.913+opened*23.)*sin(row*.37-opened*11.);
+    float tear=smoothstep(.82,.98,abs(signal))*sign(signal)*glass*energy*.0025;
+    sampleUV.x+=tear*uUVScale.x;
+  }
   sampleUV=clamp(sampleUV,vec2(0.),vec2(1.));
   vec4 color=texture2D(uImage,vec2(sampleUV.x,1.-sampleUV.y));
   float shadow=(1.-smoothstep(0.,.10,edgeDistance))*envelope*.075;

@@ -43,7 +43,6 @@
 
 .conduit-preview {
   transform: perspective(650px) rotateX(15deg) rotateZ(7deg);
-  filter: drop-shadow(1px 2px 1px #0c0e0dbd) drop-shadow(3px 7px 4px #0b0d0c74);
 }
 .conduit-preview-cell { position: relative; }
 .conduit-preview-fitting { position: absolute; inset: 0; }
@@ -78,7 +77,6 @@
   place-items: center;
   color: #392c21;
   background: var(--tile-face, url('/play/shift-1.webp')) center / 100% 100% no-repeat;
-  filter: drop-shadow(1px 2px 1px #1a130fb5);
   font: 650 clamp(7px, min(7cqw, 7cqh), 24px)/1 'Instrument Serif', Georgia, serif;
   text-shadow: 0 1px #f7e4bd75;
 }

@@ -60,25 +60,32 @@ export function initProjectGallery({signal,projects,onOpen}) {
         state.project=slot.project;const project=projects[slot.project],image=mediaPath(project.image)||'';
         state.image.src=image;state.button.dataset.index=String(slot.project);
       }
-      const {element}=state;
-      const resized=state.width!==pose.width;
-      if(resized){state.width=pose.width;element.style.width=`${pose.width}px`;element.style.height=`${pose.height}px`;}
-      element.style.opacity=String(pose.opacity);element.style.zIndex=String(100-Math.round(Math.abs(slot.relative)*20));
-      state.button.style.pointerEvents=!departure&&pose.opacity>.1&&pose.reveal>.03?'auto':'none';
-      const concealed=(1-pose.reveal)*100;
-      state.button.style.clipPath=`inset(0 ${pose.edgeSide>0?concealed:0}% 0 ${pose.edgeSide<0?concealed:0}% round 14px)`;
-      element.style.transform=`translate3d(${pose.x-pose.width/2}px,${pose.y-pose.height/2}px,${pose.z}px) rotate${pose.vertical?'X':'Y'}(${pose.vertical?-pose.turn:pose.turn}deg) rotateZ(${pose.roll}deg) scale(${pose.scale})`;
       cards.push({slot:state.slot,relative:slot.relative,project:state.project,source:mediaPath(projects[state.project].image)||'',pose});
     });
     lastCards=cards;
     const rendered=surface?.draw(cards,width,height,window.devicePixelRatio||1);
     paintedCards=cards.filter(card=>rendered?.has(card.slot));
-    slots.forEach(state=>{
-      const status=surface?.status(mediaPath(projects[state.project].image)||'');
+    cards.forEach(({slot, source, relative, pose})=>{
+      const state=slots[slot];
+      const status=surface?.status(source);
       // A pending GPU texture is not a failure: don't flash a flat DOM card.
       // Only a genuine image/upload/context failure enables that fallback.
-      state.element.dataset.gpu=String(Boolean(rendered?.has(state.slot)||status==='loading'||status==='ready'));
-      if(state.element.dataset.gpu==='true')state.button.style.pointerEvents='none';
+      const gpu=Boolean(rendered?.has(slot)||status==='loading'||status==='ready');
+      const {element,button}=state;
+      if(state.gpu!==gpu){
+        state.gpu=gpu;element.dataset.gpu=String(gpu);
+        if(gpu)button.style.pointerEvents='none';
+      }
+      if(gpu)return;
+      if(state.width!==pose.width||state.height!==pose.height){
+        state.width=pose.width;state.height=pose.height;
+        element.style.width=`${pose.width}px`;element.style.height=`${pose.height}px`;
+      }
+      element.style.opacity=String(pose.opacity);element.style.zIndex=String(100-Math.round(Math.abs(relative)*20));
+      button.style.pointerEvents=!departure&&pose.opacity>.1&&pose.reveal>.03?'auto':'none';
+      const concealed=(1-pose.reveal)*100;
+      button.style.clipPath=`inset(0 ${pose.edgeSide>0?concealed:0}% 0 ${pose.edgeSide<0?concealed:0}% round 14px)`;
+      element.style.transform=`translate3d(${pose.x-pose.width/2}px,${pose.y-pose.height/2}px,${pose.z}px) rotate${pose.vertical?'X':'Y'}(${pose.vertical?-pose.turn:pose.turn}deg) rotateZ(${pose.roll}deg) scale(${pose.scale})`;
     });
     updateCaption();
   }

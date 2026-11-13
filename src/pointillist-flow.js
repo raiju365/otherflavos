@@ -108,25 +108,27 @@ export function projectPointillistField(field, state) {
     const roll = u * twist + .4 * Math.sin(5 * u - .86 * phase) + flow * 1.02 + .48;
     const cosRoll = Math.cos(roll);
     const sinRoll = Math.sin(roll);
+    const wideCos = wide * cosRoll, wideSin = wide * sinRoll;
+    const thinCos = thin * cosRoll, thinSin = thin * sinRoll;
 
     for (let row = 0; row < rows; row++) {
       const index = (column * rows + row) * 4;
       const cos = samples[index];
       const sin = samples[index + 1];
       const grain = samples[index + 3];
-      const y = centerY + cos * wide * cosRoll - sin * thin * sinRoll;
-      const z = centerZ + cos * wide * sinRoll + sin * thin * cosRoll;
+      const y = centerY + cos * wideCos - sin * thinSin;
+      const z = centerZ + cos * wideSin + sin * thinCos;
       const x = (u + samples[index + 2] * 2 / columns) * halfWidth;
       const perspective = 1 / (1 - z * .14);
 
       // The ellipse normal shades the curved surface. The rear face is
       // sparse and translucent, so its dots suggest depth through the front.
-      const normalY = cos * thin * cosRoll - sin * wide * sinRoll;
-      const normalZ = cos * thin * sinRoll + sin * wide * cosRoll;
-      const normalLength = Math.sqrt(normalY * normalY + normalZ * normalZ);
-      const facing = normalZ / normalLength;
+      const normalY = cos * thinCos - sin * wideSin;
+      const normalZ = cos * thinSin + sin * wideCos;
+      const invLength = 1 / Math.sqrt(normalY * normalY + normalZ * normalZ);
+      const facing = normalZ * invLength;
       const front = smooth((facing + .25) / .85);
-      const lit = clamp((normalZ * .68 - normalY * .74) / normalLength);
+      const lit = clamp((normalZ * .68 - normalY * .74) * invLength);
       const silhouette = 1 - Math.abs(facing);
       const rim = silhouette * silhouette;
       const opacity = (.035 + front * (.34 + lit * .51) + rim * .14 + body * .02)
@@ -224,6 +226,7 @@ export function createPointillistRenderer(canvas) {
   let array = null;
   let buffer = null;
   let uniforms = null;
+  let inkValue, inkChannels;
   function compile(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -293,7 +296,11 @@ export function createPointillistRenderer(canvas) {
       gl.bufferData(gl.ARRAY_BUFFER, dots, gl.STREAM_DRAW);
       gl.uniform2f(uniforms.size, field.width, field.height);
       gl.uniform1f(uniforms.ratio, ratio);
-      gl.uniform3fv(uniforms.ink, themeInkRGB(ink));
+      if (ink !== inkValue || !inkChannels) {
+        inkValue = ink;
+        inkChannels = themeInkRGB(ink);
+      }
+      gl.uniform3fv(uniforms.ink, inkChannels);
       gl.drawArrays(gl.POINTS, 0, field.count);
       gl.bindVertexArray(null);
       gl.bindBuffer(gl.ARRAY_BUFFER, null);

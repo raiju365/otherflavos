@@ -55,7 +55,7 @@ export async function initFigure(canvas, signal) {
   const listeners = new AbortController();
   const dialog = document.querySelector('#project-detail');
   let frame = 0, visible = true, pageActive = true, disposed = false, sectionMoving = false;
-  let elapsed = 0, lastTime = null, lastPaint = null;
+  let elapsed = 0, lastTime = null, lastPaint = null, interval = 1000 / 24;
   let inkColor = '';
   const on = (target, type, listener) => target?.addEventListener(type, listener, {
     signal: listeners.signal, passive: true,
@@ -92,7 +92,8 @@ export async function initFigure(canvas, signal) {
   function resize() {
     if (disposed) return;
     const ratio = Math.min(devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round((canvas.clientWidth || width) * ratio));
+    const displayWidth = canvas.clientWidth || width;
+    const w = Math.max(1, Math.round(displayWidth * ratio));
     const h = Math.max(1, Math.round((canvas.clientHeight || height) * ratio));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
@@ -101,6 +102,7 @@ export async function initFigure(canvas, signal) {
     ctx.setTransform(w / width, 0, 0, h / height, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    interval = 1000 / (displayWidth < 140 ? 18 : 24);
     palette();
     draw();
   }
@@ -121,7 +123,6 @@ export async function initFigure(canvas, signal) {
     }
     if (lastTime !== null) elapsed += Math.max(0, Math.min(100, now - lastTime));
     lastTime = now;
-    const interval = 1000 / (canvas.clientWidth < 140 ? 18 : 24);
     if (lastPaint === null || now - lastPaint >= interval) {
       draw();
       lastPaint = lastPaint === null ? now : now - (now - lastPaint) % interval;

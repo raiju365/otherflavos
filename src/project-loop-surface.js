@@ -4,7 +4,7 @@ import {LOOP_VERTEX,LOOP_FRAGMENT} from './project-loop-shaders.js';
 export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
   if(!canvas||signal.aborted||typeof canvas.getContext!=='function')return null;
   let gl;
-  try{gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:true,depth:true,powerPreference:'low-power'});}catch{return null;}
+  try{gl=canvas.getContext('webgl',{alpha:true,antialias:false,premultipliedAlpha:true,depth:true,powerPreference:'low-power'});}catch{return null;}
   if(!gl||typeof gl.createShader!=='function')return null;
   const resources=[],textures=new Map();let dead=false;
   const own=(kind,value)=>{if(!value)throw Error(`Cannot allocate ${kind}`);resources.push([kind,value]);return value;};
@@ -21,7 +21,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
     });
     const program=own('Program',gl.createProgram());shaders.forEach(shader=>gl.attachShader(program,shader));gl.linkProgram(program);
     if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error('Gallery program failed');
-    const mesh=createLoopMesh(),vertices=own('Buffer',gl.createBuffer()),indices=own('Buffer',gl.createBuffer());
+    const mesh=createLoopMesh(36,20),vertices=own('Buffer',gl.createBuffer()),indices=own('Buffer',gl.createBuffer());
     gl.bindBuffer(gl.ARRAY_BUFFER,vertices);gl.bufferData(gl.ARRAY_BUFFER,mesh.uv,gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indices);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,mesh.indices,gl.STATIC_DRAW);
     const attribute=gl.getAttribLocation(program,'aUV');
@@ -59,7 +59,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
       },
       draw(cards,width,height,ratio=1){
         const rendered=new Set();if(dead||signal.aborted||!isActive()){canvas.hidden=true;return rendered;}
-        const dpr=Math.min(width<=800?1.25:1.75,Math.max(1,ratio)),w=Math.round(width*dpr),h=Math.round(height*dpr);
+        const dpr=Math.min(width<=800?1:1.5,Math.max(1,ratio)),w=Math.round(width*dpr),h=Math.round(height*dpr);
         if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
         canvas.hidden=false;gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,vertices);gl.enableVertexAttribArray(attribute);gl.vertexAttribPointer(attribute,2,gl.FLOAT,false,0,0);

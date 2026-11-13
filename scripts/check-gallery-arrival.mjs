@@ -95,9 +95,9 @@ for(const width of [360,768,1280]){
 }
 {
  const f=fixture({gpu:true});f.enter();
- check('pending GPU textures do not consume the entrance or start an idle polling loop',()=>{assert.equal(f.images.length,3);assert.equal(f.frames.size,0);assert.equal(Number(f.slots[0].element.style.opacity),0);});
+ check('pending GPU textures do not consume the entrance or start an idle polling loop',()=>{assert.equal(f.images.length,3);assert.equal(f.frames.size,0);assert.equal(f.slots[0].element.dataset.gpu,'true');});
  f.images[0].load();assert.equal(f.frames.size,0);f.images.slice(1).forEach(image=>image.load());
- check('real texture readiness starts exactly one entrance from zero',()=>{assert.equal(f.frames.size,1);assert.equal(Number(f.slots[0].element.style.opacity),0);});
+ check('real texture readiness starts exactly one entrance from zero',()=>{assert.equal(f.frames.size,1);assert.equal(f.slots[0].element.style.transform,undefined);});
  f.step();check('GPU cards receive partial opacity instead of appearing fully formed',()=>assert.ok(f.calls.some(call=>call[0]==='uniform1f'&&call[1]==='uOpacity'&&call[2]>0&&call[2]<1)));
  const pending=[...f.frames.keys()],calls=f.calls.length;f.resize.callback();
  check('header resizing batches its redraw into the existing gallery frame',()=>{assert.deepEqual([...f.frames.keys()],pending);assert.equal(f.calls.length,calls);});
