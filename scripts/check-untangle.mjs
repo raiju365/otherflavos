@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
-import { boardLayout, cameraProjection, createKnot, findContacts, frameView, movePoint, stageCount } from '../src/untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, findContacts, frameView, movePoint, stageCount, untangleHint } from '../src/untangle-model.js';
 import { initUntangle } from '../src/untangle.js';
 
 const passed = [];
@@ -17,7 +17,7 @@ function rng(seed) {
 }
 
 check('five stages generate distinct solvable layouts with increasing complexity', () => {
-  const minima = [1, 3, 8, 18, 45];
+  const minima = [4, 9, 20, 34, 58];
   for (let level = 0; level < stageCount; level++) {
     const arrangements = new Set(), connections = new Set();
     for (let seed = 1; seed <= 100; seed++) {
@@ -37,6 +37,26 @@ check('five stages generate distinct solvable layouts with increasing complexity
     }
     assert.equal(arrangements.size, 100);
     assert.ok(connections.size > 1);
+  }
+});
+
+check('hints reduce current spatial contacts or converge to the clear embedding', () => {
+  for (let level = 0; level < stageCount; level++) {
+    const knot = createKnot(level, rng(200 + level));
+    const points = knot.points.slice();
+    const layout = boardLayout(344, 332);
+    let restore = false, contacts = findContacts(points, knot.edges);
+    for (let step = 0; contacts.length && step < 140; step++) {
+      const camera = cameraProjection(layout, .32, -.18, frameView(points));
+      const hint = untangleHint(points, knot, contacts, camera, layout, restore);
+      assert(hint);
+      if (!hint.reframe) assert(hint.count < contacts.length);
+      restore ||= hint.reframe === true;
+      assert(movePoint(points, hint.index, hint.target));
+      contacts = findContacts(points, knot.edges);
+      assert.equal(contacts.length, hint.count);
+    }
+    assert.equal(contacts.length, 0);
   }
 });
 
@@ -132,7 +152,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   const panel = new Element(), root = new Element();
   const elements = Object.fromEntries([
     '[data-play-field]', 'canvas', '[data-play-nodes]', '[data-play-knot]', '[data-play-status]',
-    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-new]', '[data-play-next]',
+    '[data-play-live]', '[data-play-front]', '[data-play-reset]', '[data-play-new]', '[data-play-next]', '[data-play-hint]', '[data-play-hint-target]',
     '.play-toolbar', '[data-play-highlight]', '[data-play-fallback]',
   ].map(name => [name, new Element()]));
   const field = elements['[data-play-field]'], canvas = elements.canvas;
@@ -215,6 +235,7 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
   }
   return {
     abort, panel, field, canvas, nodes, status, front, reset, newKnot, next, label, live, frames, observers, strokes, rect, nextExpected, fit, sideView,
+    hint: elements['[data-play-hint]'], hintTarget: elements['[data-play-hint-target]'],
     fallback: elements['[data-play-fallback]'], toolbar: elements['.play-toolbar'],
     pointAt, grab, send, drag,
     step(now = 0) {
@@ -326,8 +347,14 @@ function fixture({ reduced = false, canvasSupport = true } = {}) {
 {
   const f = fixture();
   const first = f.nextExpected(0);
-  const index = first.order[0], from = first.points[index], to = first.solution[index];
-  f.drag(index, [from.x, from.y], [to.x, to.y]);
+  assert.ok(findContacts(first.points, first.edges).length >= 4);
+  for (let step = 0; f.next.hidden && step < 140; step++) {
+    emit(f.hint, 'click');
+    f.step(step * 20);
+    assert.equal(f.hintTarget.hidden, false);
+    emit(f.hintTarget, 'click');
+    assert.equal(f.hintTarget.hidden, true);
+  }
   assert.equal(f.next.hidden, false);
   emit(f.next, 'click');
   const knot = f.nextExpected(1);

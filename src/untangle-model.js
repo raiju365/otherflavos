@@ -61,7 +61,7 @@ export function boardLayout(width, height) {
 }
 
 
-const stages = [[3, 2, 1, 1], [3, 3, 3, 3], [4, 3, 6, 8], [4, 4, 10, 18], [5, 5, 20, 45]];
+const stages = [[3, 3, 3, 4], [4, 3, 5, 9], [4, 4, 8, 20], [5, 4, 13, 34], [5, 5, 20, 58]];
 
 export function createKnot(level, random = Math.random) {
   const [columns, rows, moves, minimum] = stages[level];
@@ -117,6 +117,47 @@ export function createKnot(level, random = Math.random) {
     const first = best.points[c], second = best.points[d];
     best.points[a] = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2, z: (first.z + second.z) / 2 };
     best.order = [...best.order.filter(index => index !== a), a];
+  }
+  return best;
+}
+
+export function untangleHint(points, knot, contacts, camera, layout, restore = false) {
+  if (!contacts.length) return null;
+  const involved = restore ? [] : new Set(contacts.flatMap(({ edges }) => edges.flatMap(index => knot.edges[index])));
+  let best = null;
+  let fewest = contacts.length;
+  const trial = points.slice();
+  for (const index of involved) {
+    const origin = points[index];
+    const from = camera.project(origin);
+    for (const reach of [.18, .34]) {
+      for (let step = 0; step < 8; step++) {
+        const angle = step * Math.PI / 4;
+        const dx = Math.cos(angle) * layout.size * reach, dy = Math.sin(angle) * layout.size * reach;
+        if (from.x + dx < 21 || from.x + dx > layout.width - 21
+          || from.y + dy < 21 || from.y + dy > layout.height - 21) continue;
+        const target = camera.move(origin, dx, dy);
+        trial[index] = target;
+        const count = findContacts(trial, knot.edges).length;
+        if (count < fewest) {
+          best = { index, target, count };
+          fewest = count;
+          if (!count) return best;
+        }
+      }
+    }
+    trial[index] = origin;
+  }
+  if (best) return best;
+
+  // The generated embedding is a complete solution even after arbitrary drags.
+  for (let index = 0; index < points.length; index++) {
+    const target = knot.solution[index];
+    if (distance(points[index], target) < epsilon) continue;
+    trial[index] = target;
+    const count = findContacts(trial, knot.edges).length;
+    trial[index] = points[index];
+    if (!best || count < best.count) best = { index, target, count, reframe: true };
   }
   return best;
 }

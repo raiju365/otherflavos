@@ -26,11 +26,17 @@ export function shiftDistance(tiles, size) {
   }, 0);
 }
 
-const circuitStages = [[3, 4], [4, 8], [4, 13], [5, 20], [6, 31]];
+const circuitStages = [[3, 6], [4, 12], [5, 20], [6, 30], [6, 36]];
 const shiftStages = [[3, 10, 4], [4, 24, 9], [5, 44, 16], [6, 76, 24], [7, 128, 38]];
 
 export function turnCircuit(mask) {
   return ((mask << 1) | (mask >> 3)) & 15;
+}
+
+function rotations(mask) {
+  const orientations = [mask];
+  for (let next = turnCircuit(mask); next !== mask; next = turnCircuit(next)) orientations.push(next);
+  return orientations;
 }
 
 function portBetween(from, to, size) {
@@ -60,6 +66,15 @@ export function traceConduit(tiles, size, source) {
   return connected;
 }
 
+export function conduitHint(tiles, size, source, solution) {
+  // Walk the solution from the pump so upstream corrections come first.
+  for (const [index, { inlet }] of traceConduit(solution, size, source)) {
+    const turns = rotations(tiles[index]).indexOf(solution[index]);
+    if (turns > 0) return { index, turns, inlet };
+  }
+  return null;
+}
+
 function circuitPuzzle(level, random) {
   const [size, moves] = circuitStages[level];
   const count = size * size;
@@ -68,7 +83,9 @@ function circuitPuzzle(level, random) {
   const connected = new Set([source]);
   const frontier = neighbors(source, size).map(next => [source, next]);
   while (connected.size < count) {
-    const [from, to] = frontier.splice(Math.floor(random() * frontier.length), 1)[0];
+    // Bias later stages toward recent branches to grow longer runs through the board.
+    const offset = Math.floor((1 - random() ** (1 + level * .45)) * frontier.length);
+    const [from, to] = frontier.splice(Math.min(frontier.length - 1, offset), 1)[0];
     if (connected.has(to)) continue;
     tiles[from] |= portBetween(from, to, size);
     tiles[to] |= portBetween(to, from, size);
@@ -77,23 +94,18 @@ function circuitPuzzle(level, random) {
       if (!connected.has(next)) frontier.push([to, next]);
     }
   }
-  const choices = Array.from({ length: count }, (_, index) => index);
-  for (let move = 0; move < moves; move++) {
+  const solution = tiles.slice();
+  const choices = tiles.flatMap((mask, index) => turnCircuit(mask) !== mask ? [index] : []);
+  for (let move = 0; move < moves && choices.length; move++) {
     const [index] = choices.splice(Math.floor(random() * choices.length), 1);
-    const orientations = new Set();
-    let rotated = tiles[index];
-    for (let turn = 0; turn < 3; turn++) {
-      rotated = turnCircuit(rotated);
-      if (rotated !== tiles[index]) orientations.add(rotated);
-    }
-    const options = [...orientations];
-    if (options.length) tiles[index] = options[Math.floor(random() * options.length)];
+    const options = rotations(tiles[index]);
+    tiles[index] = options[1 + Math.floor(random() * (options.length - 1))];
   }
   if (traceConduit(tiles, size, source).size === count) {
     const terminal = tiles.findIndex(mask => (mask & (mask - 1)) === 0);
     tiles[terminal] = turnCircuit(tiles[terminal]);
   }
-  return { size, tiles, source };
+  return { size, tiles, source, solution };
 }
 
 function slidingPuzzle(level, random) {

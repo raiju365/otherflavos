@@ -3,11 +3,11 @@ import { initUntanglePreview } from './untangle-preview.js';
 import { initPlayCardMotion } from './play-card-motion.js';
 import { initShiftBoard } from './shift-board.js';
 import { createConduitFitting } from './conduit-fittings.js';
-import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
+import { conduitHint, createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
 
 const games = {
   untangle: { title: 'Untangle', help: 'Drag points apart. Drag the background to orbit.' },
-  conduit: { title: 'Conduit', help: 'Turn the pipes to fill them from the water source.' },
+  conduit: { title: 'Conduit', help: 'Connect every pipe to the pump and seal every leak.' },
   shift: { title: 'Shift', help: 'Drag the frame to turn it. Slide tiles into the gap.' },
 };
 
@@ -70,10 +70,11 @@ export function initPlayGames(panel, signal) {
   const reset = panel.querySelector('[data-puzzle-reset]');
   const fresh = panel.querySelector('[data-puzzle-new]');
   const next = panel.querySelector('[data-puzzle-next]');
+  const hint = panel.querySelector('[data-puzzle-hint]');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const sessions = new Map();
   const on = (target, event, listener) => target.addEventListener(event, listener, { signal });
-  let currentGame, opener, untangleControls, buttons = [], focused = 0;
+  let currentGame, opener, untangleControls, buttons = [], focused = 0, hintedPipe;
   const fillEnds = new Map();
 
   const available = () => !panel.hidden && !panel.inert
@@ -92,12 +93,12 @@ export function initPlayGames(panel, signal) {
 
   function createSession(game, level) {
     const previous = sessions.get(game);
-    let { size, tiles, source } = createPuzzle(game, level);
+    let puzzle = createPuzzle(game, level);
     for (let retry = 0; retry < 8 && previous?.level === level
-      && tiles.every((value, index) => value === previous.starting[index]); retry++) {
-      ({ size, tiles, source } = createPuzzle(game, level));
+      && puzzle.tiles.every((value, index) => value === previous.starting[index]); retry++) {
+      puzzle = createPuzzle(game, level);
     }
-    const state = { level, size, source, starting: tiles, tiles: tiles.slice(), solved: false };
+    const state = { ...puzzle, level, starting: puzzle.tiles, tiles: puzzle.tiles.slice(), solved: false };
     sessions.set(game, state);
     return state;
   }
@@ -146,7 +147,7 @@ export function initPlayGames(panel, signal) {
     const movable = circuit ? [] : neighbors(tiles.indexOf(0), size);
     if (circuit) {
       paintWater(water, tiles, size, turning);
-      state.solved = water.size === tiles.length;
+      state.solved = water.size === tiles.length && tiles.every((_, index) => !openConduitPorts(tiles, size, index));
     }
     const { solved } = state;
     const count = circuit ? water.size
@@ -172,13 +173,20 @@ export function initPlayGames(panel, signal) {
     });
     stage.textContent = `Stage ${level + 1} / ${puzzleLevels}`;
     status.textContent = solved ? (level === puzzleLevels - 1 ? 'All stages cleared' : 'Stage cleared')
-      : circuit ? `${count} / ${tiles.length} filled`
+      : circuit ? (count === tiles.length ? 'All filled · seal the leaks' : `${count} / ${tiles.length} filled`)
         : `${count} / ${tiles.length - 1} in place`;
     next.textContent = level === puzzleLevels - 1 ? 'Play again' : 'Next level';
     next.hidden = !solved;
+    hint.hidden = !circuit || solved;
+  }
+
+  function clearPipeHint() {
+    if (hintedPipe) delete hintedPipe.dataset.hinted;
+    hintedPipe = undefined;
   }
 
   function buildBoard(focus = false) {
+    clearPipeHint();
     fillEnds.clear();
     shiftBoard.clear();
     const { size, tiles, source } = current();
@@ -283,6 +291,20 @@ export function initPlayGames(panel, signal) {
 
   on(back, 'click', closeGame);
 
+  on(hint, 'click', () => {
+    if (screen.hidden || !available() || currentGame !== 'conduit' || current().solved) return;
+    const { size, source, tiles, solution } = current();
+    const move = conduitHint(tiles, size, source, solution);
+    if (!move) return;
+    clearPipeHint();
+    hintedPipe = buttons[move.index];
+    hintedPipe.dataset.hinted = 'true';
+    const pipe = move.index === source ? 'Pump' : `Pipe ${move.index + 1}`;
+    const inlet = ports.find((_, side) => move.inlet === (1 << side));
+    status.textContent = `${pipe} · turn ${move.turns}× clockwise${inlet ? ` · inlet ${inlet}` : ''}`;
+    hintedPipe.focus({ preventScroll: true });
+  });
+
   on(board, 'focusin', event => {
     const index = Number(event.target.dataset.cell);
     if (!Number.isInteger(index) || current().solved) return;
@@ -331,6 +353,7 @@ export function initPlayGames(panel, signal) {
       moveShift(index);
       return;
     }
+    clearPipeHint();
     state.tiles[index] = turnCircuit(state.tiles[index]);
     const tile = buttons[index];
     const angle = Number.parseInt(tile.style.getPropertyValue('--circuit-angle'), 10);

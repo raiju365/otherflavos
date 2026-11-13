@@ -123,6 +123,7 @@
 
 .puzzle-tile:focus-visible { outline: 2px solid white; outline-offset: -3px; z-index: 2; }
 .puzzle-board[data-game=conduit] .puzzle-tile:focus-visible { outline-color: var(--fg); }
+.puzzle-board[data-game=conduit] .puzzle-tile[data-hinted=true] { outline: 2px solid var(--accent-copy); outline-offset: -3px; z-index: 2; }
 @media (hover: hover) {
   .puzzle-board[data-game=conduit] .puzzle-tile:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 21%, transparent); }
 }

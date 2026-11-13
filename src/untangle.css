@@ -41,6 +41,15 @@
 }
 
 .play-field canvas { pointer-events: none; }
+.play-hint-target {
+  position: absolute;
+  z-index: 120;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.play-hint-target:focus-visible { border-radius: 50%; outline-offset: 0; }
 
 .play-node {
   position: absolute;

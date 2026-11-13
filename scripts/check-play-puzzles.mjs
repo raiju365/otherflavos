@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
+import { conduitHint, createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from '../src/play-puzzles.js';
 import { slideProgress, slideRelease } from '../src/shift-board.js';
 
 // A board turned in perspective can show a local horizontal slide on a diagonal.
@@ -71,7 +71,18 @@ for (let level = 0; level < puzzleLevels; level++) {
     assert.ok(circuit.tiles.every(mask => mask > 0 && mask <= 15));
     assert.ok(traceConduit(circuit.tiles, circuit.size, circuit.source).size < circuit.tiles.length);
     assert.ok(canConnect(circuit), `Conduit stage ${level + 1}, seed ${seed}`);
+    assert.equal(circuit.size, [3, 4, 5, 6, 6][level]);
     circuitLayouts.add(circuit.tiles.join(','));
+    const rotated = circuit.tiles.slice();
+    rotated[circuit.source] = turnCircuit(rotated[circuit.source]);
+    for (let step = 0; step < rotated.length; step++) {
+      const hint = conduitHint(rotated, circuit.size, circuit.source, circuit.solution);
+      if (!hint) break;
+      for (let turn = 0; turn < hint.turns; turn++) rotated[hint.index] = turnCircuit(rotated[hint.index]);
+    }
+    assert.deepEqual(rotated, circuit.solution);
+    assert.equal(traceConduit(rotated, circuit.size, circuit.source).size, rotated.length);
+    assert(rotated.every((_, index) => !openConduitPorts(rotated, circuit.size, index)));
     const shift = createPuzzle('shift', level, rng(seed));
     const { size, tiles } = shift;
     assert.equal(size, [3, 4, 5, 6, 7][level]);

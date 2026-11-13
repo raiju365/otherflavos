@@ -1,4 +1,4 @@
-import { boardLayout, cameraProjection, createKnot, distance, findContacts, frameView, maxPoints, movePoint, stageCount } from './untangle-model.js';
+import { boardLayout, cameraProjection, createKnot, distance, findContacts, frameView, maxPoints, movePoint, stageCount, untangleHint } from './untangle-model.js';
 
 const pulseDuration = 880;
 const arrows = {
@@ -18,6 +18,8 @@ export function initUntangle(root, signal, random = Math.random) {
   const reset = root.querySelector('[data-play-reset]');
   const newKnot = root.querySelector('[data-play-new]');
   const front = root.querySelector('[data-play-front]');
+  const hintButton = root.querySelector('[data-play-hint]');
+  const hintTarget = root.querySelector('[data-play-hint-target]');
   const next = root.querySelector('[data-play-next]');
   const toolbar = root.querySelector('.play-toolbar');
   const highlight = root.querySelector('[data-play-highlight]');
@@ -38,6 +40,7 @@ export function initUntangle(root, signal, random = Math.random) {
   let points = [], contacts = [];
   let solved = false, selected = -1, drag = null;
   let activeAction = null;
+  let hint = null, restoreHints = false;
   let layout = null, frame = 0, pulse = null;
   let ratio = 1, ink = '', accent = '';
   const buttons = Array.from({ length: maxPoints }, (_, index) => {
@@ -63,6 +66,7 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function syncSelection() {
+    if (hint && selected !== hint.index) clearHint();
     buttons.forEach((button, index) => {
       button.setAttribute('aria-pressed', String(!solved && index === selected));
     });
@@ -90,6 +94,7 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   function finishMove(index) {
+    clearHint();
     const projection = camera();
     if (points.some(point => {
       const { x, y } = projection.project(point);
@@ -107,6 +112,7 @@ export function initUntangle(root, signal, random = Math.random) {
     status.textContent = level === stageCount - 1 ? 'All knots untangled' : 'Knot untangled';
     next.textContent = level === stageCount - 1 ? 'Play again' : 'Next knot';
     next.hidden = false;
+    hintButton.hidden = true;
     newKnot.hidden = level === stageCount - 1;
     if (activeAction) highlightAction(activeAction.hidden ? null : activeAction);
     const restoreFocus = nodes.contains(document.activeElement);
@@ -125,6 +131,8 @@ export function initUntangle(root, signal, random = Math.random) {
     yaw = .23;
     pitch = -.24;
     points = knot.points.slice();
+    clearHint();
+    restoreHints = false;
     view = frameView(points);
     field.dataset.dense = String(points.length > 16);
     vibrations.clear();
@@ -137,6 +145,7 @@ export function initUntangle(root, signal, random = Math.random) {
     status.textContent = contactLabel();
     newKnot.hidden = false;
     next.hidden = true;
+    hintButton.hidden = false;
     buttons.forEach((button, i) => {
       button.hidden = i >= points.length;
       button.disabled = false;
@@ -156,6 +165,40 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   const camera = draggedPoint => cameraProjection(layout, yaw, pitch, view, draggedPoint);
+
+  function clearHint() {
+    if (!hint) return;
+    delete buttons[hint.index].dataset.hinted;
+    hint = null;
+    hintTarget.hidden = true;
+    status.textContent = contactLabel();
+    schedule();
+  }
+
+  function showHint() {
+    if (!playable() || drag || orbit) return;
+    const move = untangleHint(points, knot, contacts, camera(), layout, restoreHints);
+    if (!move) return;
+    clearHint();
+    hint = move;
+    if (move.reframe) {
+      restoreHints = true;
+      const origin = points[move.index];
+      yaw = Math.atan2(move.target.z - origin.z, move.target.x - origin.x);
+      pitch = 0;
+      view = frameView([...points, move.target]);
+    }
+    selected = move.index;
+    orbitMoved = false;
+    syncSelection();
+    buttons[move.index].dataset.hinted = 'true';
+    hintTarget.hidden = false;
+    highlightAction(hintButton, true);
+    const improvement = contacts.length - move.count;
+    status.textContent = improvement > 0 ? `Point ${move.index + 1} → ring (−${improvement})` : `Point ${move.index + 1} → ring`;
+    announce(`Point ${move.index + 1} selected. Drag it to the ring, or tap the ring to move there.${improvement > 0 ? ` This removes ${improvement} contacts.` : ' This step works toward a clear arrangement.'}`);
+    schedule();
+  }
 
   function stroke(a, b, color, opacity, width) {
     ctx.strokeStyle = color;
@@ -257,6 +300,14 @@ export function initUntangle(root, signal, random = Math.random) {
       if (index % markerStep === 0) ring(projection.project(crossing), 3.8, .84);
     });
 
+    if (hint) {
+      const target = projection.project(hint.target);
+      hintTarget.style.left = `${target.x}px`;
+      hintTarget.style.top = `${target.y}px`;
+      stroke(vertices[hint.index], target, accent, .72, 1.3);
+      ring(target, 10, 1);
+    }
+
     vertices.forEach(({ x, y, z, scale }, index) => {
       const style = buttons[index].style;
       style.left = `${x}px`;
@@ -320,6 +371,7 @@ export function initUntangle(root, signal, random = Math.random) {
 
   function resetView() {
     if (!available() || drag) return;
+    clearHint();
     highlightAction(front, true);
     yaw = pitch = 0;
     view = frameView(points);
@@ -327,9 +379,19 @@ export function initUntangle(root, signal, random = Math.random) {
   }
 
   on(front, 'click', resetView);
+  on(hintButton, 'click', showHint);
+  on(hintTarget, 'click', event => {
+    event.stopPropagation();
+    if (!hint || !playable() || drag) return;
+    const { index, target } = hint;
+    if (!place(index, target)) return;
+    buttons[index].focus({ preventScroll: true });
+    finishMove(index);
+  });
   on(front, 'keydown', event => {
     if (!available() || drag || !Object.hasOwn(arrows, event.key)) return;
     event.preventDefault();
+    clearHint();
     const [x, y] = arrows[event.key];
     yaw += x * .18;
     pitch += y * .18;
@@ -339,7 +401,7 @@ export function initUntangle(root, signal, random = Math.random) {
   on(field, 'pointerdown', event => {
     if (!available() || !layout || drag || orbit || event.button !== 0 || event.isPrimary === false) return;
     orbitMoved = false;
-    if (event.target.closest?.('[data-play-node]')) return;
+    if (event.target === hintTarget || event.target.closest?.('[data-play-node]')) return;
     orbit = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw, pitch };
   });
 
@@ -347,6 +409,7 @@ export function initUntangle(root, signal, random = Math.random) {
     if (orbit?.id !== event.pointerId || !available()) return;
     const x = event.clientX - orbit.x, y = event.clientY - orbit.y;
     if (!orbitMoved && Math.hypot(x, y) < 5) return;
+    clearHint();
     orbitMoved = true;
     field.dataset.orbiting = 'true';
     yaw = (orbit.yaw + x * .013) % (Math.PI * 2);
@@ -423,8 +486,10 @@ export function initUntangle(root, signal, random = Math.random) {
     if (!drag.moved) {
       if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4) return;
       drag.moved = true;
-      selected = -1;
-      syncSelection();
+      if (hint?.index !== drag.index) {
+        selected = -1;
+        syncSelection();
+      }
     }
     const target = drag.projection.move(drag.origin, event.clientX - drag.x, event.clientY - drag.y);
     place(drag.index, target);
@@ -440,7 +505,15 @@ export function initUntangle(root, signal, random = Math.random) {
     }
     trackDrag(event);
     const current = releaseDrag();
-    if (current.moved) finishMove(current.index);
+    if (current.moved) {
+      if (hint?.index === current.index) {
+        const pointer = pointerPosition(event), marker = current.projection.project(hint.target);
+        if (Math.hypot(marker.x - pointer.x, marker.y - pointer.y) < 14) place(current.index, hint.target);
+        selected = -1;
+        syncSelection();
+      }
+      finishMove(current.index);
+    }
     else togglePoint(current.index);
     schedule();
   });
