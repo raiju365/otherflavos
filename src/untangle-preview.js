@@ -137,6 +137,7 @@ export function initUntanglePreview(canvas, panel, menu, signal) {
   function tick(now) {
     frame = 0;
     if (document.hidden || panel.hidden || panel.inert || menu.hidden || reduced.matches) {
+      if (menu.hidden || panel.hidden || panel.inert) hovering = false;
       stop();
       return;
     }
@@ -177,7 +178,6 @@ export function initUntanglePreview(canvas, panel, menu, signal) {
   on(card, 'pointercancel', () => { hovering = false; schedule(); });
   on(card, 'focus', schedule);
   on(card, 'blur', schedule);
-  on(card, 'click', () => { hovering = false; stop(); });
   on(pointer, 'change', schedule);
   on(reduced, 'change', schedule);
   on(document, 'visibilitychange', () => { hovering = false; stop(); });

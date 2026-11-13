@@ -1,5 +1,6 @@
 import { initUntangle } from './untangle.js';
 import { initUntanglePreview } from './untangle-preview.js';
+import { initPlayCardMotion } from './play-card-motion.js';
 import { initShiftBoard } from './shift-board.js';
 import { createConduitFitting } from './conduit-fittings.js';
 import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
@@ -77,6 +78,7 @@ export function initPlayGames(panel, signal) {
 
   const available = () => !panel.hidden && !panel.inert
     && document.documentElement.dataset.entry !== 'loading';
+  const cardMotion = initPlayCardMotion(menu, screen, { signal, available, open: openGame });
   const current = () => sessions.get(currentGame);
   const shiftBoard = initShiftBoard(space, object, front, {
     signal, reduced, move: moveShift,
@@ -276,11 +278,9 @@ export function initPlayGames(panel, signal) {
     puzzle.hidden = true;
     menu.hidden = false;
     opener.focus({ preventScroll: true });
+    cardMotion.restore(opener);
   }
 
-  for (const button of menu.querySelectorAll('[data-open-game]')) {
-    on(button, 'click', () => openGame(button));
-  }
   on(back, 'click', closeGame);
 
   on(board, 'focusin', event => {

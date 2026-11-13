@@ -1,6 +1,6 @@
 .play-game-art {
   --preview-on: 0;
-  --art-radius: calc(var(--game-card-radius) - 1px);
+  --art-radius: calc(var(--game-card-radius) - 6px);
   position: relative;
   display: grid;
   place-items: center;
@@ -27,6 +27,7 @@
   inline-size: min(78cqw, 78cqh);
   aspect-ratio: 1;
 }
+.play-preview-object, .untangle-preview { transition: translate 300ms var(--studio-ease); }
 
 .play-game-art--untangle {
   background: radial-gradient(ellipse at 37% 30%, #353731, #252622 58%, #181916 100%);
@@ -123,7 +124,7 @@
 
 @media (prefers-reduced-motion: reduce), (forced-colors: active) {
   .conduit-preview-turn, .conduit-preview .conduit-window::after,
-  .shift-preview-five, .shift-preview-six { transition: none; }
+  .shift-preview-five, .shift-preview-six, .play-preview-object, .untangle-preview { transition: none; }
 }
 
 @media (forced-colors: active) {
