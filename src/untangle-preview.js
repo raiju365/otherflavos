@@ -18,7 +18,6 @@ const origin = start[draggedIndex];
 const destination = projection.move(origin, dragOffset.x, dragOffset.y);
 const landing = projection.project(destination);
 const duration = 2320;
-const accent = '#fa9673';
 const unit = value => Math.max(0, Math.min(1, value));
 const ease = value => value * value * (3 - 2 * value);
 
@@ -34,9 +33,9 @@ function line(ctx, from, to, offsetY = 0) {
   ctx.stroke();
 }
 
-function draw(ctx, time) {
-  const drag = ease(unit((time - 300) / 1530));
-  const selected = ease(unit(time / 270)) * (1 - ease(unit((time - 1830) / 420)));
+function draw(ctx, time, { accent, ink, ground, shade }) {
+  const drag = ease(unit((time - 360) / 1470));
+  const selected = ease(unit(time / 350)) * (1 - ease(unit((time - 1830) / 420)));
   const points = start.slice();
   points[draggedIndex] = projection.move(origin, drag * dragOffset.x, drag * dragOffset.y);
   const nodes = points.map(projection.project);
@@ -60,10 +59,10 @@ function draw(ctx, time) {
   for (const { a, b, crossed } of wires) {
     const depth = unit(.5 + (a.z + b.z) * .55);
     ctx.globalAlpha = .64 + depth * .36;
-    ctx.strokeStyle = '#151611';
+    ctx.strokeStyle = shade;
     ctx.lineWidth = 4.5;
     line(ctx, a, b, 1.6);
-    ctx.strokeStyle = crossed ? accent : '#dfdfd0';
+    ctx.strokeStyle = crossed ? accent : ink;
     ctx.globalAlpha = crossed ? .89 : .42 + depth * .41;
     ctx.lineWidth = crossed ? 2.5 : 1.7 + depth * .8;
     line(ctx, a, b);
@@ -72,7 +71,7 @@ function draw(ctx, time) {
   ctx.globalAlpha = 1;
   for (const contact of contacts) {
     circle(ctx, projection.project(contact), 4.6);
-    ctx.fillStyle = '#2c2720';
+    ctx.fillStyle = ground;
     ctx.fill();
     ctx.strokeStyle = accent;
     ctx.lineWidth = 1.3;
@@ -83,12 +82,12 @@ function draw(ctx, time) {
     const radius = 6.5 * node.scale;
     const active = node === handle;
     circle(ctx, { x: node.x, y: node.y + 1.6 }, radius + 1);
-    ctx.fillStyle = '#141510';
+    ctx.fillStyle = shade;
     ctx.fill();
     circle(ctx, node, radius);
-    ctx.fillStyle = '#292b25';
+    ctx.fillStyle = ground;
     ctx.fill();
-    ctx.strokeStyle = active ? accent : '#e8e8d8';
+    ctx.strokeStyle = active ? accent : ink;
     ctx.lineWidth = 1.3;
     ctx.stroke();
     circle(ctx, node, active ? 2.5 : 1.65);
@@ -109,11 +108,25 @@ function draw(ctx, time) {
 export function initUntanglePreview(canvas, panel, menu, signal) {
   const ctx = canvas.getContext('2d');
   if (!ctx || signal.aborted) return;
-  const card = canvas.closest('button');
+  const option = canvas.closest('button');
   const pointer = matchMedia('(hover: hover) and (pointer: fine)');
   const reduced = matchMedia('(prefers-reduced-motion: reduce), (forced-colors: active)');
+  const forced = matchMedia('(forced-colors: active)');
   const on = (target, event, handler) => target.addEventListener(event, handler, { signal });
   let frame = 0, previous = null, time = 0, scale = 0, hovering = false;
+  let palette;
+
+  function readPalette() {
+    const style = getComputedStyle(canvas);
+    const ink = forced.matches ? 'CanvasText' : style.getPropertyValue('--fg').trim();
+    palette = {
+      accent: forced.matches ? 'Highlight' : style.getPropertyValue('--accent-copy').trim(),
+      ink,
+      ground: forced.matches ? 'Canvas' : style.getPropertyValue('--bg').trim(),
+      shade: style.getPropertyValue('--wire-shadow').trim(),
+    };
+  }
+  readPalette();
 
   function paint() {
     if (!scale) return;
@@ -123,7 +136,7 @@ export function initUntanglePreview(canvas, panel, menu, signal) {
     const span = previewSize * scale;
     ctx.setTransform(scale, 0, 0, scale, (width - span) / 2, (height - span) / 2);
     ctx.lineCap = 'round';
-    draw(ctx, time);
+    draw(ctx, time, palette);
   }
 
   function stop() {
@@ -141,9 +154,9 @@ export function initUntanglePreview(canvas, panel, menu, signal) {
       stop();
       return;
     }
-    const active = (pointer.matches && hovering) || card.matches(':focus-visible');
+    const active = (pointer.matches && hovering) || option.matches(':focus-visible');
     const step = previous === null ? 0 : Math.min(now - previous, 50);
-    time = active ? Math.min(duration, time + step) : Math.max(0, time - step * 2.8);
+    time = active ? Math.min(duration, time + step) : Math.max(0, time - step * 2.2);
     paint();
     if (time !== (active ? duration : 0)) {
       previous = now;
@@ -159,33 +172,37 @@ export function initUntanglePreview(canvas, panel, menu, signal) {
 
   const resize = new ResizeObserver(([{ contentRect: { width, height } }]) => {
     if (!width || !height) return;
-    const ratio = Math.min(devicePixelRatio || 1, 2);
+    const ratio = Math.min(devicePixelRatio || 1, 1.5);
     canvas.width = Math.max(1, Math.round(width * ratio));
     canvas.height = Math.max(1, Math.round(height * ratio));
-    scale = Math.min(canvas.width * 1.12, canvas.height * 1.03) / previewSize;
+    scale = Math.min(canvas.width, canvas.height) / previewSize;
     paint();
   });
   resize.observe(canvas);
   const visibility = new MutationObserver(schedule);
   visibility.observe(panel, { attributeFilter: ['hidden', 'inert'] });
   visibility.observe(menu, { attributeFilter: ['hidden'] });
+  const theme = new MutationObserver(() => { readPalette(); paint(); });
+  theme.observe(document.documentElement, { attributeFilter: ['data-theme'] });
 
-  on(card, 'pointerenter', event => {
+  on(option, 'pointerenter', event => {
     hovering = event.pointerType !== 'touch';
     schedule();
   });
-  on(card, 'pointerleave', () => { hovering = false; schedule(); });
-  on(card, 'pointercancel', () => { hovering = false; schedule(); });
-  on(card, 'focus', schedule);
-  on(card, 'blur', schedule);
+  on(option, 'pointerleave', () => { hovering = false; schedule(); });
+  on(option, 'pointercancel', () => { hovering = false; schedule(); });
+  on(option, 'focus', schedule);
+  on(option, 'blur', schedule);
   on(pointer, 'change', schedule);
-  on(reduced, 'change', schedule);
+  on(reduced, 'change', () => { readPalette(); schedule(); });
+  on(forced, 'change', () => { readPalette(); paint(); });
   on(document, 'visibilitychange', () => { hovering = false; stop(); });
   on(window, 'blur', () => { hovering = false; stop(); });
   on(window, 'pagehide', () => { hovering = false; stop(); });
   signal.addEventListener('abort', () => {
     resize.disconnect();
     visibility.disconnect();
+    theme.disconnect();
     stop();
   }, { once: true });
 }

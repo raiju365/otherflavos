@@ -79,7 +79,7 @@ move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'[d
 check('the spectrum playground hides guides and cancels tracking only within its own surface',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
 move();
 check('leaving the playground restores normal pointer guides',()=>assert.equal(root.hidden,false));
-move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'.play-game-card')?{}:null}});
+move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'.play-game-option')?{}:null}});
 check('game previews clear the guides and stop their tracking',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
 move();
 check('leaving a game card restores normal pointer guides',()=>assert.equal(root.hidden,false));
