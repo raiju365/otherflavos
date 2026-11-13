@@ -29,6 +29,7 @@ const emit=(element,type,properties={})=>{
   element.dispatchEvent(event);
 };
 const move=(properties={})=>emit(window,'pointermove',{pointerType:'mouse',clientX:220,clientY:120,target:{closest:()=>null},...properties});
+const matchesSelector=(list,selector)=>list.split(',').some(part=>part.trim()===selector);
 const abort=new AbortController();setMaxListeners(0,abort.signal);
 const hide=initPointerGuides(abort.signal),root=document.body.children[0];
 const [horizontal,vertical]=root.children;
@@ -65,19 +66,23 @@ check('child accents share their axes without a second perpendicular offset',()=
   assert.equal(focusHorizontal.style.transform,'translate3d(999px, 0, 0)');
   assert.equal(focusVertical.style.transform,'translate3d(0, 400px, 0)');
 });
-move({target:{closest:selector=>selector==='.social-link'||selector==='[data-spectrum-play]'?null:{}}});settle();
+move({target:{closest:selector=>matchesSelector(selector,'button')?{}:null}});settle();
 check('hovering an interactive element enables the restrained tick expansion',()=>assert.equal(root.dataset.interactive,'true'));
 check('ordinary controls keep their existing guide response',()=>assert.equal(root.dataset.contact,'false'));
-move({target:{closest:selector=>selector==='[data-spectrum-play]'?null:{}}});settle();
+move({target:{closest:selector=>matchesSelector(selector,'.social-link')||matchesSelector(selector,'a[href]')?{}:null}});settle();
 check('social links signal the quiet contact treatment without hiding tracking',()=>{
   assert.equal(root.dataset.contact,'true');assert.equal(root.dataset.interactive,'true');assert.equal(root.hidden,false);
 });
 move();settle();
 check('leaving a social link restores the normal guide treatment',()=>assert.equal(root.dataset.contact,'false'));
-move({clientX:650});move({target:{closest:selector=>selector==='[data-spectrum-play]'?{}:null}});
+move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'[data-spectrum-play]')?{}:null}});
 check('the spectrum playground hides guides and cancels tracking only within its own surface',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
 move();
 check('leaving the playground restores normal pointer guides',()=>assert.equal(root.hidden,false));
+move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'.play-game-card')?{}:null}});
+check('game previews clear the guides and stop their tracking',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
+move();
+check('leaving a game card restores normal pointer guides',()=>assert.equal(root.hidden,false));
 emit(window,'pointerdown',{pointerType:'mouse',button:0});
 check('primary press enables the local tick response',()=>assert.equal(root.dataset.pressed,'true'));
 emit(window,'pointerup');

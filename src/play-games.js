@@ -1,4 +1,5 @@
 import { initUntangle } from './untangle.js';
+import { initUntanglePreview } from './untangle-preview.js';
 import { initShiftBoard } from './shift-board.js';
 import { createConduitFitting } from './conduit-fittings.js';
 import { createPuzzle, neighbors, openConduitPorts, traceConduit, puzzleLevels, shiftDistance, shiftTile, turnCircuit } from './play-puzzles.js';
@@ -13,8 +14,46 @@ const directions = { ArrowUp: 0, ArrowLeft: 1, ArrowRight: 2, ArrowDown: 3 };
 const ports = ['up', 'right', 'down', 'left'];
 const pipeFill = 85;
 
+function buildConduitPreview(board) {
+  const source = 3;
+  const elbow = 4;
+  const starting = [3, 6, 12, 2, 12, 1, 3, 10, 9];
+  const connected = starting.slice();
+  connected[elbow] = turnCircuit(starting[elbow]);
+  const route = traceConduit(connected, 3, source);
+  const order = [...route.keys()];
+  const cells = starting.map((mask, index) => {
+    const cell = document.createElement('span');
+    cell.className = 'conduit-preview-cell';
+    const fitting = document.createElement('span');
+    fitting.className = 'conduit-preview-fitting';
+    fitting.append(createConduitFitting(mask, index === source, index));
+    if (index === elbow) fitting.classList.add('conduit-preview-turn');
+
+    const connection = route.get(index);
+    if (connection) {
+      for (let side = 0; side < ports.length; side++) {
+        if (!(mask & (1 << side))) continue;
+        const inlet = Boolean(connection.inlet & (1 << ((side + (index === elbow ? 1 : 0)) % ports.length)));
+        const glass = document.createElement('span');
+        glass.className = 'conduit-window';
+        glass.dataset.inlet = String(inlet);
+        glass.style.setProperty('--port', side);
+        glass.style.setProperty('--flow-delay', `${880 + (order.indexOf(index) - 1) * 330 + (inlet ? 0 : 165)}ms`);
+        if (index === source) glass.classList.add('conduit-preview-source');
+        fitting.append(glass);
+      }
+    }
+    cell.append(fitting);
+    return cell;
+  });
+  board.replaceChildren(...cells);
+}
+
 export function initPlayGames(panel, signal) {
   const menu = panel.querySelector('[data-play-menu]');
+  buildConduitPreview(menu.querySelector('[data-conduit-preview]'));
+  initUntanglePreview(menu.querySelector('[data-untangle-preview]'), panel, menu, signal);
   const screen = panel.querySelector('[data-play-game]');
   const back = panel.querySelector('[data-play-back]');
   const title = panel.querySelector('[data-game-title]');
