@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { setMaxListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
-import { waveformURL, normalizeWaveform, waveformRange, particleEnergy } from '../src/spectrum-field.js';
+import { waveformURL, audioRhythmURL, normalizeWaveform, waveformRange, particleEnergy } from '../src/spectrum-field.js';
 import { createPointillistField, pointillistMotion, projectPointillistField, themeInkRGB, createPointillistRenderer, POINTILLIST_FORMS } from '../src/pointillist-flow.js';
 import { initSpectrumPlay } from '../src/spectrum-play.js';
 const checks=[], check=(name,fn)=>{fn();checks.push(name);};
@@ -10,6 +10,11 @@ const samples=Array.from({length:1000},(_,i)=>i<500?.1:.9);
 check('waveform URLs accept exact HTTPS provider hosts and known formats',()=>{
   assert.equal(waveformURL('https://wave.sndcdn.com/fixture.json'),'https://wave.sndcdn.com/fixture.json');
   for(const url of ['http://wave.sndcdn.com/a.json','https://wave.sndcdn.com.attacker.test/a.json','javascript:alert(1)','https://attacker.test/a.json'])assert.equal(waveformURL(url),null);
+});
+check('bass maps match only the exact waveform versions analyzed from the music queue',()=>{
+  assert.equal(audioRhythmURL('https://wave.sndcdn.com/QXJQMRZEYNWr_m.json'),'/audio/rhythm/QXJQMRZEYNWr_m.json');
+  assert.equal(audioRhythmURL('https://wave.sndcdn.com/updated-recording.json'),null);
+  assert.equal(audioRhythmURL('https://attacker.test/QXJQMRZEYNWr_m.json'),null);
 });
 check('normalization rejects malformed amplitudes and retains real silence',()=>{
   assert.deepEqual(normalizeWaveform({samples:[0,64,128],height:128}),[0,.5,1]);
@@ -333,8 +338,33 @@ const beforeRestore = root.dataset.motionTime; step(60000); emit(canvas,'webglco
 check('graphics restoration resumes one owner without hidden-time catch-up', () => {
   assert.equal(root.dataset.fallback,'false'); assert.equal(frames.size,1); assert.equal(root.dataset.motionTime,beforeRestore);
 });
+controller.setPlaying(true);
+const analysisStart = requests.length;
+controller.setTrack({waveform:'https://wave.sndcdn.com/QXJQMRZEYNWr_m.json',duration:2000});
+const analysisRequests = requests.slice(analysisStart);
+const analyzed = analysisRequests.find(request=>request.url.startsWith('/audio/rhythm/'));
+analyzed.resolve({ok:true,json:async()=>({version:1,waveform:'QXJQMRZEYNWr_m',durationMs:2000,onsets:[[400,1]]})});
+await flush();await flush();
+controller.setProgress(.2,{positionMs:400,durationMs:2000});step(20);
+check('local bass analysis reacts on the audio clock while remote waveform metadata is still loading',()=>{
+  assert.equal(root.dataset.rhythm,'bass-onsets');assert.equal(root.dataset.waveform,'loading');
+  assert.ok(Number(root.dataset.impact)>.8);
+});
+answer(analysisRequests.find(request=>request.url.startsWith('https:')));await flush();
+controller.setProgress(.2,{positionMs:450,durationMs:2000});step(20);
+check('arrival of generic waveform data preserves the bass onset map',()=>{
+  assert.equal(root.dataset.rhythm,'bass-onsets');assert.ok(Number(root.dataset.impact)>.4);
+});
+const staleStart = requests.length;
+controller.setTrack({waveform:'https://wave.sndcdn.com/6FIZFjD0edqQ_m.json',duration:2000});
+const staleAnalysis = requests.slice(staleStart).find(request=>request.url.startsWith('/audio/rhythm/'));
 controller.setTrack({waveform:'https://wave.sndcdn.com/obsolete.json'}); const old = requests.at(-1);
 controller.setTrack({waveform:'https://wave.sndcdn.com/current.json'}); const current = requests.at(-1);
+staleAnalysis.resolve({ok:true,json:async()=>({version:1,waveform:'6FIZFjD0edqQ_m',durationMs:2000,onsets:[[0,1]]})});
+await flush();await flush();
+check('a late bass analysis from the previous track cannot replace the latest song',()=>{
+  assert.equal(staleAnalysis.options.signal.aborted,true);assert.equal(root.dataset.rhythm,'waveform');
+});
 answer(old); await flush();
 check('a late waveform from the previous song cannot replace the latest track', () => { assert.equal(old.options.signal.aborted, true); assert.equal(root.dataset.waveform, 'loading'); });
 answer(current); await flush(); step();

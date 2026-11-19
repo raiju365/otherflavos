@@ -1,5 +1,5 @@
-import { createWaveformPulse, sampleWaveformPulse } from './audio-pulse.js';
-import { waveformURL, normalizeWaveform, waveformRange, particleEnergy } from './spectrum-field.js';
+import { createWaveformPulse, createOnsetPulse, sampleWaveformPulse } from './audio-pulse.js';
+import { waveformURL, audioRhythmURL, normalizeWaveform, waveformRange, particleEnergy } from './spectrum-field.js';
 import { createPointillistField, createPointillistRenderer, pointillistMotion, POINTILLIST_FORMS } from './pointillist-flow.js';
 
 export function initSpectrumPlay(signal) {
@@ -15,7 +15,7 @@ export function initSpectrumPlay(signal) {
   let graphicsLost = false;
   root.dataset.fallback = String(!renderer);
   root.dataset.renderer = renderer?.kind || 'css';
-  const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 }, pulse: null };
+  const field = { width: 0, height: 0, samples: [], image: null, progress: 0, duration: 0, range: { floor: 0, span: 1 }, pulse: null, rhythm: null };
   let frame = 0, disposed = false, visible = true, page = true, playing = false, trackRevision = 0, load = null;
   let screen = null, palette = null, ratio = 1, lastPaint = null, providerTime = null, renderPositionMs = 0;
   let morphTick = null, choreographyTime = 0;
@@ -49,7 +49,7 @@ export function initSpectrumPlay(signal) {
     root.dataset.particles = String(screen.count);
   }
   function freshPlayback(time) {
-    return playing && field.samples.length > 1 && field.duration > 0
+    return playing && (field.rhythm || field.samples.length > 1) && field.duration > 0
       && providerTime !== null && time - providerTime < Math.min(1800, Math.max(800, providerCadenceMs * 1.75));
   }
   function paint(timestamp) {
@@ -70,8 +70,10 @@ export function initSpectrumPlay(signal) {
     const displayedProgress = renderPositionMs / Math.max(1, field.duration);
     const elapsed = reduced.matches || morphTick === null ? 0 : Math.max(0, time - morphTick);
     choreographyTime += elapsed / 1000;
+    const pulse = field.rhythm || field.pulse;
     const reaction = fresh && age < predictionLimit() && !reduced.matches
-      ? sampleWaveformPulse(field.pulse, displayedProgress) : { impact: 0, body: 0, detail: 0 };
+      ? sampleWaveformPulse(pulse, field.rhythm ? renderPositionMs / field.rhythm.durationMs : displayedProgress)
+      : { impact: 0, body: 0, detail: 0 };
     const motion = pointillistMotion(choreographyTime);
     renderer.paint(screen, { ...motion, ...reaction }, palette, ratio);
     morphTick = reduced.matches ? null : time;
@@ -153,10 +155,28 @@ export function initSpectrumPlay(signal) {
     // Keep the visible flow and rhythm phase intact across songs and loading.
     providerTime = null; renderPositionMs = 0; providerPositionMs = 0; providerCadenceMs = 750; clockLeadMs = 0;
     awaitingPlayback = false;
-    field.samples = []; field.image = null; field.pulse = null; field.progress = 0; field.duration = track.duration || 0;
+    field.samples = []; field.image = null; field.pulse = null; field.rhythm = null; field.progress = 0; field.duration = track.duration || 0;
     field.range = { floor: 0, span: 1 };
     root.dataset.waveform = 'loading'; schedule();
     const url = waveformURL(track.waveform);
+    const rhythmURL = audioRhythmURL(track.waveform);
+    root.dataset.rhythm = rhythmURL ? 'loading' : 'waveform';
+    if (rhythmURL) {
+      const active = AbortSignal.any([signal, load.signal, AbortSignal.timeout(8000)]);
+      fetch(rhythmURL, { signal: active, credentials: 'omit' }).then(response => {
+        if (!response.ok) throw new Error('Audio onset map unavailable');
+        return response.json();
+      }).then(data => {
+        if (disposed || revision !== trackRevision || active.aborted) return;
+        const key = rhythmURL.split('/').pop().replace(/\.json$/, '');
+        if (data.waveform !== key) throw new Error('Audio version does not match');
+        field.rhythm = createOnsetPulse(data);
+        if (!field.rhythm) throw new Error('Invalid audio onset map');
+        root.dataset.rhythm = 'bass-onsets'; schedule();
+      }).catch(() => {
+        if (!disposed && revision === trackRevision) root.dataset.rhythm = 'waveform';
+      });
+    }
     if (!url) { root.dataset.waveform = 'unavailable'; return; }
     try {
       const active = AbortSignal.any([signal, load.signal, AbortSignal.timeout(12000)]);

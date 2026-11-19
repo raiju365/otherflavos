@@ -1,5 +1,13 @@
 // Validated recorded-amplitude metadata, separate from authored visual rhythm.
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+// Each key identifies the exact audio version used to create its onset map.
+const analyzedWaveforms = new Set(['QXJQMRZEYNWr_m', '6FIZFjD0edqQ_m', 'NvUjKGlzFalr_m', 'ADoeAbhXsscn_m', 'ycjf9tWWvPRa_m']);
+export function audioRhythmURL(waveform) {
+  const source = waveformURL(waveform);
+  if (!source) return null;
+  const key = new URL(source).pathname.split('/').pop().replace(/\.(json|png)$/, '');
+  return analyzedWaveforms.has(key) ? `/audio/rhythm/${key}.json` : null;
+}
 export function waveformURL(value) {
   try {
     const url = new URL(value);

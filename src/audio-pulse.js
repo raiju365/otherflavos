@@ -1,5 +1,5 @@
-// Decorative reactions derived from recorded waveform amplitude, not FFT,
-// bass detection, instrument separation or a synthetic beat clock.
+// Read recorded waveform reactions or offline bass-onset analysis at the
+// current provider position. Neither path runs an independent beat clock.
 const MAX_SAMPLES = 100000;
 const IMPACT_RELEASE_MS = 120;
 const DETAIL_RELEASE_MS = 70;
@@ -41,9 +41,40 @@ export function createWaveformPulse(samples, durationMs) {
   return Object.freeze({ kind: 'recorded-amplitude-pulse', durationMs, stepMs, amplitude, body, impact, detail });
 }
 
+/** Decode the measured low-frequency transients for one exact recording. */
+export function createOnsetPulse(data) {
+  if (data?.version !== 1 || !Number.isFinite(data.durationMs) || data.durationMs <= 0
+    || !Array.isArray(data.onsets) || data.onsets.length > 20000) return null;
+  const count = Math.ceil(data.durationMs / 10) + 1;
+  if (count > MAX_SAMPLES) return null;
+  const stepMs = data.durationMs / (count - 1);
+  const amplitude = new Float32Array(count), body = new Float32Array(count);
+  const impact = new Float32Array(count), detail = new Float32Array(count);
+  let previous = -1;
+  for (const onset of data.onsets) {
+    if (!Array.isArray(onset) || onset.length !== 2) return null;
+    const [time, strength] = onset;
+    if (!Number.isFinite(time) || time < 0 || time > data.durationMs || time <= previous
+      || !Number.isFinite(strength) || strength < 0 || strength > 1) return null;
+    // Round forward so a visual attack cannot precede the measured transient.
+    const index = Math.min(count - 1, Math.ceil(time / stepMs));
+    amplitude[index] = Math.max(amplitude[index], strength);
+    previous = time;
+  }
+  const impactDecay = Math.exp(-stepMs / IMPACT_RELEASE_MS);
+  const detailDecay = Math.exp(-stepMs / DETAIL_RELEASE_MS);
+  const bodyDecay = Math.exp(-stepMs / BODY_RELEASE_MS);
+  for (let index = 0; index < count; index++) {
+    impact[index] = Math.max(amplitude[index], index ? impact[index - 1] * impactDecay : 0);
+    detail[index] = Math.max(amplitude[index], index ? detail[index - 1] * detailDecay : 0);
+    body[index] = index ? body[index - 1] * bodyDecay + amplitude[index - 1] * (1 - bodyDecay) : 0;
+  }
+  return Object.freeze({ kind: 'analyzed-audio-pulse', durationMs: data.durationMs, stepMs, amplitude, body, impact, detail });
+}
+
 /** Read cached reactions at an actual track position, in constant time. */
 export function sampleWaveformPulse(analysis, progress) {
-  if (analysis?.kind !== 'recorded-amplitude-pulse' || !Number.isFinite(progress) || progress < 0 || progress > 1
+  if (!['recorded-amplitude-pulse', 'analyzed-audio-pulse'].includes(analysis?.kind) || !Number.isFinite(progress) || progress < 0 || progress > 1
     || !Number.isFinite(analysis.stepMs) || analysis.stepMs <= 0
     || !(analysis.amplitude instanceof Float32Array) || analysis.amplitude.length < 2
     || !(analysis.body instanceof Float32Array) || !(analysis.impact instanceof Float32Array)

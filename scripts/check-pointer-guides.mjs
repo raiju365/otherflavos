@@ -76,7 +76,7 @@ check('social links signal the quiet contact treatment without hiding tracking',
 move();settle();
 check('leaving a social link restores the normal guide treatment',()=>assert.equal(root.dataset.contact,'false'));
 move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'[data-spectrum-play]')?{}:null}});
-check('the spectrum playground hides guides and cancels tracking only within its own surface',()=>{assert.equal(root.hidden,true);assert.equal(frames.size,0);});
+check('the About particle surface keeps the pointer guides visible',()=>{assert.equal(root.hidden,false);assert.equal(frames.size,1);settle();});
 move();
 check('leaving the playground restores normal pointer guides',()=>assert.equal(root.hidden,false));
 move({clientX:650});move({target:{closest:selector=>matchesSelector(selector,'.play-game-option')?{}:null}});

@@ -1,6 +1,6 @@
 // Recorded-amplitude reaction fixtures; not a live audio, bass or stem test.
 import assert from 'node:assert/strict';
-import { createWaveformPulse, sampleWaveformPulse } from '../src/audio-pulse.js';
+import { createWaveformPulse, createOnsetPulse, sampleWaveformPulse } from '../src/audio-pulse.js';
 
 const checks = [], check = (name, fn) => { fn(); checks.push(name); };
 const zero = { impact: 0, body: 0, detail: 0 };
@@ -101,4 +101,32 @@ check('the cache owns its amplitude data and accepts normalized floating-point a
   assert.ok(createWaveformPulse(new Float32Array([0, .5]), 1000));
 });
 
-console.log(JSON.stringify({ mode: 'Causal recorded-amplitude pulse fixtures; no bass or instrument detection claim', passed: checks.length, checks }, null, 2));
+check('measured bass onsets trigger at their audio positions with no early expansion', () => {
+  const pulse = createOnsetPulse({ version: 1, durationMs: 2000, onsets: [[400, .8], [900, 1]] });
+  assert.equal(pulse.kind, 'analyzed-audio-pulse');
+  assert.equal(atMs(pulse, 399).impact, 0);
+  assert.ok(Math.abs(atMs(pulse, 400).impact - .8) < 1e-6);
+  assert.ok(atMs(pulse, 600).impact < .16);
+  assert.equal(atMs(pulse, 900).impact, 1);
+});
+check('fractional onset positions round forward by at most one analysis bin', () => {
+  const pulse = createOnsetPulse({ version: 1, durationMs: 1997, onsets: [[403, 1]] });
+  assert.equal(atMs(pulse, 403).impact, 0);
+  assert.ok(atMs(pulse, 413).impact > .9);
+});
+check('bass analysis reads are deterministic across seeks and do not synthesize a tempo', () => {
+  const pulse = createOnsetPulse({ version: 1, durationMs: 3000, onsets: [[500, .7], [1100, 1]] });
+  const expected = atMs(pulse, 1150);
+  for (const time of [2800, 0, 230, 1150]) atMs(pulse, time);
+  assert.deepEqual(atMs(pulse, 1150), expected);
+  assert.ok(atMs(pulse, 2800).impact < 1e-5);
+  const silence = createOnsetPulse({ version: 1, durationMs: 3000, onsets: [] });
+  for (let time = 0; time <= 3000; time += 17) assert.deepEqual(atMs(silence, time), zero);
+});
+check('bass analysis rejects malformed, unsorted and oversized input', () => {
+  for (const data of [null, {}, {version:2,durationMs:1000,onsets:[]}, {version:1,durationMs:2000000,onsets:[]},
+    ...[[[20, 1], [10, 1]], [[10, 1], [10, .8]], [[-1, 1]], [[1200, 1]], [[10, 2]], [[10, NaN]], [[10]], [null]]
+      .map(onsets => ({ version: 1, durationMs: 1000, onsets }))]) assert.equal(createOnsetPulse(data), null);
+});
+
+console.log(JSON.stringify({ mode: 'Recorded waveform and measured bass-onset response fixtures', passed: checks.length, checks }, null, 2));
