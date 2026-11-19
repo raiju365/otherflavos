@@ -6,13 +6,27 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
   let gl;
   try{gl=canvas.getContext('webgl',{alpha:true,antialias:false,premultipliedAlpha:true,depth:true,powerPreference:'low-power'});}catch{return null;}
   if(!gl||typeof gl.createShader!=='function')return null;
-  const resources=[],textures=new Map();let dead=false;
+  const resources=[],textures=new Map();let dead=false,playbackEnabled=false;
   const own=(kind,value)=>{if(!value)throw Error(`Cannot allocate ${kind}`);resources.push([kind,value]);return value;};
   function destroy(){
     if(dead)return;dead=true;canvas.hidden=true;
-    textures.forEach(entry=>{entry.image.onload=null;entry.image.onerror=null;entry.image.src='';});textures.clear();
+    textures.forEach(entry=>{
+      stopVideo(entry);
+      if(entry.video){entry.video.removeAttribute('src');entry.video.load();}
+      entry.image.onload=null;entry.image.onerror=null;entry.image.src='';
+    });textures.clear();
     resources.reverse().forEach(([kind,value])=>gl[`delete${kind}`](value));resources.length=0;
     if(!gl.isContextLost?.())gl.getExtension?.('WEBGL_lose_context')?.loseContext();
+  }
+  function stopVideo(entry){
+    entry.active=false;
+    if(!entry.video)return;
+    entry.video.pause();
+    if(entry.frame!==null){
+      if(typeof entry.video.cancelVideoFrameCallback==='function')entry.video.cancelVideoFrameCallback(entry.frame);
+      else cancelAnimationFrame(entry.frame);
+      entry.frame=null;
+    }
   }
   try{
     const shaders=[[gl.VERTEX_SHADER,LOOP_VERTEX],[gl.FRAGMENT_SHADER,LOOP_FRAGMENT]].map(([type,source])=>{
@@ -28,7 +42,7 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
     const uniform=Object.fromEntries(['uViewport','uSize','uPosition','uShape','uVertical','uPassage','uOptics','uImage','uOpacity','uUVScale'].map(name=>[name,gl.getUniformLocation(program,name)]));
     function texture(source){
       if(textures.has(source))return textures.get(source);
-      const image=new Image(),entry={image,ready:false,failed:false,texture:null,aspect:1.6};textures.set(source,entry);
+      const image=new Image(),entry={image,ready:false,failed:false,texture:null,aspect:1.6,video:null,frame:null,active:false,pending:false,dirty:false,videoFailed:false};textures.set(source,entry);
       image.crossOrigin='anonymous';image.decoding='async';
       image.onload=()=>{
         if(dead||signal.aborted)return;
@@ -44,6 +58,39 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
       };
       image.onerror=()=>{if(dead||signal.aborted)return;entry.failed=true;if(isActive())invalidate();};image.src=source;return entry;
     }
+    function watchVideo(entry){
+      if(dead||signal.aborted||!entry.active||entry.frame!==null)return;
+      const next=()=>{
+        entry.frame=null;
+        if(dead||signal.aborted||!entry.active||!playbackEnabled||!isActive()){stopVideo(entry);return;}
+        entry.dirty=true;invalidate();watchVideo(entry);
+      };
+      entry.frame=typeof entry.video.requestVideoFrameCallback==='function'
+        ?entry.video.requestVideoFrameCallback(next):requestAnimationFrame(next);
+    }
+    function startVideo(entry,source){
+      if(entry.videoFailed)return;
+      if(!entry.video){
+        const video=document.createElement('video');
+        video.muted=true;video.loop=true;video.playsInline=true;video.preload='none';video.crossOrigin='anonymous';
+        video.addEventListener('error',()=>{
+          entry.videoFailed=true;stopVideo(entry);
+          if(isActive())invalidate();
+        },{signal});
+        video.src=source;entry.video=video;
+      }
+      entry.active=true;
+      if(!entry.video.paused||entry.pending){watchVideo(entry);return;}
+      entry.pending=true;
+      entry.video.play().then(()=>{
+        entry.pending=false;
+        if(dead||signal.aborted||!entry.active||!playbackEnabled||!isActive()){stopVideo(entry);return;}
+        watchVideo(entry);
+      }).catch(error=>{
+        entry.pending=false;
+        if(error.name!=='AbortError'){entry.videoFailed=true;stopVideo(entry);}
+      });
+    }
     canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();destroy();invalidate();},{signal});
     signal.addEventListener('abort',destroy,{once:true});
     return {
@@ -57,8 +104,14 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
         const entry=textures.get(source);
         return entry?.failed?'failed':entry?.ready?'ready':'loading';
       },
+      setPlaybackEnabled(enabled){
+        playbackEnabled=enabled;
+        if(!enabled)textures.forEach(stopVideo);
+      },
       draw(cards,width,height,ratio=1){
         const rendered=new Set();if(dead||signal.aborted||!isActive()){canvas.hidden=true;return rendered;}
+        const selected=playbackEnabled?cards.find(card=>Math.abs(card.relative)<.55&&card.pose.opacity>.1&&card.pose.reveal>.5&&card.video):null;
+        textures.forEach((entry,source)=>{if(source!==selected?.source)stopVideo(entry);});
         const dpr=Math.min(width<=800?1:1.5,Math.max(1,ratio)),w=Math.round(width*dpr),h=Math.round(height*dpr);
         if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
         canvas.hidden=false;gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -68,8 +121,17 @@ export function createProjectLoopSurface(canvas,{signal,invalidate,isActive}) {
         [...cards].sort((a,b)=>a.pose.z-b.pose.z).forEach(card=>{
           if(card.pose.opacity<.001)return;
           const image=texture(card.source);if(!image.ready)return;
+          if(selected?.source===card.source)startVideo(image,selected.video);
           const p=card.pose,aspect=p.width/p.height;
-          gl.bindTexture(gl.TEXTURE_2D,image.texture);gl.uniform2f(uniform.uSize,p.width,p.height);gl.uniform3f(uniform.uPosition,p.x,p.y,p.z);
+          gl.bindTexture(gl.TEXTURE_2D,image.texture);
+          if(image.dirty&&image.video?.readyState>=2){
+            try{
+              gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image.video);
+              image.aspect=image.video.videoWidth/image.video.videoHeight||image.aspect;
+            }catch{image.videoFailed=true;stopVideo(image);}
+            image.dirty=false;
+          }
+          gl.uniform2f(uniform.uSize,p.width,p.height);gl.uniform3f(uniform.uPosition,p.x,p.y,p.z);
           gl.uniform4f(uniform.uShape,p.turn*Math.PI/180,p.roll*Math.PI/180,p.scale,p.bend);gl.uniform1f(uniform.uOpacity,p.opacity);
           gl.uniform1f(uniform.uVertical,p.vertical||0);
           gl.uniform3f(uniform.uPassage,p.reveal,p.edgeSide,p.edgeEnergy);

@@ -22,7 +22,7 @@ export function createProjectDetailMotion({dialog,reduced,signal}) {
       {opacity:0,transform:'translate3d(0,28px,0) scale(.985)'},
       {opacity:1,transform:'translate3d(0,0,0) scale(1)'}
     ],{duration:520,easing:'cubic-bezier(.22,1,.36,1)'})];
-    [...dialog.querySelectorAll('.detail-eyebrow, #project-title, .detail-description, .detail-image, .detail-meta, .detail-links')].forEach((element,index)=>{
+    [...dialog.querySelectorAll('.detail-eyebrow, #project-title, .detail-description, .detail-image:not([hidden]), .detail-video:not([hidden]), .detail-meta, .detail-links')].forEach((element,index)=>{
       list.push(animate(element,[{opacity:0,transform:'translateY(18px)'},{opacity:1,transform:'translateY(0)'}],{
         duration:560,delay:Math.min(index*45,180),easing:'cubic-bezier(.22,1,.36,1)'
       }));

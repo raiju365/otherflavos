@@ -19,7 +19,7 @@ import { initFigure } from './figure.js';
 import { initThemePicker } from './theme-picker.js';
 import { initSectionNavigation } from './section-navigation.js';
 import { initPointerGuides } from './pointer-guides.js';
-import { renderProjectShowcase } from './project-showcase.js';
+import { mediaPath, renderProjectShowcase } from './project-showcase.js';
 import { initPlayGames } from './play-games.js';
 import { initEntryLoader } from './entry-loader.js';
 import { initProjectSurfaces } from './project-surface.js';
@@ -71,6 +71,7 @@ initThemePicker(signal);
 const hidePointerGuides=initPointerGuides(signal);
 
 const dialog=document.querySelector('#project-detail');let origin=null,previousOverflow='',previousWorkspaceOverflow='';
+const detailVideo=dialog.querySelector('.detail-video');
 const spectrum = initSpectrumPlay(signal);
 initSoundCloudPlayer({ signal, onPlaybackChange: value => spectrum.setPlaying?.(value),
   onTrackChange: track => spectrum.setTrack?.(track), onProgress: (value, timing) => spectrum.setProgress?.(value, timing) });
@@ -82,6 +83,12 @@ function openProject(index){
   document.querySelector('.detail-eyebrow').textContent=p.status==='placeholder'?'project notes / placeholder':'project notes';
   document.querySelector('.detail-description').textContent=p.description;
   const image=document.querySelector('.detail-image');image.src=p.image;image.alt=p.alt;
+  const videoSource=mediaPath(p.preview?.video);
+  image.hidden=Boolean(videoSource);detailVideo.hidden=!videoSource;detailVideo.pause();
+  if(videoSource){
+    if(detailVideo.getAttribute('src')!==videoSource)detailVideo.src=videoSource;
+    detailVideo.poster=p.image;detailVideo.setAttribute('aria-label',`${p.name} website walkthrough`);
+  }
   document.querySelector('.detail-meta').innerHTML=`<div><h3>my role</h3><p>${escape(p.role)}</p></div><div><h3>built with</h3><p>${p.technologies.map(escape).join(' / ')}</p></div><div class="decision"><h3>behind the decisions</h3><p>${escape(p.decision)}</p></div>`;
   document.querySelector('.detail-links').innerHTML=[['live demo',p.liveUrl],['source code',p.sourceUrl]].map(([label,href])=>url(href)?`<a href="${escape(url(href))}" target="_blank" rel="noopener noreferrer">${label} ↗</a>`:`<span>${label} — belum tersedia</span>`).join('');
   hidePointerGuides();
@@ -90,13 +97,16 @@ function openProject(index){
   projectGallery.setDialogOpen(true);
   dialog.showModal();dialog.scrollTop=0;document.body.style.overflow='hidden';workspace.style.overflow='hidden';document.querySelector('.detail-close').focus();
   detailMotion.open();
+  if(videoSource&&!reduced.matches)detailVideo.play().catch(()=>{});
 }
-function closeProject(){detailMotion.close();}
+function closeProject(){detailVideo.pause();detailMotion.close();}
 document.querySelectorAll('[data-project]').forEach(button=>on(button,'click',()=>openProject(Number(button.dataset.project))));
 on(document.querySelector('.detail-close'),'click',closeProject);
 on(dialog,'cancel',event=>{event.preventDefault();closeProject();});
 on(dialog,'click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeProject();}});
-on(dialog,'close',()=>{projectGallery.setDialogOpen(false);railAtmosphere.setDialogOpen(false);document.body.style.overflow=previousOverflow;workspace.style.overflow=previousWorkspaceOverflow;origin?.focus({preventScroll:true});});
+on(dialog,'close',()=>{detailVideo.pause();projectGallery.setDialogOpen(false);railAtmosphere.setDialogOpen(false);document.body.style.overflow=previousOverflow;workspace.style.overflow=previousWorkspaceOverflow;origin?.focus({preventScroll:true});});
+on(document,'visibilitychange',()=>{if(document.hidden)detailVideo.pause();});
+on(reduced,'change',()=>{if(reduced.matches)detailVideo.pause();});
 const figureReady=initFigure(document.querySelector('#figure'),signal).then(cleanup=>{figureCleanup=cleanup;},()=>({fallback:true}));
 entry.start({figureReady,revealContent:()=>navigation.revealInitial(),settleContent:()=>navigation.settleInitial()}).finally(()=>{entry=null;});
-if(import.meta.hot)import.meta.hot.dispose(()=>{abort.abort();figureCleanup();if(dialog.open)dialog.close();document.body.style.overflow=previousOverflow;workspace.style.overflow=previousWorkspaceOverflow;});
+if(import.meta.hot)import.meta.hot.dispose(()=>{detailVideo.pause();detailVideo.removeAttribute('src');detailVideo.load();abort.abort();figureCleanup();if(dialog.open)dialog.close();document.body.style.overflow=previousOverflow;workspace.style.overflow=previousWorkspaceOverflow;});

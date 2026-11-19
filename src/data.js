@@ -36,35 +36,25 @@ export const profile = {
   ],
 };
 
-// preview is optional. Replace the local scroll studies with your real full-page
-// capture (motion: 'scroll') or a poster + video path. Keep video null if unavailable.
-// image remains the separate screenshot used by the project detail.
+// Local recordings of the published sites, with posters for reduced motion and
+// browsers that cannot play video or create the curved WebGL surface.
 export const projects = [
   {
-    id: 'website', name: '[nama website]', type: 'website / frontend', status: 'placeholder',
-    preview: { image: '/projects/website-scroll.svg', width: 1440, height: 1800, motion: 'scroll', video: null },
-    image: '/projects/website.svg', alt: 'Website screenshot placeholder — replace with your actual project',
-    description: '[Deskripsi singkat website: tujuannya, kebutuhan pengguna, dan apa yang kamu bangun.]',
-    role: '[peranmu dalam proyek]', technologies: ['[teknologi 1]', '[teknologi 2]'],
-    decision: '[Keputusan desain atau teknis yang kamu ambil, beserta alasannya.]',
-    liveUrl: null, sourceUrl: null,
+    id: 'otherflavos', name: 'Other Flavos', type: 'interactive portfolio', status: 'live',
+    preview: { image: '/projects/otherflavos.webp', width: 1152, height: 720, video: '/projects/otherflavos.mp4' },
+    image: '/projects/otherflavos.webp', alt: 'Other Flavos portfolio with Untangle, Conduit and Shift on the Play page',
+    description: 'A personal portfolio with three playable puzzles, a curved project gallery and an About page. The walkthrough opens Shift, moves a tile and rotates its wooden board, then explores Conduit and About.',
+    role: 'Personal project', technologies: ['HTML', 'CSS', 'JavaScript', 'Vite', 'WebGL'],
+    decision: 'A fixed profile rail accompanies the Play, Projects and About panels. The project gallery maps each website recording onto a curved WebGL surface, with playback paused when the gallery is out of view.',
+    liveUrl: 'https://otherflavos.vercel.app/', sourceUrl: 'https://github.com/raiju365/otherflavos',
   },
   {
-    id: 'web-app', name: '[nama web app]', type: 'web application', status: 'placeholder',
-    preview: { image: '/projects/webapp-scroll.svg', width: 1440, height: 1800, motion: 'scroll', video: null },
-    image: '/projects/webapp.svg', alt: 'Web application screenshot placeholder — replace with your actual project',
-    description: '[Deskripsi aplikasi web, fitur utamanya, dan masalah yang ingin diselesaikan.]',
-    role: '[peranmu dalam proyek]', technologies: ['[teknologi 1]', '[teknologi 2]'],
-    decision: '[Alasan di balik arsitektur, interaksi, atau pilihan teknologinya.]',
-    liveUrl: null, sourceUrl: null,
-  },
-  {
-    id: 'experiment', name: '[nama eksperimen]', type: 'creative development', status: 'placeholder',
-    preview: { image: '/projects/experiment-scroll.svg', width: 1440, height: 1800, motion: 'scroll', video: null },
-    image: '/projects/experiment.svg', alt: 'Creative web experiment placeholder — replace with your actual project',
-    description: '[Eksplorasi antarmuka atau interaksi yang pernah kamu buat.]',
-    role: '[peranmu dalam proyek]', technologies: ['[teknologi]'],
-    decision: '[Apa yang kamu eksplorasi dan apa yang kamu pelajari dari prosesnya.]',
-    liveUrl: null, sourceUrl: null,
+    id: 'flavos', name: 'Flavos', type: 'visual portfolio', status: 'live',
+    preview: { image: '/projects/flavos.webp', width: 1152, height: 720, video: '/projects/flavos.mp4' },
+    image: '/projects/flavos.webp', alt: 'Flavos visual portfolio with classical artwork and expressive typography',
+    description: 'A visual portfolio with classical artwork, a material-changing logo, a portrait section, an artwork gallery and an animated signature. The walkthrough follows the page from its opening through About, Work and Contact.',
+    role: 'Personal project', technologies: ['HTML', 'CSS', 'JavaScript', 'Vite', 'GSAP', 'Three.js'],
+    decision: 'Scroll transitions connect the artwork, logo and page sections. The Work gallery provides a separate view for each piece, while the Contact section closes with a reflective three-dimensional signature.',
+    liveUrl: 'https://flavos-dusky.vercel.app/', sourceUrl: 'https://github.com/raiju365/flavos',
   },
 ];

@@ -8,6 +8,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   if(signal.aborted||!root||!panel||!workspace||!projects.length||typeof onOpen!=='function'||typeof requestAnimationFrame!=='function')return empty;
   const viewport=root.querySelector('.loop-viewport'),caption=root.querySelector('.loop-caption'),controls=root.querySelector('.loop-controls'),fallback=root.querySelector('.loop-fallback');
   const openButton=root.querySelector('.loop-open'),kind=root.querySelector('.loop-kind'),title=root.querySelector('.loop-title'),status=root.querySelector('.loop-status'),announcement=root.querySelector('.loop-announcement');
+  const playback=root.querySelector('.loop-preview-toggle');
   const slots=[...root.querySelectorAll('[data-loop-slot]')].map((element,slot)=>({element,slot,button:element.querySelector('button'),image:element.querySelector('img'),project:-1}));
   if(!viewport||!caption||!controls||!fallback||!openButton||!kind||!title||!status||!announcement||slots.length!==5||slots.some(state=>!state.button||!state.image))return empty;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)'),forced=matchMedia('(forced-colors: active)'),compact=matchMedia('(max-width: 800px)');
@@ -16,6 +17,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   let visible=true,dialogOpen=false,pageActive=true,focused=true,drag=null,clickBlocked=false,intro=null,wasActive=false,needsEntrance=true,sectionEntering=false;
   let paintedCards=[],lastCards=[],entranceOrder=new Map(),entranceFrom=null,departure=null,introDuration=LOOP_ARRIVAL_MS,leftForNavigation=false;
   let motionNotified=false;
+  let previewPaused=false;
   function notifyMotion(moving){
     if(motionNotified===moving)return;motionNotified=moving;
     document.documentElement.dataset.galleryMoving=String(moving);
@@ -28,6 +30,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
   const surface=createProjectLoopSurface(root.querySelector('.loop-canvas'),{signal,isActive:available,invalidate:()=>{if(available()){paint();if(intro!==null)wake();}}});
   surface?.prime(projects.map(project=>mediaPath(project.image)||''));
   const pause=()=>{
+    surface?.setPlaybackEnabled(false);
     if(frame)cancelAnimationFrame(frame);frame=0;previous=null;target=position;sway=swayVelocity=0;
     const pointer=drag?.id;drag=null;
     if(pointer!==undefined&&viewport.hasPointerCapture?.(pointer))viewport.releasePointerCapture(pointer);
@@ -42,6 +45,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
     openButton.dataset.project=String(selected);openButton.setAttribute('aria-label',`View ${project.name} project`);
   }
   function paint(){
+    surface?.setPlaybackEnabled(available()&&!previewPaused&&!reduced.matches&&!forced.matches&&!departure);
     const cards=[];
     slots.forEach(state=>{
       const slot=loopSlot(state.slot,position,projects.length);
@@ -60,7 +64,7 @@ export function initProjectGallery({signal,projects,onOpen}) {
         state.project=slot.project;const project=projects[slot.project],image=mediaPath(project.image)||'';
         state.image.src=image;state.button.dataset.index=String(slot.project);
       }
-      cards.push({slot:state.slot,relative:slot.relative,project:state.project,source:mediaPath(projects[state.project].image)||'',pose});
+      cards.push({slot:state.slot,relative:slot.relative,project:state.project,source:mediaPath(projects[state.project].image)||'',video:mediaPath(projects[state.project].preview?.video),pose});
     });
     lastCards=cards;
     const rendered=surface?.draw(cards,width,height,window.devicePixelRatio||1);
@@ -156,12 +160,19 @@ export function initProjectGallery({signal,projects,onOpen}) {
     if(!frame){notifyMotion(true);frame=requestAnimationFrame(tick);}
   }
   function move(step){if(!canInteract()||projects.length<2)return;target=Math.round(target)+step;wake();}
+  if(playback)on(playback,'click',()=>{
+    previewPaused=!previewPaused;
+    playback.textContent=previewPaused?'Play preview':'Pause preview';
+    playback.setAttribute('aria-pressed',String(previewPaused));
+    paint();
+  });
   function measure(repaint=true){
     viewport.dataset.axis=compact.matches?'vertical':'horizontal';
     const rect=viewport.getBoundingClientRect();if(rect.width>0)width=rect.width;if(rect.height>0)height=rect.height;
     if(repaint)paint();
   }
   function sync(){
+    if(playback)playback.hidden=!surface||reduced.matches||forced.matches;
     const active=available();
     if(!active){finishDeparture(true);pause();wasActive=false;return;}
     measure(false);

@@ -19,6 +19,7 @@ export function renderProjectShowcase(projects) {
       <canvas class="loop-canvas" aria-hidden="true" hidden></canvas>
       <div class="loop-track">${cards}</div>
     </div>
+    <button type="button" class="loop-preview-toggle" aria-pressed="false" hidden>Pause preview</button>
     <div class="loop-caption" hidden>
       <div class="loop-current"><p class="loop-kind">${escape(first.type)}</p><h3 class="loop-title">${escape(first.name)}</h3><p class="loop-status">${first.status==='placeholder'?'Placeholder preview':''}</p></div>
       <button type="button" class="loop-open" data-project="0" aria-label="View ${escape(first.name)} project"><span>Explore project</span><span class="loop-open-arrow" aria-hidden="true">↗</span></button>

@@ -235,7 +235,7 @@ body { font-weight: 450; letter-spacing: -.015em; }
 .section-word { transform-origin: 0 100%; }
 .section-media-frame { transform-origin: 50% 90%; border-radius: inherit; clip-path: inset(0% 0% 0% 0% round 18px); }
 .featured-preview, .project-stage { border-radius: var(--media-radius); }
-.featured-preview img, .project-stage img, .project-stage video, .detail-image {
+.featured-preview img, .project-stage img, .project-stage video, .detail-image, .detail-video {
   filter: var(--media-tone-filter);
 }
 .featured-preview .preview-open, .project-surface .project-surface-cue {
@@ -344,7 +344,7 @@ html[data-entry=loading] .entry-loader[data-phase=reveal] { background: transpar
   .portrait-studio { background: Canvas; }
   #figure { background: Canvas; }
   .profile-sticky::before, .rail-atmosphere { background: Canvas; filter: none; }
-  .featured-preview img, .project-stage img, .project-stage video, .detail-image { filter: none; }
+  .featured-preview img, .project-stage img, .project-stage video, .detail-image, .detail-video { filter: none; }
   .rail-atmosphere .rail-flow-canvas, .rail-atmosphere::before, .rail-atmosphere::after { display: none; }
   .profile-sticky > .figure-wrap, .profile-sticky > .identity { mix-blend-mode: normal; }
   .profile-sticky > .identity, .identity-meta .handle, .identity-meta .profile-role { color: CanvasText; }
