@@ -52,7 +52,6 @@ const bio=profile.about.filter(p=>p?.trim());
 const aboutCopy=document.querySelector('#about-copy');
 aboutCopy.innerHTML=bio.map(p=>`<p>${escape(p)}</p>`).join('')+(email?`<p><a class="email-link" href="mailto:${escape(email)}">${escape(email)}</a></p>`:'');
 aboutCopy.hidden=!aboutCopy.childElementCount;
-document.querySelector('#about-draft').hidden=!profile.aboutIsDraft||!bio.length;
 document.querySelector('.about-narrative').hidden=aboutCopy.hidden;
 const aboutEditorial=document.querySelector('.about-editorial');
 aboutEditorial.hidden=statement.hidden&&aboutCopy.hidden;

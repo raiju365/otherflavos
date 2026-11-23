@@ -40,7 +40,23 @@ check('the shuffled itinerary visits seven distinct profiles with no adjacent re
   }
   assert.equal(forms.size,7);assert.ok(stages>50);
 });
-for (const [width, height] of [[220, 86], [320, 220], [470, 390], [768, 250], [1000, 240], [1920, 1080]]) {
+check('changing the canvas height preserves the ribbon proportions instead of stretching its vertical axis', () => {
+  for (const fallback of [false, true]) {
+    const compact = createPointillistField(320, 160, fallback);
+    const tall = createPointillistField(320, 280, fallback);
+    assert.equal(compact.count, tall.count);
+    for (const time of [0, 3, 8, 17, 36, 54]) {
+      const state = { ...pointillistMotion(time), impact: 1, body: 1, detail: 1 };
+      const a = projectPointillistField(compact, state);
+      const b = projectPointillistField(tall, state);
+      for (let i = 0; i < a.length; i += 4) {
+        assert.ok(Math.abs(a[i] - b[i]) < .0001);
+        assert.ok(Math.abs((a[i + 1] - 80) - (b[i + 1] - 140)) < .0001);
+      }
+    }
+  }
+});
+for (const [width, height] of [[276, 48], [346, 52], [220, 86], [320, 220], [470, 390], [768, 250], [1000, 240], [1920, 1080]]) {
   check(`${width}px projection retains transparent margins and fine dots within both renderer budgets`, () => {
     for (const fallback of [false, true]) {
       const field = createPointillistField(width, height, fallback);
@@ -58,7 +74,7 @@ for (const [width, height] of [[220, 86], [320, 220], [470, 390], [768, 250], [1
           left = Math.min(left, x);
           right = Math.max(right, x);
         }
-        assert.ok(right - left > width * .68);
+        assert.ok(right - left > Math.min(width, (height - 12) * 4.2) * .68);
       }
     }
   });

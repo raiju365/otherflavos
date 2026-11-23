@@ -15,9 +15,6 @@ export const profile = {
     more: ['a little more about <strong>the person behind the work.</strong>'],
   },
   currently: '[Apa yang sedang kamu kerjakan, pelajari, atau eksplorasi saat ini.]',
-  // Dummy About copy, approved as a temporary layout preview. Replace these
-  // fields with your own biography, then set aboutIsDraft to false.
-  aboutIsDraft: true,
   aboutStatement: 'Fahmi Aufa is an art enthusiast exploring visual design and the web.',
   about: [
     'An interest in art shapes the way I look at the web: a space for clear ideas, considered details, and interactions that feel natural.',

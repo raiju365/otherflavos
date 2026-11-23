@@ -58,12 +58,15 @@ export function pointillistMotion(time) {
 }
 
 export function createPointillistField(width, height, fallback = false) {
-  const verticalScale = Math.min(height * .35, Math.max(1, height - 12) * .37, width * .31);
+  // One spatial scale keeps the ribbon's proportions independent of the
+  // canvas aspect ratio. The available height only limits its overall size.
+  const spatialWidth = Math.min(width, Math.max(1, height - 12) * 4.2);
+  const verticalScale = spatialWidth * .084;
   const columnPitch = fallback ? 6.4 : 4;
   const rowPitch = fallback ? 5.2 : 3.5;
   const budget = fallback ? 6500 : 28000;
   const rows = Math.min(160, Math.max(16, Math.round(verticalScale * 2.85 / rowPitch)));
-  const columns = Math.min(Math.floor(budget / rows), Math.max(12, Math.round(width * .8 / columnPitch)));
+  const columns = Math.min(Math.floor(budget / rows), Math.max(12, Math.round(spatialWidth * .8 / columnPitch)));
   const count = columns * rows;
   const samples = new Float32Array(count * 4);
   // Stagger the rings and jitter once so dots stay attached to the surface.
@@ -79,11 +82,11 @@ export function createPointillistField(width, height, fallback = false) {
       samples[index + 3] = (seed >>> 16 & 255) / 255;
     }
   }
-  return { width, height, verticalScale, columns, rows, count, samples, dots: new Float32Array(count * 4) };
+  return { width, height, spatialWidth, verticalScale, columns, rows, count, samples, dots: new Float32Array(count * 4) };
 }
 
 export function projectPointillistField(field, state) {
-  const { width, height, verticalScale, columns, rows, samples, dots } = field;
+  const { width, height, spatialWidth, verticalScale, columns, rows, samples, dots } = field;
   const { from, to, morph, fromSeed, toSeed, flow } = state;
   const bend = mix(forms[from].bend, forms[to].bend, morph);
   const twist = mix(forms[from].twist, forms[to].twist, morph);
@@ -93,7 +96,7 @@ export function projectPointillistField(field, state) {
   const impact = clamp(state.impact || 0);
   const detail = clamp(state.detail || 0);
   const body = clamp(state.body || 0);
-  const halfWidth = width * (.375 + impact * .013);
+  const halfWidth = spatialWidth * (.375 + impact * .013);
   const yScale = verticalScale * (1 + impact * .085);
   const spread = .62 + impact * .12 + detail * .025;
 

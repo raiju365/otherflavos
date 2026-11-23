@@ -53,14 +53,6 @@
 
 #panel-more #about-copy p + p { margin-top: 26px; }
 
-#panel-more .about-draft {
-  margin: 0 0 21px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-  letter-spacing: .025em;
-}
-
 #panel-more .about-contacts { padding-top: clamp(80px, 12vh, 140px); }
 #panel-more #socials { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 #panel-more .social-item { text-align: center; }
